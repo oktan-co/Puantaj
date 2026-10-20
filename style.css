@@ -217,3 +217,18 @@ table.vt tr.yeni td{background:var(--navy-soft);border-top:2px solid var(--line)
 table.vt tr.yeni select#vKisi{font-weight:700;color:var(--accent-ink)}
 table.vt .birim{font-size:11px;color:var(--mut);margin-left:2px}
 .mini.ok{color:var(--ok);font-size:18px}
+/* Sade personel tablosu: kontroller düz metin gibi, üzerine gelince belirir */
+table.bl.sade td.bi{border-left:0}
+table.bl.sade td{border-top-color:var(--soft)}
+table.bl.sade td.bi select{-webkit-appearance:none;appearance:none;background-image:none;cursor:pointer;padding-right:6px}
+table.bl.sade td.bi select:hover,table.bl.sade td.bi select:focus{-webkit-appearance:menulist;appearance:auto;background:var(--soft)}
+table.bl.sade td.bi input[type=date]::-webkit-calendar-picker-indicator{opacity:0;cursor:pointer}
+table.bl.sade td.bi input[type=date]:hover::-webkit-calendar-picker-indicator,table.bl.sade td.bi input[type=date]:focus::-webkit-calendar-picker-indicator{opacity:.6}
+table.bl.sade td.bi input[type=date].bos:not(:focus):not(:hover){color:transparent}
+table.bl.sade td.bi input:hover{background:var(--soft)}
+table.bl.sade tbody tr:not(.grp):hover td{background:var(--navy-soft)}
+table.bl.sade tbody tr:not(.grp):hover td.nmc{background:var(--navy-soft)}
+table.bl.sade td.bi select.bad{box-shadow:none;background:var(--warn-bg);color:var(--warn);font-weight:700}
+table.bl.sade .mini{opacity:.35}table.bl.sade tr:hover .mini{opacity:1}
+table.bl.sade td.bi input::placeholder{color:transparent}
+table.bl.sade td.bi input:focus::placeholder{color:var(--mut);opacity:.6}

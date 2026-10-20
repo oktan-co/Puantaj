@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=24";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=25";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -452,6 +452,8 @@ async function cizelgeyeKoy(sid,wid,pid){if(!erisimVar(sid))return;try{
 const BILGI=[{k:'tel',ad:'Telefon',tip:'tel',im:'tel',ph:'05xx xxx xx xx'},{k:'acilAd',ad:'Acil durum kişisi',tip:'metin',im:'text',ph:'Örn: Annesi Ayşe'},{k:'acilTel',ad:'Acil durum no',tip:'tel',im:'tel',ph:'05xx xxx xx xx'},
   {k:'eposta',ad:'E-posta',tip:'eposta',im:'email',ph:'ornek@mail.com'},{k:'iban',ad:'IBAN',tip:'iban',im:'text',ph:'TR000000000000000000000000'}];
 BILGI.push({k:'tc',ad:'TC kimlik no',tip:'tc',im:'numeric',ph:'11 hane'});
+// Sıra: telefon, IBAN, e-posta, acil durum, TC en sonda
+{const sira=['tel','iban','eposta','acilAd','acilTel','tc'];BILGI.sort((a,b)=>sira.indexOf(a.k)-sira.indexOf(b.k));}
 function ibanGecerli(s){if(!/^TR\d{24}$/.test(s))return false;const r=s.slice(4)+s.slice(0,4);let m=0;for(const ch of r){const n=/\d/.test(ch)?ch:String(ch.charCodeAt(0)-55);for(const d of n)m=(m*10+(+d))%97;}return m===1;}
 function tcGecerli(s){if(!/^[1-9]\d{10}$/.test(s))return false;const d=s.split('').map(Number);const t1=((d[0]+d[2]+d[4]+d[6]+d[8])*7-(d[1]+d[3]+d[5]+d[7]))%10;const t2=d.slice(0,10).reduce((a,b)=>a+b,0)%10;return((t1+10)%10)===d[9]&&t2===d[10];}
 function bilgiCoz(f,raw){const s=String(raw??'').trim();if(!s)return{v:''};
@@ -471,9 +473,9 @@ function bilgiKaydet(p,f,v){p[f.k]=v;return sirayla('p'+p.id,()=>setDoc(doc(db,'
 // Personel listesi: tek tablo, her şey satır içinde düzenlenir, değişiklik anında kaydedilir.
 function sgkCakisma(p,sgkV,ad){if(!sgkV||sgkV===SGK_YOK)return null;const td0=ymd(today());
   return S.personel.find(x=>x.id!==p.id&&x.sgkSube&&x.sgkSube!==SGK_YOK&&x.sgkSube!==sgkV&&(isimAnahtar(x.ad)===isimAnahtar(ad||p.ad)||(p.tc&&x.tc===p.tc))&&(!x.cikis||x.cikis>=td0))||null;}
-function renderBilgiListesi(){const T=byId('blTbl');
+function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';const CAL=gor==='calisma';
   const list=sirala(subePersoneli());const td=ymd(today());const L=[...list.filter(p=>!p.cikis||p.cikis>=td),...list.filter(p=>p.cikis&&p.cikis<td)];
-  const F=BILGI;
+  const F=CAL?[]:BILGI;
   if(T&&T.contains(document.activeElement)&&T.dataset.n===String(L.length))return; // yazarken yeniden çizme
   tcYukle(L);
   const subeler=tumSubeler();const anaSec=(isIsveren()?S.subeIds:(S.me.subeler||[])).filter(x=>S.subeler[x]);
@@ -482,22 +484,24 @@ function renderBilgiListesi(){const T=byId('blTbl');
   const satir=(p,r)=>{const yaz=personelYazabilir(p);const dis=yaz?'':'disabled';const g=gorevBul(gorevTahmin(p));const cik=p.cikis&&p.cikis<td;const ana=p.anaSube||S.subeId;
     return `<tr data-pid="${esc(p.id)}" class="${cik?'mutr':''}">
      <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):''}${cik?' çıktı':''}</span></td>
-     <td class="bi"><select data-x="gorev" ${dis}>${g?'':opt('','Seçin',true)}${GOREVLER.map(x=>opt(x.ad,x.ad,g&&g.ad===x.ad)).join('')}</select></td>
+     ${CAL?`     <td class="bi"><select data-x="gorev" ${dis}>${g?'':opt('','Seçin',true)}${GOREVLER.map(x=>opt(x.ad,x.ad,g&&g.ad===x.ad)).join('')}</select></td>
      <td class="bi">${g&&g.sekil==='Yarı esnaf'?`<select data-x="sgkSekil" ${dis} title="Yarı esnaf: SGK tarafında tam ya da part">${['Tam','Part'].map(x=>opt(x,'Yarı esnaf · '+x,(p.sgkSekil==='Part'?'Part':'Tam')===x)).join('')}</select>`:`<select data-x="sekil" ${dis} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,'Esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select>`}</td>
      <td class="bi"><select data-x="sgkSube" class="${p.sgkSube?'':'bad'}" ${dis}>${p.sgkSube?'':opt('','Seçin',true)}${opt(SGK_YOK,'Boş',p.sgkSube===SGK_YOK)}${subeler.map(([sid,ad])=>opt(sid,ad,p.sgkSube===sid)).join('')}</select></td>
      <td class="bi"><select data-x="anaSube" ${dis}>${(anaSec.includes(ana)?anaSec:[ana,...anaSec]).map(x=>opt(x,subeAdi(x),ana===x)).join('')}</select></td>
-     <td class="bi"><input type="date" data-x="giris" value="${esc(p.giris||'')}" ${dis}></td>
-     <td class="bi"><input type="date" data-x="baslama" value="${esc(p.baslama||'')}" title="SGK'dan önce deneme için çalıştığı ilk gün. Boşsa SGK girişi." ${dis}></td>
-     <td class="bi"><input type="date" data-x="cikis" value="${esc(p.cikis||'')}" ${dis}></td>
+     <td class="bi"><input type="date" data-x="giris" class="${p.giris?'':'bos'}" value="${esc(p.giris||'')}" ${dis}></td>
+     <td class="bi"><input type="date" data-x="baslama" class="${p.baslama?'':'bos'}" value="${esc(p.baslama||'')}" title="SGK'dan önce deneme için çalıştığı ilk gün. Boşsa SGK girişi." ${dis}></td>
+     <td class="bi"><input type="date" data-x="cikis" class="${p.cikis?'':'bos'}" value="${esc(p.cikis||'')}" ${dis}></td>
+`:''}
      ${F.map((f,c)=>`<td class="bi"><input data-r="${r}" data-c="${c}" data-f="${f.k}" value="${esc(bilgiGoster(f,f.k==='tc'?tcOf(p):p[f.k]))}" placeholder="${esc(f.ph)}" inputmode="${f.im}" autocomplete="off" spellcheck="false" ${dis}></td>`).join('')}
      <td class="bi"><button class="mini" data-x="menu" title="Sil / çıkış ver" ${dis}>⋯</button></td></tr>`;};
-  let body='';let r=0;GRUP_SIRA.forEach(g=>{const l=L.filter(p=>(p.grup||'K')===g&&!(p.cikis&&p.cikis<td));if(!l.length)return;body+=`<tr class="grp"><td class="l nmc">${GRUP[g]} · ${l.length}</td><td colspan="${F.length+9}"></td></tr>`;l.forEach(p=>{body+=satir(p,L.indexOf(p));});});
-  const cl=L.filter(p=>p.cikis&&p.cikis<td);if(cl.length){body+=`<tr class="grp"><td class="l nmc">Çıkış yapanlar · ${cl.length}</td><td colspan="${F.length+9}"></td></tr>`;cl.forEach(p=>{body+=satir(p,L.indexOf(p));});}
+  let body='';let r=0;GRUP_SIRA.forEach(g=>{const l=L.filter(p=>(p.grup||'K')===g&&!(p.cikis&&p.cikis<td));if(!l.length)return;body+=`<tr class="grp"><td class="l nmc">${GRUP[g]} · ${l.length}</td><td colspan="${CAL?9:F.length+2}"></td></tr>`;l.forEach(p=>{body+=satir(p,L.indexOf(p));});});
+  const cl=L.filter(p=>p.cikis&&p.cikis<td);if(cl.length){body+=`<tr class="grp"><td class="l nmc">Çıkış yapanlar · ${cl.length}</td><td colspan="${CAL?9:F.length+2}"></td></tr>`;cl.forEach(p=>{body+=satir(p,L.indexOf(p));});}
   const h=`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button></div>
-   <p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi seçilmemiş</b>`:''}. Hücreye yazın ya da seçin, anında kaydedilir. Excel'den telefon, e-posta, IBAN gibi sütunları kopyalayıp bir hücreye yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir. SGK'sı bu şubede olup başka şubede çalışanlar da listede görünür.</p>
-   <div class="tbl-wrap" style="scroll-padding-left:165px"><table class="pt bl" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th><th>Görev</th><th>Şekil</th><th>SGK şubesi</th><th>Çalıştığı şube</th><th>SGK giriş</th><th>İşe başlama<br><small>deneme varsa</small></th><th>Çıkış</th>${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
-   <tbody>${body||`<tr><td class="l" colspan="${F.length+9}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
-  view(h,()=>{byId('addP').onclick=()=>personelPanel(null);const tb=byId('blTbl');
+   <p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi eksik</b>`:''} · ${CAL?'Hücreye tıklayıp değiştirin, anında kaydedilir.':'Excel\'den kopyalayıp yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.'}</p>
+   <div class="seg" id="pGor" style="margin-bottom:10px"><button data-v="calisma" class="${CAL?'on':''}">Çalışma bilgileri</button><button data-v="iletisim" class="${CAL?'':'on'}">İletişim ve banka</button></div>
+   <div class="tbl-wrap" style="scroll-padding-left:165px"><table class="pt bl sade" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${CAL?`<th>Görev</th><th>Şekil</th><th>SGK şubesi</th><th>Çalıştığı şube</th><th>SGK giriş</th><th>Deneme başlangıcı</th><th>Çıkış</th>`:''}${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
+   <tbody>${body||`<tr><td class="l" colspan="${CAL?9:F.length+2}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
+  view(h,()=>{byId('addP').onclick=()=>personelPanel(null);const tb=byId('blTbl');document.querySelectorAll('#pGor button').forEach(b=>b.onclick=()=>{S.pgor=b.dataset.v;render();});
     const pOf=el=>S.personel.find(x=>x.id===el.closest('tr').dataset.pid);
     const yaz1=(p,body,yenidenCiz)=>{Object.assign(p,body);sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),body,{merge:true}));if(yenidenCiz){document.activeElement&&document.activeElement.blur();render();}};
     const geri=(el,msg,v)=>{toast(msg);el.value=v;el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),2500);};
