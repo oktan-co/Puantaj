@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=50";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=51";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -175,9 +175,9 @@ function sagHesap(pid,sol,sag,net,sb,devir,ek={},us={}){const e=k=>ek[k]||0;if(t
   if(esnaf){paketHak=sayi(s.paketSayisi)*sayi(s.paketUcret!=null&&s.paketUcret!==''?s.paketUcret:sb.paketUcret);hak=paketHak;maasFarki=paketHak-bankaya;}
   else if(saat){hak=((sol.calisilanSaat||0)+e('SA'))*sayi(us.saatUcret);maasFarki=hak-bankaya;fmTl=0;}
   else if(pb&&sol.maasBurada!==false){hak=0;maasFarki=0;fmTl=0;/* paket başı: kazanç paket primi sütununda; fazla mesai yok */}
-  else if(sol.maasBurada===false){const n=sayi(net);const fm=Math.max(sol.fmSaat||0,0);fmTl=sb.fmYontem==='maas'?(n?fm*n/30/9:0):fm*sayi(sb.fmUcret);}
+  else if(sol.maasBurada===false){const n=sayi(net);const fm=(sol.fmSaat||0)/* eksi mesai de işlenir */;fmTl=sb.fmYontem==='maas'?(n?fm*n/30/9:0):fm*sayi(sb.fmUcret);}
   else{const n=sayi(net);const hg=sol.hakGun!=null?sol.hakGun:sol.gun;hak=n?n*hg/30:0;maasFarki=n?hak-bankaya:0;
-    const fm=Math.max(sol.fmSaat||0,0);fmTl=sb.fmYontem==='maas'?(n?fm*n/30/9:0):fm*sayi(sb.fmUcret);}
+    const fm=(sol.fmSaat||0)/* eksi mesai de işlenir */;fmTl=sb.fmYontem==='maas'?(n?fm*n/30/9:0):fm*sayi(sb.fmUcret);}
   const maasYok=!esnaf&&!saat&&sol.maasBurada===false;const bank2=maasYok?0:bankaya;
   fmTl+=e('FMT');const ekOd=e('EK')-e('KS');const pp=paketPrimi;const pbBanka=pb&&!esnaf&&sol.maasBurada!==false?bankaya:0;const kalanHam=maasFarki+fmTl+pp+ciroPrimi-avans-araOdeme+ekOd-pbBanka;const kalan=Math.round(kalanHam/5)*5||0;// kuruş ödenmez: 5 TL'ye yuvarla
   return{esnaf,maasYok,pb:pb&&!esnaf&&sol.maasBurada!==false,saat,saatSayi:(sol.calisilanSaat||0)+e('SA'),cizelgeSaat:sol.calisilanSaat||0,saatUcret:sayi(us.saatUcret),bankaya:bank2,paketPrimi:pp,kalanHam,ciroPrimi,avans,araOdeme,devirAvans,hak,maasFarki,fmTl,paketHak,devir,kalan,ekOd,netYok:!esnaf&&!maasYok&&!pb&&!saat&&!sayi(net)};}
@@ -639,7 +639,7 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
 /* ================= Ay sonu (şube müdürü) ================= */
 function renderAy(){const ak=S.ay||gosterAy(S.hafta);S.ay=ak;const sb=sube();const kisiler=sirala(ayKadrosu(ak));const R=kisiler.map(p=>({p,a:ayHesap(p,ak,sb)}));
   const d=S.aylar[ak]||{durum:'taslak'};const kilit=d.durum==='sube_onay'||d.durum==='bolge_onay';
-  const topFm=R.reduce((s,x)=>s+Math.max(x.a.fm,0),0),rap=R.reduce((s,x)=>s+(x.a.kod.R||0),0),ui=R.reduce((s,x)=>s+(x.a.kod.UI||0),0),bos=R.reduce((s,x)=>s+x.a.bos,0);
+  const topFm=R.reduce((s,x)=>s+x.a.fm,0),rap=R.reduce((s,x)=>s+(x.a.kod.R||0),0),ui=R.reduce((s,x)=>s+(x.a.kod.UI||0),0),bos=R.reduce((s,x)=>s+x.a.bos,0);
   let h=`<div class="weeknav"><button class="nav-arrow" id="prevM">‹</button><div class="ttl">${ayAdi(ak)}<small>${DURUM[d.durum].ad}</small></div><button class="nav-arrow" id="nextM">›</button></div>`;
   if(sb.fmDonem==='hafta'){const L=fmHaftalari(ak);const bitis=ymd(addDays(parse(L[L.length-1]),6));h+=`<div class="banner ${ymd(today())<=bitis&&!kilit?'':'ok'}">Fazla mesai dönemi: ${fmDonemYazi(ak,sb)}.${ymd(today())<=bitis&&!kilit?` Ayı ${trTarih(bitis)} çizelgesi bittikten sonra kapatın.`:''}</div>`;}
   if(d.durum==='geri')h+=`<div class="banner bad">Bölge müdürü geri gönderdi${d.not?': "'+esc(d.not)+'"':''}. Düzeltip ayı yeniden kapatın.</div>`;
@@ -799,7 +799,7 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   const oto=[];const sol0=V.kilitli&&V.D.sol?null:solHesap(ak);const kaynak=sol0||V.sol;
   const netM=(S.pt.maas&&S.pt.maas.net)||{};const fmOran=pid=>V.sb.fmYontem==='maas'?(sayi(netM[pid])?sayi(netM[pid])/30/9:null):sayi(V.sb.fmUcret);
   Object.entries(kaynak).forEach(([pid,r])=>{[['R','rapor'],['UI','ucretsiz'],['YI','yillik'],['B','bayram'],['PG','partGun'],['FM','fmSaat']].forEach(([k,f])=>{let v=r[f]||0;if(V.kilitli){const e=(V.oz[pid]||{})[k]||0;v-=e;}if(Math.abs(v)<=0.001)return;
-    if(k==='FM'){if(v<0||ucretSekli(pid)!=='maas')return;const o=fmOran(pid);oto.push({pid,tur:'FMT',miktar:o==null?null:Math.round(v*o*100)/100,aciklama:`${fmt(v)} saat fazla mesai${o==null?' · net maaş girilmedi':''}`});return;}oto.push({pid,tur:k,miktar:v});});});
+    if(k==='FM'){if(ucretSekli(pid)!=='maas')return;const o=fmOran(pid);oto.push({pid,tur:'FMT',miktar:o==null?null:Math.round(v*o*100)/100,aciklama:`${sg(v)} saat ${v<0?'eksi mesai':'fazla mesai'}${o==null?' · net maaş girilmedi':''}`});return;}oto.push({pid,tur:k,miktar:v});});});
   const ayAralik=(()=>{const L=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));return `1–${+L.slice(8)} ${AYK[+ak.slice(5)-1]}`;})();
   V.satir.forEach(x=>{if(x.hes.saat&&x.hes.cizelgeSaat)oto.push({pid:x.pid,tur:'SA',miktar:x.hes.cizelgeSaat,aciklama:`çizelgedeki saatler (${ayAralik})`});});
   V.satir.forEach(x=>{if(x.hes.devirAvans)oto.push({pid:x.pid,tur:'AV',miktar:x.hes.devirAvans,aciklama:`devir avans (${ayAdi(ayKaydir(ak,-1))})`});});
