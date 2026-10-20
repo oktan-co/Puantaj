@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=41";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=42";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -38,7 +38,7 @@ function gorevTahmin(p){const g=String(p.gorev||'').toLocaleUpperCase('tr-TR');i
 function subeAdi(id){if(id===SGK_YOK)return'';return(S.subeler[id]&&S.subeler[id].ad)||(S.subeAdlari[id])||id||'';}
 const ROL={sube:'Şube müdürü',bolge:'Bölge müdürü',isveren:'İşveren'};
 const DURUM={taslak:{ad:'Taslak',c:'mut'},sube_onay:{ad:'Şube onayladı',c:'warn'},geri:{ad:'Geri gönderildi',c:'bad'},bolge_onay:{ad:'Bölge onayladı',c:'ok'}};
-const VARSAYILAN={ad:'Şube',acilis:'11:00',kapanis:'00:30',gunluk:8.5,haftalik:51,partSaat:8,fmYontem:'sabit',fmUcret:165,paketUcret:0,fmDonem:'ay'};
+const VARSAYILAN={ad:'Şube',acilis:'11:00',kapanis:'00:30',gunluk:8.5,haftalik:51,partSaat:8,fmYontem:'sabit',fmUcret:165,paketUcret:0,fmDonem:'hafta'};
 
 /* ================= Firebase ================= */
 const ayarliMi=!String(firebaseConfig.apiKey||'').startsWith('BURAYA');
@@ -903,42 +903,53 @@ function bordroCoz(lines){const para=/-?\d{1,3}(?:\.\d{3})*,\d{2}/g;const out={i
       out.kisiler.push({ad:m[2].replace(/\s+/g,' ').trim(),tc:m[3],giris:m[4],sgkGun:g?+g[3]:null,eksikGun:eksik?+eksik[1]:0,neden,net:nums.length?sayi(nums[nums.length-1]):null});}
     if((m=l.match(/Toplamlar:/))){const nums=l.match(para)||[];if(nums.length)out.toplam=sayi(nums[nums.length-1]);}});
   return out;}
-function bordroPanel(V){openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${esc(V.sb.ad)} · ${ayAdi(V.ak)}. Net ödenen tutarlar veri girişine "Bankaya yatan" satırı olarak eklenir. PDF okunmazsa tutarları veri girişine elle yazabilirsiniz.</div>
-  <label class="field"><span>Bordro PDF dosyası</span><input id="bF" type="file" accept="application/pdf"></label><div id="bOut"></div>`,()=>{
-  byId('bF').onchange=async e=>{const f=e.target.files[0];if(!f)return;const O=byId('bOut');O.innerHTML='<p class="note">PDF okunuyor…</p>';
-    let r;try{r=bordroCoz(await pdfSatirlari(f));}catch(err){O.innerHTML='<div class="confirm bad">PDF okunamadı. Taranmış (resim) PDF olabilir; muhasebeden metin içeren PDF isteyin.</div>';return;}
-    if(!r.kisiler.length){O.innerHTML='<div class="confirm bad">PDF\'te bordro satırı bulunamadı. Format farklı olabilir.</div>';return;}
-    const tcMap={...((S.pt.maas&&S.pt.maas.tc)||{})};S.personel.forEach(q=>{if(q.tc&&!tcMap[q.id])tcMap[q.id]=q.tc;});const ids=Object.keys(V.sol);
-    const eslesme=r.kisiler.map(k=>{let pid=ids.find(id=>isimAnahtar(V.sol[id].ad)===isimAnahtar(k.ad));let yol='isim';
-      if(!pid){pid=ids.find(id=>tcMap[id]&&tcMap[id]===k.tc);yol=pid?'tc':null;}return{...k,pid,yol};});
-    const top=r.kisiler.reduce((s,k)=>s+(k.net||0),0);const ok=r.toplam==null||Math.abs(top-r.toplam)<0.05;
-    const subeUyar=r.isyeri&&!isimAnahtar(r.isyeri).includes(isimAnahtar(V.sb.ad));
-    O.innerHTML=`<div class="tags" style="margin:6px 0 10px"><span class="tag">${esc(r.isyeri||'İşyeri okunamadı')}</span><span class="tag">${esc(r.donem||'')}</span><span class="tag ${ok?'':'warn'}">${r.kisiler.length} kişi · ${tl(top)} ₺ ${ok?'✓ PDF toplamıyla aynı':'⚠ PDF toplamı '+tl(r.toplam)}</span></div>
-     ${subeUyar?`<div class="confirm">Bordrodaki işyeri adı "${esc(r.isyeri)}", seçili şube "${esc(V.sb.ad)}". Doğru dosya olduğundan emin olun.</div>`:''}
-     <div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">Bordrodaki isim</th><th class="l">Personel</th><th>SGK gün</th><th>Puantaj gün</th><th>Net ödenen</th></tr></thead><tbody>
-     ${eslesme.map((k,j)=>{const sol=k.pid&&V.sol[k.pid];const fark=sol&&k.sgkGun!=null&&sol.gun!==k.sgkGun;
-       return `<tr><td class="l">${esc(k.ad)}${k.neden?`<br><span class="tag">${k.eksikGun} gün ${esc(k.neden)}</span>`:''}</td><td class="l"><select data-j="${j}" style="max-width:170px">${'<option value="">— eşleşmedi —</option>'+ids.map(id=>`<option value="${esc(id)}" ${id===k.pid?'selected':''}>${esc(V.sol[id].ad)}</option>`).join('')}</select>
-         ${k.yol==='tc'?'<br><span class="tag warn">İsim tutmadı, TC ile eşleşti</span>':''}${(()=>{const p=k.pid&&S.personel.find(q=>q.id===k.pid);const h=p&&odemeSubesi(p);return h&&h!==S.subeId?`<br><span class="tag">maaşı ${esc(subeAdi(h))} → oraya işlenir</span>`:'';})()}</td><td>${k.sgkGun??''}</td><td>${sol?sol.gun:''}${fark?' <span class="tag warn">gün farkı</span>':''}</td><td><b>${tl(k.net)}</b></td></tr>`;}).join('')}</tbody></table></div>
-     <div class="row2"><button class="btn grow" id="bNo">Vazgeç</button><button class="btn primary grow" id="bOk">Bankaya yatanları işle</button></div>`;
-    byId('bNo').onclick=closeSheet;O.querySelectorAll('select').forEach(s=>s.onchange=()=>{eslesme[+s.dataset.j].pid=s.value||null;eslesme[+s.dataset.j].yol=s.value?'elle':null;});
-    byId('bOk').onclick=async()=>{const deg={},tcYeni={};eslesme.forEach(k=>{if(!k.pid)return;deg[k.pid]={bankaya:k.net};if(!tcMap[k.pid])tcYeni[k.pid]=k.tc;});
+function bordroPanel(V){const ids=Object.keys(V.sol);let satirlar=[];const okunan=[];
+  openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${esc(V.sb.ad)} · ${ayAdi(V.ak)}. Birden çok şubenin bordrosunu birlikte bırakabilirsiniz; sadece bu puantajdaki kişiler eşleşir, diğerleri atlanır. Net ödenen tutarlar veri girişine "Bankaya yatan" olarak eklenir.</div>
+   <label class="drop" id="bDrop"><input id="bF" type="file" accept="application/pdf" multiple hidden><b>PDF'leri buraya sürükleyip bırakın</b><span>ya da tıklayıp seçin (birden fazla seçebilirsiniz)</span></label><div id="bDosya"></div><div id="bOut"></div>`,sh=>{
+   const tcMap={...((S.pt.maas&&S.pt.maas.tc)||{})};S.personel.forEach(q=>{if(q.tc&&!tcMap[q.id])tcMap[q.id]=q.tc;});
+   const D=byId('bDrop');['dragenter','dragover'].forEach(ev=>D.addEventListener(ev,e=>{e.preventDefault();D.classList.add('on');}));['dragleave','drop'].forEach(ev=>D.addEventListener(ev,e=>{e.preventDefault();D.classList.remove('on');}));
+   D.addEventListener('drop',e=>oku([...e.dataTransfer.files]));byId('bF').onchange=e=>oku([...e.target.files]);
+   const oku=async files=>{files=files.filter(f=>/pdf$/i.test(f.name)||f.type==='application/pdf');if(!files.length){toast('PDF dosyası seçin.');return;}
+     byId('bOut').innerHTML='<p class="note">PDF okunuyor…</p>';
+     for(const f of files){let r;try{r=bordroCoz(await pdfSatirlari(f));}catch(err){okunan.push({ad:f.name,hata:'okunamadı (taranmış PDF olabilir)'});continue;}
+       if(!r.kisiler.length){okunan.push({ad:f.name,hata:'bordro satırı bulunamadı'});continue;}
+       const top=r.kisiler.reduce((s,k)=>s+(k.net||0),0);okunan.push({ad:f.name,isyeri:r.isyeri,donem:r.donem,n:r.kisiler.length,toplamOk:r.toplam==null||Math.abs(top-r.toplam)<0.05,toplam:r.toplam,top});
+       r.kisiler.forEach(k=>{let pid=ids.find(id=>isimAnahtar(V.sol[id].ad)===isimAnahtar(k.ad));let yol='isim';if(!pid){pid=ids.find(id=>tcMap[id]&&tcMap[id]===k.tc)||null;yol=pid?'tc':null;}
+         satirlar.push({...k,isyeri:r.isyeri||f.name,pid,yol,netYazi:k.net});});}
+     ciz();};
+   const ciz=()=>{// aynı kişi iki kez eşleşirse (aynı PDF iki kez bırakıldıysa vb.) ilki geçerli
+     const gor={};satirlar.forEach(k=>{k.tekrar=false;if(!k.pid)return;if(gor[k.pid])k.tekrar=true;else gor[k.pid]=1;});
+     byId('bDosya').innerHTML=okunan.map(o=>`<div class="tags" style="margin:6px 0 0"><span class="tag">${esc(o.ad)}</span>${o.hata?`<span class="tag warn">${esc(o.hata)}</span>`:`<span class="tag">${esc(o.isyeri||'')}</span><span class="tag">${esc(o.donem||'')}</span><span class="tag ${o.toplamOk?'':'warn'}">${o.n} kişi · ${tl(o.top)} ₺ ${o.toplamOk?'✓':'⚠ PDF toplamı '+tl(o.toplam)}</span>`}</div>`).join('');
+     const es=satirlar.filter(k=>k.pid&&!k.tekrar),yok=satirlar.filter(k=>!k.pid);
+     const satir=(k)=>{const j=satirlar.indexOf(k);const sol=k.pid&&V.sol[k.pid];const fark=sol&&k.sgkGun!=null&&sol.gun!==k.sgkGun;const p=k.pid&&S.personel.find(q=>q.id===k.pid);const h=p&&odemeSubesi(p);
+       return `<tr class="${!k.pid?'oto':k.tekrar?'hata':''}"><td class="l">${esc(k.ad)}<br><span class="tag">${esc(k.isyeri)}</span>${k.neden?` <span class="tag">${k.eksikGun} gün ${esc(k.neden)}</span>`:''}</td>
+         <td class="l"><select data-j="${j}" style="max-width:170px"><option value="">— bu şubede yok —</option>${ids.map(id=>`<option value="${esc(id)}" ${id===k.pid?'selected':''}>${esc(V.sol[id].ad)}</option>`).join('')}</select>
+         ${k.yol==='tc'?'<br><span class="tag warn">İsim tutmadı, TC ile eşleşti</span>':''}${k.tekrar?'<br><span class="tag warn">Bu kişi başka satırda zaten var, atlanır</span>':''}${h&&h!==S.subeId?`<br><span class="tag">maaşı ${esc(subeAdi(h))} → oraya işlenir</span>`:''}</td>
+         <td>${k.sgkGun??''}</td><td>${sol?sol.gun:''}${fark?' <span class="tag warn">gün farkı</span>':''}</td>
+         <td class="bi"><input data-n="${j}" value="${esc(k.netYazi==null?'':fmt(k.netYazi))}" inputmode="decimal" style="width:110px;text-align:right;font-weight:700" title="Okunan tutar yanlışsa düzeltin"></td></tr>`;};
+     byId('bOut').innerHTML=satirlar.length?`<p class="note" style="margin:8px 0 4px"><b>${es.length} kişi eşleşti</b>${yok.length?` · ${yok.length} kişi bu şubede yok (atlanır)`:''}. Tutar yanlış okunduysa kutudan düzeltin.</p>
+       <div class="tbl-wrap" style="max-height:48vh;overflow:auto"><table class="pt vt"><thead><tr><th class="l">Bordrodaki isim</th><th class="l">Personel</th><th>SGK gün</th><th>Puantaj gün</th><th>Net ödenen</th></tr></thead><tbody>${[...es,...satirlar.filter(k=>k.pid&&k.tekrar),...yok].map(satir).join('')}</tbody></table></div>
+       <div class="row2"><button class="btn grow" id="bEk">+ PDF ekle</button><button class="btn primary grow" id="bOk" ${es.length?'':'disabled'}>${es.length} kişinin bankaya yatanını işle</button></div>`:'';
+     const be=byId('bEk');if(be)be.onclick=()=>byId('bF').click();
+     byId('bOut').querySelectorAll('select[data-j]').forEach(s=>s.onchange=()=>{const k=satirlar[+s.dataset.j];k.pid=s.value||null;k.yol=s.value?'elle':null;ciz();});
+     byId('bOut').querySelectorAll('input[data-n]').forEach(i=>i.onchange=()=>{satirlar[+i.dataset.n].netYazi=sayi(i.value);i.value=fmt(sayi(i.value));});
+     const ok=byId('bOk');if(ok)ok.onclick=()=>isle(es);};
+   const isle=async es=>{const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
       const n=Object.keys(deg).length;if(!n){toast('Eşleşen personel yok.');return;}
       try{if(Object.keys(tcYeni).length)await setDoc(doc(db,'maaslar',S.subeId),{tc:tcYeni},{merge:true});
-        // Bordro tutarları veri girişine "Bankaya yatan" satırı olarak yazılır; aynı kişinin eski bordro satırı değiştirilir.
         const sonGun=ymd(new Date(+V.ak.slice(0,4),+V.ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
-        // Kişi bazlı: maaşı başka şubede ödenen kişinin tutarı o şubenin veri girişine gider.
-        const hedefOf=pid=>{const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p):S.subeId;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
+        const hedefOf=pid=>{const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p):S.subeId;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
         const burada=Object.keys(deg).filter(pid=>hedefOf(pid)===S.subeId),disari={};Object.keys(deg).forEach(pid=>{const h=hedefOf(pid);if(h!==S.subeId)(disari[h]=disari[h]||[]).push(pid);});
-        const eski=((S.pt.doc&&S.pt.doc.veri)||[]).filter(v=>!(v.kaynak==='bordro'&&deg[v.pid]));
-        const yeni=[...eski,...burada.map(satirOf)];
-        const degS={};Object.keys(deg).forEach(pid=>degS[pid]={bankaya:''});// eski yöntemle yazılmış tutar varsa iki kez sayılmasın
+        const eski=((S.pt.doc&&S.pt.doc.veri)||[]).filter(v=>!(v.kaynak==='bordro'&&deg[v.pid]));const yeni=[...eski,...burada.map(satirOf)];
+        const degS={};Object.keys(deg).forEach(pid=>degS[pid]={bankaya:''});
         S.pt.doc={...(S.pt.doc||{}),veri:yeni};const V2={...V,D:{...V.D,veri:yeni}};const sag=sagSonuclu(V2,degS);
         await setDoc(doc(db,'puantaj',S.subeId,'aylar',V.ak),{...(V.kilitli?{}:{sube:S.subeId,ay:V.ak}),sag,veri:yeni,guncellendi:z},{merge:true});
         const giden=[],yetkiYok=[];for(const[h,L] of Object.entries(disari)){if(!(isIsveren()||(S.me.subeler||[]).includes(h))){yetkiYok.push(subeAdi(h)+': '+L.map(pid=>adBuyuk(V.sol[pid].ad)).join(', '));continue;}
           const ref=doc(db,'puantaj',h,'aylar',V.ak);const d0=await getDoc(ref);const v0=((d0.exists()&&d0.data().veri)||[]).filter(v=>!(v.kaynak==='bordro'&&L.includes(v.pid)));
           await setDoc(ref,{sube:h,ay:V.ak,veri:[...v0,...L.map(satirOf)],guncellendi:z},{merge:true});giden.push(`${L.length} kişi → ${subeAdi(h)}`);}
         closeSheet();toast(`${burada.length} kişi bu şubeye işlendi${giden.length?', '+giden.join(', '):''}.`);render();
-        if(yetkiYok.length)openSheet(`<h2>Bazı tutarlar işlenemedi</h2><div class="sub">Bu kişilerin maaşı yetkiniz olmayan şubede ödeniyor. Tutarları o şubenin bölge müdürü veri girişine "Bankaya yatan" olarak girmeli.</div><div class="card" style="padding:12px">${yetkiYok.map(esc).join('<br>')}</div><div class="row2"><button class="btn primary grow" onclick="document.getElementById('sheetRoot').innerHTML=''">Tamam</button></div>`);}catch(e){yazmaHatasi(e);}};};});}
+        if(yetkiYok.length)openSheet(`<h2>Bazı tutarlar işlenemedi</h2><div class="sub">Bu kişilerin maaşı yetkiniz olmayan şubede ödeniyor. Tutarları o şubenin bölge müdürü veri girişine "Bankaya yatan" olarak girmeli.</div><div class="card" style="padding:12px">${yetkiYok.map(esc).join('<br>')}</div><div class="row2"><button class="btn primary grow" onclick="document.getElementById('sheetRoot').innerHTML=''">Tamam</button></div>`);}
+      catch(e){yazmaHatasi(e);}};});}
 
 /* ================= Paylaş (görsel) ================= */
 async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds=weekDays(wid);const ak=gosterAy(wid);const kisiler=cizelgeKisileri(wid);
@@ -978,13 +989,17 @@ function paylas(){let fm=tryLS('pm.shareFm')!=='0';
 /* ================= Yönetim (işveren) ================= */
 function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
   let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button></div>`;
-  if(bolum==='subeler'){h+=`<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>`;
+  if(bolum==='subeler'){const hf=S.subeIds.filter(id=>sube(id).fmDonem==='hafta').length;
+    h+=`<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>
+     <div class="card" style="padding:12px;margin-bottom:10px"><span class="lbl" style="margin-top:0">Tüm şubelerde fazla mesai dönemi</span><div class="seg" id="yDon"><button data-v="hafta" class="${hf===S.subeIds.length?'on':''}">Haftalık (örn. Eylül: 7 Eyl – 4 Eki)</button><button data-v="ay" class="${hf===0?'on':''}">Takvim ayı</button></div>
+     <p class="note" style="margin-bottom:0">Şu an ${hf} / ${S.subeIds.length} şube haftalık. Seçince tüm şubelere uygulanır; tek tek şube ayarından da değiştirilebilir.</p></div>`;
     h+=S.subeIds.length?`<div class="card list">${S.subeIds.map(id=>{const s=sube(id);return `<button class="row" data-sid="${esc(id)}"><div class="av">${esc(bas(s.ad))}</div><div class="m"><b>${esc(s.ad)}</b><span>${esc(s.acilis)}–${esc(s.kapanis)} · günlük ${fmt(s.gunluk)} sa · FM ${s.fmYontem==='maas'?'maaş ÷ 30 ÷ 9':tl0(s.fmUcret)+'/sa'}</span></div></button>`;}).join('')}</div>`:`<div class="empty-state"><b>Henüz şube yok</b>İlk şubeyi ekleyin.</div>`;}
   else{h+=`<div class="actions"><button class="btn primary grow" id="yKulEkle">Kullanıcı ekle</button></div>`;
     const us=S.users.slice().sort((a,b)=>['isveren','bolge','sube'].indexOf(a.rol)-['isveren','bolge','sube'].indexOf(b.rol)||String(a.adSoyad).localeCompare(String(b.adSoyad),'tr'));
     h+=`<div class="card list">${us.map(u=>`<button class="row" data-uid="${esc(u.uid)}"><div class="av">${esc(bas(u.adSoyad||u.kullaniciAdi))}</div><div class="m"><b>${esc(u.adSoyad||u.kullaniciAdi)}</b><span>${esc(u.kullaniciAdi)} · ${u.rol==='isveren'?'Tüm şubeler':(u.subeler||[]).map(s=>S.subeler[s]?S.subeler[s].ad:s).join(', ')||'Şube atanmamış'}</span></div>
       <span class="chip ${u.aktif===false?'mut':u.rol==='isveren'?'warn':u.rol==='bolge'?'ok':'mut'}">${u.aktif===false?'Kapalı':ROL[u.rol]||u.rol}</span></button>`).join('')}</div>`;}
   view(h,()=>{document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});
+    document.querySelectorAll('#yDon button').forEach(b=>b.onclick=async()=>{const v=b.dataset.v;const bt=writeBatch(db);S.subeIds.forEach(id=>bt.set(doc(db,'subeler',id),{fmDonem:v},{merge:true}));try{await bt.commit();toast(`Tüm şubelerde fazla mesai dönemi: ${v==='hafta'?'haftalık':'takvim ayı'}.`);}catch(e){yazmaHatasi(e);}});
     const se=byId('ySubeEkle');if(se)se.onclick=()=>subePanel(null);document.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>subePanel(b.dataset.sid));
     const ke=byId('yKulEkle');if(ke)ke.onclick=()=>kullaniciPanel(null);document.querySelectorAll('[data-uid]').forEach(b=>b.onclick=()=>kullaniciPanel(b.dataset.uid));});}
 function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
