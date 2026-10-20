@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=11";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=12";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -424,7 +424,7 @@ async function cizelgeyeKoy(sid,wid,pid){if(!erisimVar(sid))return;try{
 // Bu bilgiler personel kaydında durur; kayıt sadece kişinin şubesi (ve SGK şubesinin bölge müdürü / işveren) tarafından okunur.
 const BILGI=[{k:'tel',ad:'Telefon',tip:'tel',im:'tel',ph:'05xx xxx xx xx'},{k:'acilAd',ad:'Acil durum kişisi',tip:'metin',im:'text',ph:'Örn: Annesi Ayşe'},{k:'acilTel',ad:'Acil durum no',tip:'tel',im:'tel',ph:'05xx xxx xx xx'},
   {k:'eposta',ad:'E-posta',tip:'eposta',im:'email',ph:'ornek@mail.com'},{k:'iban',ad:'IBAN',tip:'iban',im:'text',ph:'TR00 0000 0000 0000 0000 0000 00'}];
-const TC_ALAN={k:'tc',ad:'TC kimlik no',tip:'tc',im:'numeric',ph:'11 hane'};
+BILGI.push({k:'tc',ad:'TC kimlik no',tip:'tc',im:'numeric',ph:'11 hane'});
 function ibanGecerli(s){if(!/^TR\d{24}$/.test(s))return false;const r=s.slice(4)+s.slice(0,4);let m=0;for(const ch of r){const n=/\d/.test(ch)?ch:String(ch.charCodeAt(0)-55);for(const d of n)m=(m*10+(+d))%97;}return m===1;}
 function tcGecerli(s){if(!/^[1-9]\d{10}$/.test(s))return false;const d=s.split('').map(Number);const t1=((d[0]+d[2]+d[4]+d[6]+d[8])*7-(d[1]+d[3]+d[5]+d[7]))%10;const t2=d.slice(0,10).reduce((a,b)=>a+b,0)%10;return((t1+10)%10)===d[9]&&t2===d[10];}
 function bilgiCoz(f,raw){const s=String(raw??'').trim();if(!s)return{v:''};
@@ -438,25 +438,25 @@ function excelBilgi(o){const out={};BILGI.forEach(f=>{if(o[f.k]==null)return;con
 // TC sadece bölge müdürü / işveren: maaslar/{SGK şubesi}.tc
 async function tcYukle(list){if(!puantajYetki())return;S.tcler=S.tcler||{};const need=[...new Set(list.map(maasSubesi))].filter(s=>s&&!(s in S.tcler)&&(isIsveren()||(S.me.subeler||[]).includes(s)));
   if(!need.length)return;await Promise.all(need.map(async s=>{try{const d=await getDoc(doc(db,'maaslar',s));S.tcler[s]=(d.exists()&&d.data().tc)||{};}catch(e){S.tcler[s]=null;}}));render();}
-function tcOf(p){const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':null;}
-function bilgiKaydet(p,f,v){if(f.k==='tc'){const s=maasSubesi(p);(S.tcler[s]=S.tcler[s]||{})[p.id]=v;return sirayla('m'+s,()=>setDoc(doc(db,'maaslar',s),{tc:{[p.id]:v}},{merge:true}));}
-  p[f.k]=v;return sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),{[f.k]:v},{merge:true}));}
+// TC personel kaydında; eski kayıtlarda bordrodan gelen TC maaslar'da durabilir (bölge/işveren görür).
+function tcOf(p){if(p.tc)return p.tc;const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':'';}
+function bilgiKaydet(p,f,v){p[f.k]=v;return sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),{[f.k]:v},{merge:true}));}
 function renderBilgiListesi(){const T=byId('blTbl');
   const list=sirala(subePersoneli());const td=ymd(today());const L=[...list.filter(p=>!p.cikis||p.cikis>=td),...list.filter(p=>p.cikis&&p.cikis<td)];
-  const tcVar=puantajYetki();const F=tcVar?[...BILGI,TC_ALAN]:BILGI;
+  const F=BILGI;
   if(T&&T.contains(document.activeElement)&&T.dataset.n===String(L.length))return; // yazarken yeniden çizme
-  if(tcVar)tcYukle(L);
+  tcYukle(L);
   const eksik=L.filter(p=>!p.cikis||p.cikis>=td).filter(p=>!p.tel||!p.iban).length;
-  const hucre=(p,f,r,c)=>{let v,dis='';if(f.k==='tc'){const t=tcOf(p);if(t===null){v='';dis='disabled title="Bu kişinin SGK şubesi yetkiniz dışında"';}else v=t;}else v=p[f.k];
+  const hucre=(p,f,r,c)=>{const dis='';const v=f.k==='tc'?tcOf(p):p[f.k];
     return `<td class="bi"><input data-r="${r}" data-c="${c}" data-f="${f.k}" value="${esc(bilgiGoster(f,v))}" placeholder="${esc(f.ph)}" inputmode="${f.im}" autocomplete="off" spellcheck="false" ${dis}></td>`;};
-  const h=personelMod()+`<p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide telefon veya IBAN eksik</b>`:''}. Hücreye yazın, çıkınca kaydedilir. Excel'den birden çok hücreyi kopyalayıp bir hücreye yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.${tcVar?' TC kimlik no sütununu sadece bölge müdürü ve işveren görür.':''}</p>
+  const h=personelMod()+`<p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide telefon veya IBAN eksik</b>`:''}. Hücreye yazın, çıkınca kaydedilir. Excel'den birden çok hücreyi kopyalayıp bir hücreye yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.</p>
    <div class="tbl-wrap" style="scroll-padding-left:165px"><table class="pt bl" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${F.map(f=>`<th>${f.ad}</th>`).join('')}</tr></thead>
    <tbody>${L.map((p,r)=>`<tr data-pid="${esc(p.id)}" class="${p.cikis&&p.cikis<td?'mutr':''}"><td class="l nmc"><b>${esc(p.ad)}</b><span>${esc(gorevTahmin(p))}${p.cikis&&p.cikis<td?' · çıktı':''}</span></td>${F.map((f,c)=>hucre(p,f,r,c)).join('')}</tr>`).join('')||`<tr><td class="l" colspan="${F.length+1}">Henüz personel yok.</td></tr>`}</tbody></table></div>`;
   view(h,()=>{personelModBagla();const tb=byId('blTbl');
     const inp=(r,c)=>tb.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
     const kaydet=(el,sessiz)=>{const p=L[+el.dataset.r];const f=F[+el.dataset.c];if(!p||!f)return true;const r=bilgiCoz(f,el.value);
       if(r.hata){el.classList.add('bad');el.title=r.hata;if(!sessiz)toast(`${kisaAd(p.ad)} · ${r.hata}`);return false;}
-      el.classList.remove('bad');el.title='';el.value=bilgiGoster(f,r.v);const eski=f.k==='tc'?(tcOf(p)||''):(p[f.k]||'');if(r.v!==eski)bilgiKaydet(p,f,r.v);return true;};
+      el.classList.remove('bad');el.title='';el.value=bilgiGoster(f,r.v);const eski=p[f.k]||'';if(r.v!==eski)bilgiKaydet(p,f,r.v);return true;};
     tb.querySelectorAll('input').forEach(el=>{el.onchange=()=>kaydet(el);
       el.onkeydown=e=>{const r=+el.dataset.r,c=+el.dataset.c;let n=null;if(e.key==='Enter'||e.key==='ArrowDown')n=inp(r+1,c);else if(e.key==='ArrowUp')n=inp(r-1,c);if(n||e.key==='Enter'){e.preventDefault();if(n){n.focus();n.select();}else el.blur();}};
       el.onpaste=e=>{const t=(e.clipboardData||window.clipboardData).getData('text');if(!/[\t\n]/.test(t.trim()))return;e.preventDefault();
@@ -607,7 +607,7 @@ function kilidiAc(){const ak=S.ay,sid=S.subeId;const b=writeBatch(db);b.set(doc(
 function geriGonderPanel(){openSheet(`<h2>Şubeye geri gönder</h2><div class="sub">Şube müdürü notu görür, düzeltip ayı yeniden kapatır.</div><label class="field"><span>Not</span><textarea id="gNot" rows="3" placeholder="Örn: Ali'nin 14 Ekim raporu eksik"></textarea></label>
   <div class="row2"><button class="btn grow" id="gNo">Vazgeç</button><button class="btn danger grow" id="gOk">Geri gönder</button></div>`,()=>{byId('gNo').onclick=closeSheet;
   byId('gOk').onclick=()=>{const not=byId('gNot').value.trim();sirayla('ay'+S.ay,()=>setDoc(doc(db,'subeler',S.subeId,'aylar',S.ay),{durum:'geri',not,geriGonderen:S.user.uid,geriTarih:new Date().toISOString()},{merge:true}));closeSheet();toast('Şubeye geri gönderildi.');};});}
-function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||'';
+function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
   const inp=(id,label,val,ph='')=>`<label class="field"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val??''}" placeholder="${ph}"></label>`;
   openSheet(`<h2>${esc(x.sol.ad)}</h2><div class="sub">${ayAdi(V.ak)} · ${esc(x.sol.sekil)} · ${esnaf?'paket başı':x.sol.gun+' bordro günü'}${x.sol.fmSaat&&!esnaf?' · FM '+sg(x.sol.fmSaat)+' sa':''}</div>
    <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,String(V.sb.paketUcret||'')):x.hes.maasYok?'<p class="note" style="grid-column:1/-1">Maaşı SGK şubesinin puantajında. Burada sadece bu şubede yaptığı fazla mesai ve buraya ait primler hesaplanır.</p>':inp('oNet','Anlaşılan aylık net (₺)',x.net,'örn. 50000')}
@@ -658,7 +658,7 @@ function bordroPanel(V){openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${
   byId('bF').onchange=async e=>{const f=e.target.files[0];if(!f)return;const O=byId('bOut');O.innerHTML='<p class="note">PDF okunuyor…</p>';
     let r;try{r=bordroCoz(await pdfSatirlari(f));}catch(err){O.innerHTML='<div class="confirm bad">PDF okunamadı. Taranmış (resim) PDF olabilir; muhasebeden metin içeren PDF isteyin.</div>';return;}
     if(!r.kisiler.length){O.innerHTML='<div class="confirm bad">PDF\'te bordro satırı bulunamadı. Format farklı olabilir.</div>';return;}
-    const tcMap=(S.pt.maas&&S.pt.maas.tc)||{};const ids=Object.keys(V.sol);
+    const tcMap={...((S.pt.maas&&S.pt.maas.tc)||{})};S.personel.forEach(q=>{if(q.tc&&!tcMap[q.id])tcMap[q.id]=q.tc;});const ids=Object.keys(V.sol);
     const eslesme=r.kisiler.map(k=>{let pid=ids.find(id=>isimAnahtar(V.sol[id].ad)===isimAnahtar(k.ad));let yol='isim';
       if(!pid){pid=ids.find(id=>tcMap[id]&&tcMap[id]===k.tc);yol=pid?'tc':null;}return{...k,pid,yol};});
     const top=r.kisiler.reduce((s,k)=>s+(k.net||0),0);const ok=r.toplam==null||Math.abs(top-r.toplam)<0.05;
