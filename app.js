@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=13";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=14";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -12,6 +12,10 @@ const GUNU=['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Paz
 const GRUP={M:'Müdür',K:'Mutfak',S:'Motorcu'}; const GRUP_SIRA=['M','K','S'];
 const KOD={HT:{ad:'Haftalık izin',kisa:'İZİN'},R:{ad:'Rapor',kisa:'RAPOR'},UI:{ad:'Ücretsiz izin',kisa:'ÜCR.<br>İZİN'},YI:{ad:'Yıllık izin',kisa:'YILLIK'},B:{ad:'Bayram',kisa:'BAYR.'},D:{ad:'Diğer',kisa:'DİĞER'}};
 const KOD_SIRA=['HT','R','UI','YI','B','D'];
+// Excel'deki koşullu biçim renkleri: [zemin, yazı]
+const KOD_RENK={HT:['#1c1c1c','#ffffff'],R:['#c6e3ab','#24401a'],UI:['#1f3864','#ffffff'],YI:['#4f6a2a','#ffffff'],B:['#e9edf3','#33415a'],D:['#e01e1e','#ffffff']};
+const BOS_RENK='#fde2e2';
+const kodStil=k=>{const r=KOD_RENK[k];return r?`style="background:${r[0]};border-color:${r[0]};color:${r[1]}"`:'';};
 const SEKILLER=['Tam','Part','Esnaf kurye','Yarı esnaf'];
 // Görev listesi: seçmeli, elle yazılmaz. Görev çizelgedeki bölümü ve esnaf durumunu belirler.
 const GOREVLER=[{ad:'R. Müdür',grup:'M'},{ad:'V. Müdür',grup:'M'},{ad:'Mutfak',grup:'K'},{ad:'Kurye',grup:'S'},{ad:'Esnaf Kurye',grup:'S',sekil:'Esnaf kurye'},{ad:'Yarı Esnaf Kurye',grup:'S',sekil:'Yarı esnaf'}];
@@ -297,11 +301,11 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
       ds.forEach((d,i)=>{if(!employed(p,d)){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
         const lk=!cizelgeYazabilir(d);const val=cellOf(p.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(p.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
         if(isShift(val)){const k=shiftKind(val,sb);const[a,b]=val.split('-');h+=`<${tag} class="cell" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} ${a}–${b}"><span class="t ${k.o?'o':''}">${a}</span><span class="t ${k.k?'k':''}">${b}</span></${tag}>`;}
-        else if(val&&KOD[val])h+=`<${tag} class="cell code ${val==='HT'?'off':''}" ${at}>${KOD[val].kisa}</${tag}>`;
+        else if(val&&KOD[val])h+=`<${tag} class="cell code" ${kodStil(val)} ${at}>${KOD[val].kisa}</${tag}>`;
         else h+=`<${tag} class="cell empty" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} boş">${lk?'':'+'}</${tag}>`;});});});
   h+=`</div>`;
   if(!kisiler.length)h+=`<div class="empty-state"><b>Bu haftanın listesi boş</b>Gruplardaki "+ ekle" ile personel listesinden kişi seçin ya da "Geçen haftayı kopyala"ya basın.</div>`;
-  h+=`<div class="legend"><span><i style="background:var(--open)"></i>Açılış saati</span><span><i style="background:var(--close)"></i>Kapanış saati</span><span><i style="background:var(--off)"></i>Haftalık izin</span><span>— İşe giriş öncesi / çıkış sonrası</span></div>
+  h+=`<div class="legend"><span><i style="background:var(--open)"></i>Açılış saati</span><span><i style="background:var(--close)"></i>Kapanış saati</span>${KOD_SIRA.filter(k=>k!=='B').map(k=>`<span><i style="background:${KOD_RENK[k][0]}"></i>${KOD[k].ad}</span>`).join('')}<span><i style="background:${BOS_RENK}"></i>Boş gün</span><span>— İşe giriş öncesi / çıkış sonrası</span></div>
    <p class="note"><b>Kopyala-yapıştır:</b> Bilgisayarda hücreleri fareyle sürükleyerek seçin, Ctrl+C ile kopyalayıp hedef hücrede Ctrl+V yapın; Excel'den kopyaladığınız saatler de yapıştırılır. Delete ile silin, çift tıklayarak düzenleyin. Telefonda hücreye ya da isme basılı tutun.</p>
    <p class="note">İsim altında: hafta saati · hafta fazla mesaisi, sonra ayın birikmiş fazla mesaisi. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa.</p>`;
   if(MOD)h+=`<div class="modbar"><span>${MOD.tip==='hucre'?`<b>${esc(degerYazi(MOD.val))}</b> kopyalandı. Yapıştırmak için hücrelere dokunun.`:`<b>${esc(kisaAd((S.personel.find(p=>p.id===MOD.pid)||{}).ad))}</b> haftası kopyalandı. Hedef kişinin adına dokunun.`}</span><button class="btn small primary" id="modB">Bitti</button></div>`;
@@ -366,7 +370,7 @@ function hucre(pid,i,opt={}){const p=S.personel.find(x=>x.id===pid);if(!p)return
   openSheet(`<h2>${esc(p.ad)}</h2><div class="sub">${GUNU[i]}, ${d.getDate()} ${AY[d.getMonth()]}</div><label class="lbl" for="tA">Vardiya saati</label>
    <div class="times"><input id="tA" inputmode="numeric" autocomplete="off" placeholder="11:00" value="${a}" aria-label="Başlangıç"><span>–</span><input id="tB" inputmode="numeric" autocomplete="off" placeholder="19:30" value="${b}" aria-label="Bitiş"></div>
    <div class="meta" id="tMeta"></div><div class="row2"><button class="btn primary grow" id="tSave">Kaydet</button><button class="btn grow" id="tNext">Kaydet, sonraki gün</button></div>
-   <span class="lbl">Durum</span><div class="codes">${KOD_SIRA.map(k=>`<button data-k="${k}" class="${k==='HT'?'off':''} ${val===k?'sel':''}">${KOD[k].ad}</button>`).join('')}</div>
+   <span class="lbl">Durum</span><div class="codes">${KOD_SIRA.map(k=>`<button data-k="${k}" class="${val===k?'sel':''}" ${kodStil(k)}>${KOD[k].ad}</button>`).join('')}</div>
    <div class="codes" style="margin-top:8px;grid-template-columns:1fr"><button class="clear" data-k="">Hücreyi temizle</button></div>`,sh=>{
    const A=byId('tA'),B=byId('tB'),M=byId('tMeta');
    const upd=()=>{const x=normTime(A.value),y=normTime(B.value);A.classList.toggle('err',!!A.value&&!x);B.classList.toggle('err',!!B.value&&!y);
@@ -701,11 +705,11 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
     x.textAlign='left';x.fillStyle=C.ink;x.font=F(700,16);x.fillText(p.ad.toLocaleUpperCase('tr-TR'),pad+2,y+rowH/2,nameW-10);x.textAlign='center';
     ds.forEach((d,i)=>{const X=pad+nameW+i*dayW+3,Y=y+3,w=dayW-6,hh=rowH-6;if(!employed(p,d)){x.fillStyle=C.mut;x.font=F(600,15);x.fillText('—',X+w/2,Y+hh/2);return;}const v=cellOf(p.id,wid,i);
       if(isShift(v)){const k=shiftKind(v,sb);const[a,b]=v.split('-');const hw=(w-4)/2;rr(X,Y,hw,hh,7,k.o?C.open:C.soft);rr(X+hw+4,Y,hw,hh,7,k.k?C.close:C.soft);x.font=F(700,18,1);x.fillStyle=k.o?C.openI:C.ink;x.fillText(a,X+hw/2,Y+hh/2+1);x.fillStyle=k.k?C.closeI:C.ink;x.fillText(b,X+hw+4+hw/2,Y+hh/2+1);}
-      else if(v&&KOD[v]){rr(X,Y,w,hh,7,v==='HT'?C.navy:C.code);x.fillStyle=v==='HT'?'#fff':C.codeI;x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
-      else{x.strokeStyle=C.line;x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
+      else if(v&&KOD[v]){const kr=KOD_RENK[v]||[C.code,C.codeI];rr(X,Y,w,hh,7,kr[0]);x.fillStyle=kr[1];x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
+      else{rr(X,Y,w,hh,7,BOS_RENK);x.strokeStyle='#f0b4b4';x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
     if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,ak,sb);const vals=isEsnaf(p)?['esnaf',fmt(ay.h)+' sa']:p.sekil==='Part'?['part',fmt(ay.partGun)+' gün']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{x.fillStyle=C.ink;x.font=F(700,17,1);x.fillText(t,pad+nameW+7*dayW+j*fmW+fmW/2,y+rowH/2+1);});}
     y+=rowH;});
-  x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],[C.navy,'Haftalık izin']].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
+  x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
 function paylas(){let fm=tryLS('pm.shareFm')!=='0';
   openSheet(`<h2>Çizelgeyi paylaş</h2><div class="sub">${esc(sube().ad)} · ${rangeLabel(S.hafta)}. Görseli paylaşın ya da kaydedip WhatsApp grubuna gönderin.</div>
