@@ -44,6 +44,27 @@ service cloud.firestore {
 
     // Kullanıcı adı → giriş e-postası eşlemesi gerekmez; giriş e-postası kullanıcı adından üretilir.
 
+    // Şirket geneli personel listesi: tüm aktif kullanıcılar okur (çizelgeye seçmek için);
+    // sadece kişinin kayıtlı olduğu şubenin yetkilileri ekler/düzenler. Maaş bilgisi burada YOK.
+    match /personel/{p} {
+      allow read: if aktif();
+      allow create: if subede(request.resource.data.anaSube);
+      allow update: if subede(resource.data.anaSube) && subede(request.resource.data.anaSube);
+      allow delete: if subede(resource.data.anaSube);
+    }
+
+    // Şubelerin aylık saat/izin özeti (maaşın ödendiği şubenin puantajı diğer şubelerdeki izinleri buradan toplar).
+    match /ozetler/{d} {
+      allow read: if aktif() && (ben().rol in ['bolge', 'isveren'] || subede(resource.data.sube));
+      allow write: if request.resource != null && subede(request.resource.data.sube)
+        && d == request.resource.data.ay + '__' + request.resource.data.sube;
+    }
+
+    match /sistem/goc {
+      allow read: if aktif();
+      allow write: if isveren();
+    }
+
     match /subeler/{s} {
       allow read: if subede(s);
       allow create, delete: if isveren();
