@@ -44,14 +44,15 @@ service cloud.firestore {
 
     // Kullanıcı adı → giriş e-postası eşlemesi gerekmez; giriş e-postası kullanıcı adından üretilir.
 
-    // Personel: ortak havuz yok. Herkes sadece kendi şubesinin listesini görür (telefon, IBAN dahil).
-    // Bölge müdürü ayrıca SGK'sı kendi şubelerinde olanları görür (puantaj için).
+    // Personel: ortak havuz yok. Kişi, çalıştığı şubenin ve SGK şubesinin listesinde görünür.
     match /personel/{p} {
       allow read: if subede(resource.data.get('anaSube', ''))
-        || bolgede(resource.data.get('sgkSube', ''));
-      allow create: if subede(request.resource.data.anaSube);
-      allow update: if subede(resource.data.anaSube) && subede(request.resource.data.anaSube);
-      allow delete: if subede(resource.data.anaSube);
+        || subede(resource.data.get('sgkSube', ''));
+      allow create: if subede(request.resource.data.anaSube)
+        || subede(request.resource.data.get('sgkSube', ''));
+      allow update: if (subede(resource.data.anaSube) || subede(resource.data.get('sgkSube', '')))
+        && (subede(request.resource.data.anaSube) || subede(request.resource.data.get('sgkSube', '')));
+      allow delete: if subede(resource.data.anaSube) || subede(resource.data.get('sgkSube', ''));
     }
 
     // Şubelerin aylık saat/izin özeti (maaşın ödendiği şubenin puantajı diğer şubelerdeki izinleri buradan toplar).
