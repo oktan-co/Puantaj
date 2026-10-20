@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=15";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=18";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -293,21 +293,24 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
   if(K.oneri&&K.ids.length)h+=`<div class="banner ok">Bu haftanın listesi geçen haftadan getirildi. Gelmeyeni ismine dokunup çıkarın, yeni geleni "+ ekle" ile ekleyin.</div>`;
   h+=`<div class="actions"><button class="btn grow" id="copyW">Geçen haftayı kopyala</button><button class="btn" id="undoB" ${undo.length?'':'disabled'}>Geri al</button><button class="btn" id="shareB">Paylaş</button></div>`;
   if(!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Vardiyalar yükleniyor</b></div>`,bindWeek);
-  h+=`<div class="grid" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}`;
+  const ak3=AYK[+ak.slice(5)-1];
+  h+=`<div class="grid" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>FM</span></div><div class="dh fmh">${ak3}<span>FM</span></div>`;
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
-    kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayHesap(p,ak,sb);const ak3=AYK[+ak.slice(5)-1];
-      const alt=isEsnaf(p)?`${fmt(wk.h)} sa · esnaf<br>${ak3} <em>${fmt(ay.h)} sa</em>`:p.sekil==='Part'?`${fmt(wk.h)} sa · part<br>${ak3} <em>${fmt(ay.partGun)} gün</em>`:`${fmt(wk.h)} sa · <em>${sg(wk.fm)}</em><br>${ak3} <em>${sg(ay.fm)}</em>`;
+    kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayHesap(p,ak,sb);
+      const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
+      const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.partGun)}<small>gün</small>`]:[sg(wk.fm),sg(ay.fm)];
       h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}">${esc(kisaAd(p.ad))}</b><span>${alt}</span></button>`;
       ds.forEach((d,i)=>{if(!employed(p,d)){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
         const lk=!cizelgeYazabilir(d);const val=cellOf(p.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(p.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
         if(isShift(val)){const k=shiftKind(val,sb);const[a,b]=val.split('-');h+=`<${tag} class="cell" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} ${a}–${b}"><span class="t ${k.o?'o':''}">${a}</span><span class="t ${k.k?'k':''}">${b}</span></${tag}>`;}
         else if(val&&KOD[val])h+=`<${tag} class="cell code" ${kodStil(val)} ${at}>${KOD[val].kisa}</${tag}>`;
-        else h+=`<${tag} class="cell empty" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} boş">${lk?'':'+'}</${tag}>`;});});});
+        else h+=`<${tag} class="cell empty" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} boş">${lk?'':'+'}</${tag}>`;});
+      h+=`<div class="fmc">${fmH[0]}</div><div class="fmc ay">${fmH[1]}</div>`;});});
   h+=`</div>`;
   if(!kisiler.length)h+=`<div class="empty-state"><b>Bu haftanın listesi boş</b>Gruplardaki "+ ekle" ile personel listesinden kişi seçin ya da "Geçen haftayı kopyala"ya basın.</div>`;
   h+=`<div class="legend"><span><i style="background:var(--open)"></i>Açılış saati</span><span><i style="background:var(--close)"></i>Kapanış saati</span>${KOD_SIRA.filter(k=>k!=='B').map(k=>`<span><i style="background:${KOD_RENK[k][0]}"></i>${KOD[k].ad}</span>`).join('')}<span><i style="background:${BOS_RENK}"></i>Boş gün</span><span>— İşe giriş öncesi / çıkış sonrası</span></div>
    <p class="note"><b>Kopyala-yapıştır:</b> Bilgisayarda hücreleri fareyle sürükleyerek seçin, Ctrl+C ile kopyalayıp hedef hücrede Ctrl+V yapın; Excel'den kopyaladığınız saatler de yapıştırılır. Delete ile silin, çift tıklayarak düzenleyin. Telefonda hücreye ya da isme basılı tutun.</p>
-   <p class="note">İsim altında: hafta saati · hafta fazla mesaisi, sonra ayın birikmiş fazla mesaisi. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa.</p>`;
+   <p class="note">İsim altında haftanın toplam saati. En sağda: haftanın fazla mesaisi ve ayın toplam fazla mesaisi. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa.</p>`;
   if(MOD)h+=`<div class="modbar"><span>${MOD.tip==='hucre'?`<b>${esc(degerYazi(MOD.val))}</b> kopyalandı. Yapıştırmak için hücrelere dokunun.`:`<b>${esc(kisaAd((S.personel.find(p=>p.id===MOD.pid)||{}).ad))}</b> haftası kopyalandı. Hedef kişinin adına dokunun.`}</span><button class="btn small primary" id="modB">Bitti</button></div>`;
   view(h,()=>{bindWeek();gridBagla();selCiz();const mb=byId('modB');if(mb)mb.onclick=()=>{MOD=null;render();};});}
 function degerYazi(v){return isShift(v)?v.replace('-',' – '):v&&KOD[v]?KOD[v].ad:'Boş';}
@@ -451,29 +454,62 @@ async function tcYukle(list){if(!puantajYetki())return;S.tcler=S.tcler||{};const
 // TC personel kaydında; eski kayıtlarda bordrodan gelen TC maaslar'da durabilir (bölge/işveren görür).
 function tcOf(p){if(p.tc)return p.tc;const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':'';}
 function bilgiKaydet(p,f,v){p[f.k]=v;return sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),{[f.k]:v},{merge:true}));}
+// Personel listesi: tek tablo, her şey satır içinde düzenlenir, değişiklik anında kaydedilir.
+function sgkCakisma(p,sgkV,ad){if(!sgkV||sgkV===SGK_YOK)return null;const td0=ymd(today());
+  return S.personel.find(x=>x.id!==p.id&&x.sgkSube&&x.sgkSube!==SGK_YOK&&x.sgkSube!==sgkV&&(isimAnahtar(x.ad)===isimAnahtar(ad||p.ad)||(p.tc&&x.tc===p.tc))&&(!x.cikis||x.cikis>=td0))||null;}
 function renderBilgiListesi(){const T=byId('blTbl');
   const list=sirala(subePersoneli());const td=ymd(today());const L=[...list.filter(p=>!p.cikis||p.cikis>=td),...list.filter(p=>p.cikis&&p.cikis<td)];
   const F=BILGI;
   if(T&&T.contains(document.activeElement)&&T.dataset.n===String(L.length))return; // yazarken yeniden çizme
   tcYukle(L);
-  const eksik=L.filter(p=>!p.cikis||p.cikis>=td).filter(p=>!p.tel||!p.iban).length;
-  const hucre=(p,f,r,c)=>{const dis='';const v=f.k==='tc'?tcOf(p):p[f.k];
-    return `<td class="bi"><input data-r="${r}" data-c="${c}" data-f="${f.k}" value="${esc(bilgiGoster(f,v))}" placeholder="${esc(f.ph)}" inputmode="${f.im}" autocomplete="off" spellcheck="false" ${dis}></td>`;};
-  const h=personelMod()+`<p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide telefon veya IBAN eksik</b>`:''}. Hücreye yazın, çıkınca kaydedilir. Excel'den birden çok hücreyi kopyalayıp bir hücreye yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.</p>
-   <div class="tbl-wrap" style="scroll-padding-left:165px"><table class="pt bl" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${F.map(f=>`<th>${f.ad}</th>`).join('')}</tr></thead>
-   <tbody>${L.map((p,r)=>`<tr data-pid="${esc(p.id)}" class="${p.cikis&&p.cikis<td?'mutr':''}"><td class="l nmc"><b>${esc(p.ad)}</b><span>${esc(gorevTahmin(p))}${p.cikis&&p.cikis<td?' · çıktı':''}</span></td>${F.map((f,c)=>hucre(p,f,r,c)).join('')}</tr>`).join('')||`<tr><td class="l" colspan="${F.length+1}">Henüz personel yok.</td></tr>`}</tbody></table></div>`;
-  view(h,()=>{personelModBagla();const tb=byId('blTbl');
+  const subeler=tumSubeler();const anaSec=(isIsveren()?S.subeIds:(S.me.subeler||[])).filter(x=>S.subeler[x]);
+  const eksik=L.filter(p=>!p.cikis||p.cikis>=td).filter(p=>!p.sgkSube||!gorevBul(p.gorev)).length;
+  const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
+  const satir=(p,r)=>{const yaz=personelYazabilir(p);const dis=yaz?'':'disabled';const g=gorevBul(gorevTahmin(p));const cik=p.cikis&&p.cikis<td;const ana=p.anaSube||S.subeId;
+    return `<tr data-pid="${esc(p.id)}" class="${cik?'mutr':''}">
+     <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):''}${cik?' çıktı':''}</span></td>
+     <td class="bi"><select data-x="gorev" ${dis}>${g?'':opt('','Seçin',true)}${GOREVLER.map(x=>opt(x.ad,x.ad,g&&g.ad===x.ad)).join('')}</select></td>
+     <td class="bi"><select data-x="sekil" ${dis} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,g.sekil==='Esnaf kurye'?'Esnaf':'Yarı esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select></td>
+     <td class="bi"><select data-x="sgkSube" class="${p.sgkSube?'':'bad'}" ${dis}>${p.sgkSube?'':opt('','Seçin',true)}${opt(SGK_YOK,'Boş',p.sgkSube===SGK_YOK)}${subeler.map(([sid,ad])=>opt(sid,ad,p.sgkSube===sid)).join('')}</select></td>
+     <td class="bi"><select data-x="anaSube" ${dis}>${(anaSec.includes(ana)?anaSec:[ana,...anaSec]).map(x=>opt(x,subeAdi(x),ana===x)).join('')}</select></td>
+     <td class="bi"><input type="date" data-x="giris" value="${esc(p.giris||'')}" ${dis}></td>
+     <td class="bi"><input type="date" data-x="cikis" value="${esc(p.cikis||'')}" ${dis}></td>
+     ${F.map((f,c)=>`<td class="bi"><input data-r="${r}" data-c="${c}" data-f="${f.k}" value="${esc(bilgiGoster(f,f.k==='tc'?tcOf(p):p[f.k]))}" placeholder="${esc(f.ph)}" inputmode="${f.im}" autocomplete="off" spellcheck="false" ${dis}></td>`).join('')}
+     <td class="bi"><button class="mini" data-x="menu" title="Sil / çıkış ver" ${dis}>⋯</button></td></tr>`;};
+  let body='';let r=0;GRUP_SIRA.forEach(g=>{const l=L.filter(p=>(p.grup||'K')===g&&!(p.cikis&&p.cikis<td));if(!l.length)return;body+=`<tr class="grp"><td class="l nmc">${GRUP[g]} · ${l.length}</td><td colspan="${F.length+8}"></td></tr>`;l.forEach(p=>{body+=satir(p,L.indexOf(p));});});
+  const cl=L.filter(p=>p.cikis&&p.cikis<td);if(cl.length){body+=`<tr class="grp"><td class="l nmc">Çıkış yapanlar · ${cl.length}</td><td colspan="${F.length+8}"></td></tr>`;cl.forEach(p=>{body+=satir(p,L.indexOf(p));});}
+  const h=`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button></div>
+   <p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi seçilmemiş</b>`:''}. Hücreye yazın ya da seçin, anında kaydedilir. Excel'den telefon, e-posta, IBAN gibi sütunları kopyalayıp bir hücreye yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir. SGK'sı bu şubede olup başka şubede çalışanlar da listede görünür.</p>
+   <div class="tbl-wrap" style="scroll-padding-left:165px"><table class="pt bl" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th><th>Görev</th><th>Şekil</th><th>SGK şubesi</th><th>Çalıştığı şube</th><th>Giriş</th><th>Çıkış</th>${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
+   <tbody>${body||`<tr><td class="l" colspan="${F.length+8}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
+  view(h,()=>{byId('addP').onclick=()=>personelPanel(null);const tb=byId('blTbl');
+    const pOf=el=>S.personel.find(x=>x.id===el.closest('tr').dataset.pid);
+    const yaz1=(p,body,yenidenCiz)=>{Object.assign(p,body);sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),body,{merge:true}));if(yenidenCiz){document.activeElement&&document.activeElement.blur();render();}};
+    const geri=(el,msg,v)=>{toast(msg);el.value=v;el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),2500);};
+    tb.querySelectorAll('[data-x]').forEach(el=>{const x=el.dataset.x;
+      if(x==='menu'){el.onclick=()=>personelPanel(el.closest('tr').dataset.pid);return;}
+      if(x==='ad')el.oninput=()=>{const a=el.selectionStart,b=el.selectionEnd;el.value=el.value.toLocaleUpperCase('tr-TR');try{el.setSelectionRange(a,b);}catch(_){}};
+      el.onchange=()=>{const p=pOf(el);if(!p)return;const v=el.value;
+        if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı.`,adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
+        if(x==='gorev'){const g=gorevBul(v);if(!g)return;const body={gorev:g.ad,grup:g.grup,sekil:g.sekil||(p.sekil==='Part'?'Part':'Tam')};yaz1(p,body,true);return;}
+        if(x==='sekil'){yaz1(p,{sekil:v});return;}
+        if(x==='sgkSube'){if(!v)return;const c=sgkCakisma(p,v);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı. Bir kişi sadece bir şubede SGK'lı olabilir.`,p.sgkSube||'');
+          const eski=p.sgkSube;yaz1(p,{sgkSube:v},true);if(v!==SGK_YOK&&v!==(p.anaSube||S.subeId)&&v!==eski){if(erisimVar(v)){cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} listesine ve çizelgesine de eklendi.`);}else toast(`${subeAdi(v)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir.`);}return;}
+        if(x==='anaSube'){if(!v||v===p.anaSube)return;yaz1(p,{anaSube:v},true);cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} çizelgesine eklendi.`);return;}
+        if(x==='giris'||x==='cikis'){const gi=x==='giris'?v:p.giris,ci=x==='cikis'?v:p.cikis;if(gi&&ci&&ci<gi)return geri(el,'Çıkış tarihi girişten önce olamaz.',p[x]||'');yaz1(p,{[x]:v},x==='cikis');return;}};});
     const inp=(r,c)=>tb.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
     const kaydet=(el,sessiz)=>{const p=L[+el.dataset.r];const f=F[+el.dataset.c];if(!p||!f)return true;const r=bilgiCoz(f,el.value);
       if(r.hata){el.classList.add('bad');el.title=r.hata;if(!sessiz)toast(`${kisaAd(p.ad)} · ${r.hata}`);return false;}
-      el.classList.remove('bad');el.title='';el.value=bilgiGoster(f,r.v);const eski=p[f.k]||'';if(r.v!==eski)bilgiKaydet(p,f,r.v);return true;};
-    tb.querySelectorAll('input').forEach(el=>{el.onchange=()=>kaydet(el);
-      el.onkeydown=e=>{const r=+el.dataset.r,c=+el.dataset.c;let n=null;if(e.key==='Enter'||e.key==='ArrowDown')n=inp(r+1,c);else if(e.key==='ArrowUp')n=inp(r-1,c);if(n||e.key==='Enter'){e.preventDefault();if(n){n.focus();n.select();}else el.blur();}};
+      el.classList.remove('bad');el.title='';el.value=bilgiGoster(f,r.v);const eski=f.k==='tc'?tcOf(p):(p[f.k]||'');if(r.v!==eski)bilgiKaydet(p,f,r.v);return true;};
+    const satirSira=[...tb.querySelectorAll('tr[data-pid]')].map(t=>t.querySelector('input[data-c="0"]')).map(i=>i&&+i.dataset.r);
+    const asagi=(r,yon)=>{const i=satirSira.indexOf(r);const n=satirSira[i+yon];return n==null?null:n;};
+    tb.querySelectorAll('input[data-c]').forEach(el=>{el.onchange=()=>kaydet(el);
+      el.onkeydown=e=>{const r=+el.dataset.r,c=+el.dataset.c;let n=null;if(e.key==='Enter'||e.key==='ArrowDown'){const q=asagi(r,1);n=q==null?null:inp(q,c);}else if(e.key==='ArrowUp'){const q=asagi(r,-1);n=q==null?null:inp(q,c);}if(n||e.key==='Enter'){e.preventDefault();if(n){n.focus();n.select();}else el.blur();}};
       el.onpaste=e=>{const t=(e.clipboardData||window.clipboardData).getData('text');if(!/[\t\n]/.test(t.trim()))return;e.preventDefault();
         let M=t.replace(/\r/g,'').split('\n');while(M.length&&!M[M.length-1].trim())M.pop();M=M.map(x=>x.split('\t'));
         const r0=+el.dataset.r,c0=+el.dataset.c;const ad={};L.forEach((p,i)=>ad[isimAnahtar(p.ad)]=i);
-        const isimli=M[0].length>1&&M.filter(x=>x[0].trim()).every(x=>ad[isimAnahtar(x[0])]!=null);let n=0,bad=0,yok=0;
-        M.forEach((row,i)=>{const r=isimli?ad[isimAnahtar(row[0])]:r0+i;const cells=isimli?row.slice(1):row;if(r==null||r>=L.length){yok++;return;}
+        const isimli=M[0].length>1&&M.filter(x=>x[0].trim()).every(x=>ad[isimAnahtar(x[0])]!=null);let n=0,bad=0,yok=0;let rr=r0;
+        M.forEach((row,i)=>{const r=isimli?ad[isimAnahtar(row[0])]:(i===0?r0:(rr=asagi(rr,1)));const cells=isimli?row.slice(1):row;if(r==null||r>=L.length){yok++;return;}
           cells.forEach((v,j)=>{const x=inp(r,c0+j);if(!x||x.disabled)return;x.value=v.trim();if(kaydet(x,true))n++;else bad++;});});
         toast(`${n} hücre yapıştırıldı${bad?`, ${bad} hücre hatalı (kırmızı)`:''}${yok?`, ${yok} satır eşleşmedi`:''}.`);};});});}
 
@@ -483,7 +519,8 @@ function erisimVar(sid){return isIsveren()||(S.me.subeler||[]).includes(sid);}
 function subePersoneli(sid=S.subeId){return S.personel.filter(p=>p.anaSube===sid||p.sgkSube===sid);}
 function personelMod(){return `<div class="seg" id="pMod" style="margin-bottom:10px"><button data-v="kart" class="${S.plist?'':'on'}">Kartlar</button><button data-v="liste" class="${S.plist?'on':''}">Bilgi listesi</button></div>`;}
 function personelModBagla(){document.querySelectorAll('#pMod button').forEach(b=>b.onclick=()=>{S.plist=b.dataset.v==='liste';tryLS('pm.plist',S.plist?'1':'0');render();});}
-function renderPersonel(){if(S.plist===undefined)S.plist=tryLS('pm.plist')==='1';if(S.plist)return renderBilgiListesi();const list=sirala(subePersoneli());const td=ymd(today());
+function renderPersonel(){return renderBilgiListesi();}
+function eskiKartListesi(){const list=sirala(subePersoneli());const td=ymd(today());
   let h=personelMod()+`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button></div><p class="note" style="margin-top:0">${esc(sube().ad)} personel listesi. SGK'sı bu şubede olup başka şubede çalışanlar da burada görünür.</p>`;
   if(!list.length)return view(h+`<div class="empty-state"><b>Henüz personel yok</b>"Personel ekle" ile şubenin çalışanlarını girin.</div>`,()=>{personelModBagla();byId('addP').onclick=()=>personelPanel(null);});
   const aktif=list.filter(p=>!p.cikis||p.cikis>=td),cikan=list.filter(p=>p.cikis&&p.cikis<td);
