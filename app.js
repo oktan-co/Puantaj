@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=7";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=9";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -218,7 +218,10 @@ function selectSube(id){subs.sube.forEach(u=>u());subs.sube=[];S.subeId=id;S.haf
 
 /* ================= Çizim çerçevesi ================= */
 const byId=id=>document.getElementById(id);
-function view(html,after){byId('view').innerHTML=html;after&&after();}
+function subeBar(){if(S.subeIds.length<2||!['cizelge','personel','ay'].includes(S.tab))return'';
+  return `<label class="subebar"><span>Şube</span><select id="subeSecim" aria-label="Şube seç">${S.subeIds.map(id=>`<option value="${esc(id)}" ${id===S.subeId?'selected':''}>${esc(S.subeler[id].ad)}</option>`).join('')}</select></label>`;}
+function view(html,after){byId('view').innerHTML=subeBar()+html;after&&after();}
+document.addEventListener('change',e=>{if(e.target&&e.target.id==='subeSecim'){selectSube(e.target.value);window.scrollTo(0,0);}});
 function top(eyebrow,title,right=''){byId('top').innerHTML=`<div class="top-row"><div class="grow"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1></div>${right}</div>`;}
 function sekmeler(){if(!S.me)return[];const t=[['cizelge','Çizelge'],['personel','Personel']];
   if(isSube())t.push(['ay','Ay sonu']);if(puantajYetki())t.push(['puantaj','Puantaj']);if(isIsveren())t.push(['yonetim','Yönetim']);return t;}
@@ -399,8 +402,17 @@ function isimMenu(pid){const p=S.personel.find(x=>x.id===pid);if(!p)return;const
    const c=byId('iCik');c.onclick=()=>{if(dolu&&!c.dataset.ok){c.dataset.ok='1';c.querySelector('b').textContent='Çıkarmayı onayla';return;}closeSheet();kadroCikar(pid);toast(`${kisaAd(p.ad)} bu haftadan çıkarıldı.`);};});}
 
 /* ================= Personel (şirket geneli liste) ================= */
+// Kişiyi bir şubenin haftalık listesine ekler (o haftanın listesi yoksa önceki haftanın listesini temel alır).
+async function cizelgeyeKoy(sid,wid,pid){if(!erisimVar(sid))return;try{
+  if(sid===S.subeId){const kad=kadroOf(wid).ids.slice();if(kad.includes(pid))return;kad.push(pid);
+    return sirayla(wid,()=>setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),kadro:kad},{merge:true}));}
+  const ref=weekRef(wid,sid);const s0=await getDoc(ref);let kad=null;
+  if(s0.exists()){const d=s0.data();kad=Array.isArray(d.kadro)?d.kadro.slice():Object.keys(d.cells||{});}
+  else for(let i=1;i<=8&&!kad;i++){const q=await getDoc(weekRef(ymd(addDays(parse(wid),-7*i)),sid));if(q.exists()){const d=q.data();kad=Array.isArray(d.kadro)?d.kadro.slice():Object.keys(d.cells||{});}}
+  kad=kad||[];if(kad.includes(pid))return;kad.push(pid);await setDoc(ref,{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),kadro:kad},{merge:true});}catch(e){console.error(e);}}
 function personelYazabilir(p){return isIsveren()||!p.anaSube||(S.me.subeler||[]).includes(p.anaSube);}
-function renderPersonel(){const list=sirala(S.personel.filter(p=>p.anaSube===S.subeId));const td=ymd(today());
+function erisimVar(sid){return isIsveren()||(S.me.subeler||[]).includes(sid);}
+function renderPersonel(){const list=sirala(S.personel.filter(p=>p.anaSube===S.subeId||maasSubesi(p)===S.subeId));const td=ymd(today());
   let h=`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button></div><p class="note" style="margin-top:0">${esc(sube().ad)} şubesine kayıtlı personel. Çizelgeye eklemek için çizelgedeki "+ ekle" butonlarını kullanın; diğer şubelerin personeli de oradan seçilebilir.</p>`;
   if(!list.length)return view(h+`<div class="empty-state"><b>Henüz personel yok</b>"Personel ekle" ile şubenin çalışanlarını girin.</div>`,()=>byId('addP').onclick=()=>personelPanel(null));
   const aktif=list.filter(p=>!p.cikis||p.cikis>=td),cikan=list.filter(p=>p.cikis&&p.cikis<td);
@@ -418,7 +430,6 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
    <label class="field"><span>Görev</span><select id="pGorev" ${yaz?'':'disabled'}><option value="">Seçin</option>${gorevOpt}</select></label>
    <div id="pSekilW"><span class="lbl">Çalışma şekli</span><div class="seg" id="pSekil">${['Tam','Part'].map(x=>`<button data-v="${x}" class="${(p.sekil==='Part'?'Part':'Tam')===x?'on':''}" ${yaz?'':'disabled'}>${x}</button>`).join('')}</div></div>
    <label class="field"><span>SGK şubesi</span><select id="pSgk" ${yaz?'':'disabled'}><option value="" ${!sgk?'selected':''}>Seçin</option><option value="${SGK_YOK}" ${sgk===SGK_YOK?'selected':''}>Boş (SGK şubesi yok)</option>${subeler.map(([sid,ad])=>`<option value="${esc(sid)}" ${sgk===sid?'selected':''}>${esc(ad)}</option>`).join('')}</select></label>
-   ${anaSec.length>1?`<label class="field"><span>Kayıtlı olduğu şube</span><select id="pAna" ${yaz?'':'disabled'}>${anaSec.map(x=>`<option value="${esc(x)}" ${(p.anaSube||S.subeId)===x?'selected':''}>${esc(S.subeler[x].ad)}</option>`).join('')}</select></label>`:''}
    <div class="fgrid"><label class="field"><span>İşe giriş</span><input id="pGiris" type="date" value="${esc(p.giris||'')}" ${yaz?'':'disabled'}></label><label class="field"><span>Çıkış (boşsa çalışıyor)</span><input id="pCikis" type="date" value="${esc(p.cikis||'')}" ${yaz?'':'disabled'}></label></div>
    ${id&&!p.cikis&&yaz?'<button class="btn" id="pOut" style="margin-top:8px;width:100%">Bugün itibarıyla çıkış ver</button>':''}
    <div id="pWarn"></div><div class="row2">${id&&yaz?'<button class="btn danger" id="pDel">Personeli sil</button>':''}<button class="btn grow" id="pNo">${yaz?'Vazgeç':'Kapat'}</button>${yaz?'<button class="btn primary grow" id="pOk">Kaydet</button>':''}</div>`,sh=>{
@@ -430,9 +441,13 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
      const sgkV=byId('pSgk').value;if(!sgkV){W.innerHTML='<div class="confirm">SGK şubesini seçin. SGK şubesi yoksa "Boş" seçeneğini seçin.</div>';return;}
      const ayni=S.personel.find(x=>x.id!==id&&isimAnahtar(x.ad)===isimAnahtar(ad));if(ayni&&!W.dataset.ok){W.dataset.ok='1';W.innerHTML=`<div class="confirm">Bu isimde başka bir personel var (${esc(subeAdi(ayni.anaSube))}). Aynı kişiyse yeni kayıt açmayın, çizelgede "+ ekle" ile seçin. Farklı kişiyse tekrar Kaydet'e basın.</div>`;return;}
      const giris=byId('pGiris').value,cikis=byId('pCikis').value;if(giris&&cikis&&cikis<giris){W.innerHTML='<div class="confirm">Çıkış tarihi girişten önce olamaz.</div>';return;}
-     const sekil=g.sekil||sh.querySelector('#pSekil .on').dataset.v;const ana=byId('pAna')?byId('pAna').value:(p.anaSube||S.subeId);
+     const sekil=g.sekil||sh.querySelector('#pSekil .on').dataset.v;const ana=sgkV!==SGK_YOK&&erisimVar(sgkV)?sgkV:(p.anaSube||S.subeId);
      const body={ad,gorev:g.ad,grup:g.grup,sekil,giris,cikis,sgkSube:sgkV,anaSube:ana};if(p.sira!=null)body.sira=p.sira;const pid=id||(slug(ad)+'-'+Math.random().toString(36).slice(2,6));
-     sirayla('p'+pid,()=>setDoc(doc(db,'personel',pid),body));if(!id)S.personel.push({id:pid,...body});closeSheet();toast(id?'Personel güncellendi.':'Personel eklendi.');if(opt.sonra)opt.sonra(pid);};
+     sirayla('p'+pid,()=>setDoc(doc(db,'personel',pid),body));if(!id)S.personel.push({id:pid,...body});else Object.assign(p,body);closeSheet();
+     const ilkHafta=mondayOf(giris&&parse(giris)>today()?parse(giris):today());
+     if(opt.sonra)opt.sonra(pid);
+     const yeniSube=!id||(p.anaSube!==ana);if(yeniSube&&!(opt.sonra&&ana===S.subeId))cizelgeyeKoy(ana,ilkHafta,pid);
+     toast(id?'Personel güncellendi.':`Personel eklendi${ana!==S.subeId?', '+subeAdi(ana)+' çizelgesine de eklendi':''}.`);};
    const del=byId('pDel');if(del)del.onclick=()=>{if(!del.dataset.ok){del.dataset.ok='1';del.textContent='Evet, sil';W.innerHTML='<div class="confirm">Kişi şirketin personel listesinden silinir. Ayrılan biri için silmek yerine çıkış tarihi girin.</div>';return;}
      sirayla('p'+id,()=>deleteDoc(doc(db,'personel',id)));closeSheet();toast(`${p.ad} silindi.`);};});}
 

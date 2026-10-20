@@ -157,3 +157,8 @@ table.pt tr.tot td{font-weight:800;background:var(--soft)}
 .modbar{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(64px + env(safe-area-inset-bottom,0px));z-index:25;width:min(560px,calc(100% - 20px));display:flex;align-items:center;gap:10px;
   background:var(--ink);color:var(--surface);padding:10px 12px;border-radius:14px;font-size:13px;line-height:1.35;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 .modbar span{flex:1}.modbar .btn{border-color:var(--surface)}
+
+/* Şube seçimi (birden fazla şubesi olanlar için) */
+.subebar{display:flex;align-items:center;gap:10px;max-width:520px;margin:2px auto 12px;background:var(--surface);border:1.5px solid var(--navy);border-radius:14px;padding:6px 8px 6px 14px}
+.subebar span{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
+.subebar select{flex:1;min-width:0;font:inherit;font-size:17px;font-weight:800;color:var(--ink);background:transparent;border:0;padding:8px 4px;cursor:pointer}
