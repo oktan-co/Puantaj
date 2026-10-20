@@ -112,11 +112,11 @@ service cloud.firestore {
     // PUANTAJ — sadece sorumlu bölge müdürü ve işveren.
     match /puantaj/{s}/aylar/{a} {
       allow read: if bolgede(s);
-      // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödeme tarafı (sag) işlenmeye devam eder.
+      // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödemeler ve veri girişi devam eder.
       allow create: if bolgede(s);
       allow update: if isveren()
         || (bolgede(s) && (resource.data.kilitli != true
-            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'guncellendi'])));
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veri', 'guncellendi'])));
       allow delete: if isveren();
     }
 

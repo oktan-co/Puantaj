@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=18";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=19";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -20,6 +20,16 @@ const SEKILLER=['Tam','Part','Esnaf kurye','Yarı esnaf'];
 // Görev listesi: seçmeli, elle yazılmaz. Görev çizelgedeki bölümü ve esnaf durumunu belirler.
 const GOREVLER=[{ad:'R. Müdür',grup:'M'},{ad:'V. Müdür',grup:'M'},{ad:'Mutfak',grup:'K'},{ad:'Kurye',grup:'S'},{ad:'Esnaf Kurye',grup:'S',sekil:'Esnaf kurye'},{ad:'Yarı Esnaf Kurye',grup:'S',sekil:'Yarı esnaf'}];
 const SGK_YOK='-';
+// Puantaj veri girişi türleri. b: birim, y: hangi tarafa etki eder (sol=muhasebe, sag=ödeme)
+const VERI_TUR=[{k:'R',ad:'Rapor',b:'gün',y:'sol'},{k:'UI',ad:'Ücretsiz izin',b:'gün',y:'sol'},{k:'YI',ad:'Yıllık izin',b:'gün',y:'sol'},{k:'B',ad:'Bayram',b:'gün',y:'sol'},{k:'PG',ad:'Part gün',b:'gün',y:'sol'},{k:'FM',ad:'Fazla mesai',b:'saat',y:'sol'},
+  {k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag'},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag'},{k:'KS',ad:'Kesinti',b:'₺',y:'sag'}];
+const veriTur=k=>VERI_TUR.find(t=>t.k===k);
+function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||!v.pid)return;const x=o[v.pid]=o[v.pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
+// Elle girilen gün/saat verilerini muhasebe tarafına ekle.
+function veriUygula(sol,oz){Object.entries(oz).forEach(([pid,e])=>{const r=sol[pid];if(!r)return;const n=k=>e[k]||0;
+  if(r.maasBurada!==false){r.rapor=(r.rapor||0)+n('R');r.ucretsiz=(r.ucretsiz||0)+n('UI');r.yillik=(r.yillik||0)+n('YI');r.bayram=(r.bayram||0)+n('B');
+    r.partGun=Math.round(((r.partGun||0)+n('PG'))*100)/100;r.gun=Math.max(0,(r.gun||0)-n('R')-n('UI'));}
+  r.fmSaat=Math.round(((r.fmSaat||0)+n('FM'))*100)/100;if(['R','UI','YI','B','PG','FM'].some(k=>e[k]))r.elle=true;});return sol;}
 function gorevBul(ad){return GOREVLER.find(g=>g.ad===ad)||null;}
 function gorevTahmin(p){const g=String(p.gorev||'').toLocaleUpperCase('tr-TR');if(gorevBul(p.gorev))return p.gorev;
   if(p.sekil==='Esnaf kurye')return'Esnaf Kurye';if(p.sekil==='Yarı esnaf')return'Yarı Esnaf Kurye';
@@ -125,8 +135,8 @@ function ayKadrosu(ak){const ids=ayKadroIds(ak);return S.personel.filter(p=>ids.
 function subeOzeti(ak,sid=S.subeId){const sb=sube(sid);const out={};ayKadrosu(ak).forEach(p=>{const a=ayHesap(p,ak,sb);
   out[p.id]={saat:Math.round(a.h*100)/100,fm:Math.round(a.fm*100)/100,gun:a.gun,bos:a.bos,R:a.kod.R||0,UI:a.kod.UI||0,YI:a.kod.YI||0,B:a.kod.B||0,D:a.kod.D||0};});return out;}
 // Puantaj sol tarafı. Maaş (bordro günü, izinler) kişinin SGK şubesinde; fazla mesai çalıştığı her şubede ayrı.
-function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{}){const sb=sube(sid);const out={};const burada=subeOzeti(ak,sid);
-  const ids=new Set(Object.keys(burada));S.personel.forEach(p=>{if(maasSubesi(p)===sid&&aktifAyda(p,ak))ids.add(p.id);});
+function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube(sid);const out={};const burada=subeOzeti(ak,sid);
+  const ids=new Set(Object.keys(burada));ekIds.forEach(x=>{if(S.personel.some(p=>p.id===x))ids.add(x);});S.personel.forEach(p=>{if(maasSubesi(p)===sid&&aktifAyda(p,ak))ids.add(p.id);});
   // Aynı kişi birden fazla şubenin listesinde ayrı kayıtla olabilir (SGK'sı burada): isimle tek satırda birleşir.
   const esler={};const grp={};[...ids].forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(p&&maasSubesi(p)===sid)(grp[isimAnahtar(p.ad)]=grp[isimAnahtar(p.ad)]||[]).push(p);});
   Object.values(grp).forEach(L=>{if(L.length<2)return;L.sort((a,b)=>(b.anaSube===sid)-(a.anaSube===sid));esler[L[0].id]=L.map(x=>x.id);L.slice(1).forEach(x=>ids.delete(x.id));});
@@ -136,15 +146,15 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{}){const sb=sube(sid);con
     const t={R:o.R,UI:o.UI,YI:o.YI,B:o.B,saat:o.saat,baska:[]};
     if(maasBurada)Object.entries(diger).forEach(([s2,k])=>{if(s2===sid||!k)return;let var_=false;pids.forEach(q=>{const x=k[q];if(!x)return;var_=true;t.R+=x.R||0;t.UI+=x.UI||0;t.YI+=x.YI||0;t.B+=x.B||0;t.saat+=x.saat||0;});if(var_)t.baska.push(subeAdi(s2));});
     let ist=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1))if(employed(p,d))ist++;
-    const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const part=p.sekil==='Part';
+    const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const yari=p.sekil==='Yarı esnaf';const part=p.sekil==='Part'||(yari&&p.sgkSekil==='Part');
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
-      rapor:maasBurada?t.R:0,ucretsiz:maasBurada?t.UI:0,yillik:maasBurada?t.YI:0,bayram:maasBurada?t.B:0,partGun:part&&maasBurada?Math.round(t.saat/(sb.partSaat||8)*100)/100:0,
+      rapor:maasBurada?t.R:0,ucretsiz:maasBurada?t.UI:0,yillik:maasBurada?t.YI:0,bayram:maasBurada?t.B:0,partGun:part&&maasBurada&&!yari?Math.round(t.saat/(sb.partSaat||8)*100)/100:0,muhSekil:yari?(p.sgkSekil==='Part'?'Part':'Tam'):(p.sekil||'Tam'),
       fmSaat:o.fm,calisilanSaat:o.saat,gun:maasBurada?gun:0,bosGun:o.bos,baska:t.baska,sgkYok:p.sgkSube===SGK_YOK};});
   return out;}
 // Muhasebeye giden tarafta sadece SGK'sı bu şubede olanlar; başka şubenin SGK'lısı ve SGK'sı olmayanlar sadece ödemelerde.
 function muhasebedeMi(sol){return sol.maasBurada!==false&&sol.sgkYok!==true;}
 // Puantaj sağ tarafı (ödemeler).
-function sagHesap(pid,sol,sag,net,sb,devir){const s=sag||{};const esnaf=sol.sekil==='Esnaf kurye'||sol.sekil==='Yarı esnaf';
+function sagHesap(pid,sol,sag,net,sb,devir,ek={}){const e=k=>ek[k]||0;const s0=sag||{};const s={...s0,avans:sayi(s0.avans)+e('AV')+e('AO'),paketPrimi:sayi(s0.paketPrimi)+e('PP'),ciroPrimi:sayi(s0.ciroPrimi)+e('CP'),paketSayisi:sayi(s0.paketSayisi)+e('PS')};const esnaf=sol.sekil==='Esnaf kurye'||sol.sekil==='Yarı esnaf';
   const bankaya=sayi(s.bankaya),paketPrimi=sayi(s.paketPrimi),ciroPrimi=sayi(s.ciroPrimi),avans=sayi(s.avans);
   let hak=0,maasFarki=0,fmTl=0,paketHak=0;
   if(esnaf){paketHak=sayi(s.paketSayisi)*sayi(s.paketUcret!=null&&s.paketUcret!==''?s.paketUcret:sb.paketUcret);hak=paketHak;maasFarki=paketHak-bankaya;}
@@ -152,8 +162,8 @@ function sagHesap(pid,sol,sag,net,sb,devir){const s=sag||{};const esnaf=sol.seki
   else{const n=sayi(net);hak=n?n*sol.gun/30:0;maasFarki=n?hak-bankaya:0;
     const fm=Math.max(sol.fmSaat||0,0);fmTl=sb.fmYontem==='maas'?(n?fm*n/30/9:0):fm*sayi(sb.fmUcret);}
   const maasYok=!esnaf&&sol.maasBurada===false;const bank2=maasYok?0:bankaya;
-  const kalan=maasFarki+fmTl+paketPrimi+ciroPrimi+devir-avans;
-  return{esnaf,maasYok,bankaya:bank2,paketPrimi,ciroPrimi,avans,hak,maasFarki,fmTl,paketHak,devir,kalan,netYok:!esnaf&&!maasYok&&!sayi(net)};}
+  const ekOd=e('EK')-e('KS');const kalan=maasFarki+fmTl+paketPrimi+ciroPrimi+devir-avans+ekOd;
+  return{esnaf,maasYok,bankaya:bank2,paketPrimi,ciroPrimi,avans,hak,maasFarki,fmTl,paketHak,devir,kalan,ekOd,netYok:!esnaf&&!maasYok&&!sayi(net)};}
 
 /* ================= Yazma ================= */
 const kuyruk={};function sirayla(key,fn){kuyruk[key]=(kuyruk[key]||Promise.resolve()).then(fn).catch(yazmaHatasi);return kuyruk[key];}
@@ -469,7 +479,7 @@ function renderBilgiListesi(){const T=byId('blTbl');
     return `<tr data-pid="${esc(p.id)}" class="${cik?'mutr':''}">
      <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):''}${cik?' çıktı':''}</span></td>
      <td class="bi"><select data-x="gorev" ${dis}>${g?'':opt('','Seçin',true)}${GOREVLER.map(x=>opt(x.ad,x.ad,g&&g.ad===x.ad)).join('')}</select></td>
-     <td class="bi"><select data-x="sekil" ${dis} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,g.sekil==='Esnaf kurye'?'Esnaf':'Yarı esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select></td>
+     <td class="bi">${g&&g.sekil==='Yarı esnaf'?`<select data-x="sgkSekil" ${dis} title="Yarı esnaf: SGK tarafında tam ya da part">${['Tam','Part'].map(x=>opt(x,'Yarı esnaf · '+x,(p.sgkSekil==='Part'?'Part':'Tam')===x)).join('')}</select>`:`<select data-x="sekil" ${dis} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,'Esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select>`}</td>
      <td class="bi"><select data-x="sgkSube" class="${p.sgkSube?'':'bad'}" ${dis}>${p.sgkSube?'':opt('','Seçin',true)}${opt(SGK_YOK,'Boş',p.sgkSube===SGK_YOK)}${subeler.map(([sid,ad])=>opt(sid,ad,p.sgkSube===sid)).join('')}</select></td>
      <td class="bi"><select data-x="anaSube" ${dis}>${(anaSec.includes(ana)?anaSec:[ana,...anaSec]).map(x=>opt(x,subeAdi(x),ana===x)).join('')}</select></td>
      <td class="bi"><input type="date" data-x="giris" value="${esc(p.giris||'')}" ${dis}></td>
@@ -493,6 +503,7 @@ function renderBilgiListesi(){const T=byId('blTbl');
         if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı.`,adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
         if(x==='gorev'){const g=gorevBul(v);if(!g)return;const body={gorev:g.ad,grup:g.grup,sekil:g.sekil||(p.sekil==='Part'?'Part':'Tam')};yaz1(p,body,true);return;}
         if(x==='sekil'){yaz1(p,{sekil:v});return;}
+        if(x==='sgkSekil'){yaz1(p,{sgkSekil:v});return;}
         if(x==='sgkSube'){if(!v)return;const c=sgkCakisma(p,v);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı. Bir kişi sadece bir şubede SGK'lı olabilir.`,p.sgkSube||'');
           const eski=p.sgkSube;yaz1(p,{sgkSube:v},true);if(v!==SGK_YOK&&v!==(p.anaSube||S.subeId)&&v!==eski){if(erisimVar(v)){cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} listesine ve çizelgesine de eklendi.`);}else toast(`${subeAdi(v)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir.`);}return;}
         if(x==='anaSube'){if(!v||v===p.anaSube)return;yaz1(p,{anaSube:v},true);cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} çizelgesine eklendi.`);return;}
@@ -608,11 +619,12 @@ function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=nul
   subs.detay.push(onSnapshot(doc(db,'maaslar',id),s=>{S.pt.maas=s.exists()?s.data():{};render();},()=>{S.pt.maas={};}));
   getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{const m={};q.docs.forEach(d=>{const x=d.data();if(x.sube)m[x.sube]=x.kisiler||{};});S.pt.ozetler=m;render();}).catch(e=>console.error(e));
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
-function ptVerisi(){const ak=S.ay;const D=S.pt.doc||{};const kilitli=D.kilitli===true;const sol=kilitli&&D.sol?D.sol:solHesap(ak);const sb=sube();const net=(S.pt.maas&&S.pt.maas.net)||{};
+function ptSol(ak,D){const oz=veriOzet(D.veri);return veriUygula(solHesap(ak,S.subeId,S.pt.ozetler||{},Object.keys(oz)),oz);}
+function ptVerisi(){const ak=S.ay;const D=S.pt.doc||{};const kilitli=D.kilitli===true;const sol=kilitli&&D.sol?D.sol:ptSol(ak,D);const oz=veriOzet(D.veri);const sb=sube();const net=(S.pt.maas&&S.pt.maas.net)||{};
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const sag=D.sag||{};
   const ids=Object.keys(sol).sort((a,b)=>GRUP_SIRA.indexOf(sol[a].grup)-GRUP_SIRA.indexOf(sol[b].grup)||String(sol[a].ad).localeCompare(String(sol[b].ad),'tr'));
-  const satir=ids.map(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;return{pid,sol:sol[pid],sag:sag[pid]||{},net:net[pid],hes:sagHesap(pid,sol[pid],sag[pid],net[pid],sb,dv)};});
-  return{ak,kilitli,sol,satir,sb,D};}
+  const satir=ids.map(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;return{pid,sol:sol[pid],sag:sag[pid]||{},net:net[pid],hes:sagHesap(pid,sol[pid],sag[pid],net[pid],sb,dv,oz[pid])};});
+  return{ak,kilitli,sol,satir,sb,D,oz};}
 function renderPuantajDetay(){const ak=S.ay;const sb=sube();const durum=(S.aylar[ak]||{durum:'taslak'}).durum;const D=DURUM[durum]||DURUM.taslak;
   let h=`<div class="weeknav"><button class="nav-arrow" id="geriL" aria-label="Şube listesi">‹</button><div class="ttl">${esc(sb.ad)} · ${ayAdi(ak)}<small>${D.ad}</small></div><span style="width:40px"></span></div>`;
   if(S.pt.doc===null||S.pt.maas===null||!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Puantaj yükleniyor</b></div>`,()=>byId('geriL').onclick=listeyeDon);
@@ -621,16 +633,17 @@ function renderPuantajDetay(){const ak=S.ay;const sb=sube();const durum=(S.aylar
   if(durum==='geri')h+=`<div class="banner bad">Şubeye geri gönderildi${ad.not?': "'+esc(ad.not)+'"':''}.</div>`;
   if(durum==='sube_onay')h+=`<div class="banner">Şube müdürü ayı kapattı${ad.kapatanAd?' ('+esc(ad.kapatanAd)+')':''}. Kontrol edip onaylayın ya da geri gönderin.</div>`;
   if(durum==='bolge_onay'&&V.kilitli)h+=`<div class="banner ok">Onaylandı${V.D.onaylayanAd?' · '+esc(V.D.onaylayanAd):''}. Muhasebe tarafı kilitli, ödemeler işlenebilir.</div>`;
-  h+=`<div class="seg" style="margin:4px 0 12px" id="ptSeg"><button data-v="sol" class="${S.pt.gorunum==='sol'?'on':''}">Muhasebe</button><button data-v="sag" class="${S.pt.gorunum==='sag'?'on':''}">Ödemeler</button></div>`;
+  h+=`<div class="seg" style="margin:4px 0 12px" id="ptSeg"><button data-v="sol" class="${S.pt.gorunum==='sol'?'on':''}">Muhasebe</button><button data-v="sag" class="${S.pt.gorunum==='sag'?'on':''}">Ödemeler</button><button data-v="veri" class="${S.pt.gorunum==='veri'?'on':''}">Veri girişi</button></div>`;
   const cikisMi=s=>s.cikis&&s.cikis<=ayKaydir(ak,1)+'-00';
   if(S.pt.gorunum==='sol'){
     h+=`<div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">SGK şube</th><th class="l">Ad soyad</th><th>Şekil</th><th>Giriş</th><th>Çıkış</th><th>Rapor</th><th>Ücr. izin</th><th>Part gün</th><th>Yıllık izin</th><th>Bayram</th><th>FM saat</th><th>Bordro gün</th></tr></thead><tbody>`;
     const gizli=V.satir.filter(({sol})=>!muhasebedeMi(sol));
-    V.satir.filter(({sol})=>muhasebedeMi(sol)).forEach(({sol})=>{const fo=sol.maasBurada===false;h+=`<tr class="${cikisMi(sol)?'cikis':''}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}</td><td>${esc(sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${sol.fmSaat?sg(sol.fmSaat):''}</td><td>${fo?'—':sol.gun}</td></tr>`;});
+    V.satir.filter(({sol})=>muhasebedeMi(sol)).forEach(({sol})=>{const fo=sol.maasBurada===false;h+=`<tr class="${cikisMi(sol)?'cikis':''}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${sol.fmSaat?sg(sol.fmSaat):''}</td><td>${fo?'—':sol.gun}</td></tr>`;});
     h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Bordro gün = 30 − rapor − ücretsiz izin (ay ortasında giriş/çıkışta çalışılan takvim günü)</span></div>
     ${gizli.length?`<p class="note"><b>Muhasebede gösterilmeyen ${gizli.length} kişi</b> (SGK'sı başka şubede ya da SGK'sı yok): ${gizli.map(x=>esc(x.sol.ad)).join(', ')}. Bu kişiler sadece Ödemeler tarafında.</p>`:''}
     <p class="note">Maaş, rapor ve izinler kişinin SGK şubesinde; fazla mesai çalıştığı her şubede ayrı görünür. Diğer şubelerdeki izin günleri o şubeler ayı kapattıkça eklenir. "+ şube adı" etiketi o şubeden gelen günlerin eklendiğini gösterir.</p>`;
     h+=`<div class="actions" style="margin-top:12px"><button class="btn grow" id="pdfB">Muhasebe çıktısı (PDF)</button></div>`;}
+  else if(S.pt.gorunum==='veri')h+=veriGirisiHtml(V);
   else{
     const T=V.satir.reduce((t,x)=>{t.hak+=x.hes.hak+x.hes.fmTl+x.hes.paketPrimi+x.hes.ciroPrimi;t.bankaya+=x.hes.bankaya;t.avans+=x.hes.avans;t.nakit+=Math.max(x.hes.kalan,0);return t;},{hak:0,bankaya:0,avans:0,nakit:0});
     h+=`<div class="kpis"><div class="kpi"><span>Toplam hak ediş</span><b>${tl0(T.hak)}</b></div><div class="kpi"><span>Bankaya yatan</span><b>${tl0(T.bankaya)}</b></div><div class="kpi"><span>Avans</span><b>${tl0(T.avans)}</b></div><div class="kpi"><span>İhtiyaç duyulan nakit</span><b>${tl0(T.nakit)}</b></div></div>`;
@@ -644,14 +657,43 @@ function renderPuantajDetay(){const ak=S.ay;const sb=sube();const durum=(S.aylar
   h+=`<div class="row2">${bolgeIs?`<button class="btn danger grow" id="geriB">Şubeye geri gönder</button><button class="btn primary grow" id="onayB">Onayla ve kilitle</button>`:''}${isIsveren()&&durum==='bolge_onay'?'<button class="btn grow" id="acB">Kilidi aç</button>':''}</div>`;
   view(h,()=>{byId('geriL').onclick=listeyeDon;document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{S.pt.gorunum=b.dataset.v;render();});
     const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
-    document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
+    if(S.pt.gorunum==='veri')veriGirisiBagla(V);else document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
     const ob=byId('onayB');if(ob)ob.onclick=()=>{if(!ob.dataset.ok){ob.dataset.ok='1';ob.textContent='Onayı kesinleştir';return;}onayla();};
     const gb=byId('geriB');if(gb)gb.onclick=geriGonderPanel;const ab=byId('acB');if(ab)ab.onclick=()=>{if(!ab.dataset.ok){ab.dataset.ok='1';ab.textContent='Kilidi açmayı onayla';return;}kilidiAc();};});}
+/* ================= Puantaj veri girişi ================= */
+function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kisiler=new Map();V.satir.forEach(x=>kisiler.set(x.pid,x.sol.ad));
+  subePersoneli().filter(p=>aktifAyda(p,ak)).forEach(p=>{if(!kisiler.has(p.id))kisiler.set(p.id,p.ad);});
+  const kL=[...kisiler.entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'tr'));const adOf=pid=>kisiler.get(pid)||((S.personel.find(p=>p.id===pid)||{}).ad)||'?';
+  const turlar=VERI_TUR.filter(t=>!V.kilitli||t.y==='sag');const sonGun=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));
+  // Çizelgeden gelenler (salt okunur)
+  const oto=[];const sol0=V.kilitli&&V.D.sol?null:solHesap(ak);const kaynak=sol0||V.sol;
+  Object.entries(kaynak).forEach(([pid,r])=>{[['R','rapor'],['UI','ucretsiz'],['YI','yillik'],['B','bayram'],['PG','partGun'],['FM','fmSaat']].forEach(([k,f])=>{let v=r[f]||0;if(V.kilitli){const e=(V.oz[pid]||{})[k]||0;v-=e;}if(Math.abs(v)>0.001)oto.push({pid,tur:k,miktar:v});});});
+  const satirlar=[...oto.map(o=>({...o,oto:true})),...veri.map(v=>({...v,oto:false}))].sort((a,b)=>String(adOf(a.pid)).localeCompare(String(adOf(b.pid)),'tr')||(a.oto===b.oto?0:a.oto?-1:1));
+  let h=`<div class="card" style="padding:12px;margin-bottom:12px"><div class="fgrid vg">
+     <label class="field" style="grid-column:1/-1"><span>Kişi</span><select id="vKisi"><option value="">Seçin</option>${kL.map(([id,ad])=>`<option value="${esc(id)}">${esc(adBuyuk(ad))}</option>`).join('')}</select></label>
+     <label class="field"><span>Veri türü</span><select id="vTur">${turlar.map(t=>`<option value="${t.k}">${esc(t.ad)} (${t.b})</option>`).join('')}</select></label>
+     <label class="field"><span>Miktar</span><input id="vMik" inputmode="decimal" placeholder="Örn: 2 ya da -1"></label>
+     <label class="field"><span>Tarih</span><input id="vTar" type="date" value="${esc(ymd(today())<=sonGun&&ymd(today())>=ak+'-01'?ymd(today()):sonGun)}"></label>
+     <label class="field"><span>Açıklama</span><input id="vAck" placeholder="İsteğe bağlı"></label></div>
+     <button class="btn primary" id="vEkle" style="width:100%;margin-top:8px">Ekle</button>
+     ${V.kilitli?'<p class="note" style="margin-bottom:0">Ay onaylandığı için muhasebe tarafı kilitli; sadece ödeme türleri eklenebilir.</p>':''}</div>
+   <div class="tbl-wrap"><table class="pt"><thead><tr><th>Tarih</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th><th></th></tr></thead><tbody>`;
+  satirlar.forEach(v=>{const t=veriTur(v.tur);const kil=v.oto||(V.kilitli&&t&&t.y==='sol');
+    h+=`<tr class="${v.oto?'oto':''}"><td>${v.oto?'<span class="tag">çizelge</span>':trTarih(v.tarih)}</td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'')}</td><td class="l">${v.oto?'<span style="color:var(--mut)">Mesai çizelgesinden</span>':esc(v.aciklama||'')}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Sil">✕</button>`}</td></tr>`;});
+  if(!satirlar.length)h+=`<tr><td colspan="6" class="l">Bu ay için veri yok.</td></tr>`;
+  h+=`</tbody></table></div><p class="note">"çizelge" etiketli satırlar mesai çizelgesinden otomatik gelir, değiştirilemez. Düzeltmek için aynı türde + ya da − miktarlı satır ekleyin (örn. rapor −1). Eklenen günler muhasebe tarafına, tutarlar ödemeler tarafına işlenir.</p>`;
+  return h;}
+function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kaydet=yeni=>sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,veri:yeni,guncellendi:new Date().toISOString()},{merge:true}));
+  byId('vEkle').onclick=()=>{const pid=byId('vKisi').value,tur=byId('vTur').value,mk=sayi(byId('vMik').value);if(!pid){toast('Kişi seçin.');return;}
+    if(!mk){toast('Miktar girin.');return;}const t=veriTur(tur);if(V.kilitli&&t.y==='sol'){toast('Muhasebe tarafı kilitli.');return;}
+    const yeni=[...((V.D&&V.D.veri)||[]),{id:Math.random().toString(36).slice(2,10),pid,tur,miktar:mk,tarih:byId('vTar').value||'',aciklama:byId('vAck').value.trim(),kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString()}];
+    S.pt.doc={...(S.pt.doc||{}),veri:yeni};kaydet(yeni);toast(`${t.ad} eklendi.`);render();};
+  document.querySelectorAll('[data-sil]').forEach(b=>b.onclick=()=>{if(!b.dataset.ok){b.dataset.ok='1';b.textContent='Sil?';return;}const yeni=((V.D&&V.D.veri)||[]).filter(v=>v.id!==b.dataset.sil);S.pt.doc={...(S.pt.doc||{}),veri:yeni};kaydet(yeni);render();});}
 function listeyeDon(){S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
 function sagSonuclu(V,degisen){const sag=JSON.parse(JSON.stringify((V.D&&V.D.sag)||{}));if(degisen)Object.entries(degisen).forEach(([pid,v])=>sag[pid]={...(sag[pid]||{}),...v});
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=(S.pt.maas&&S.pt.maas.net)||{};
-  Object.keys(V.sol).forEach(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;const r=sagHesap(pid,V.sol[pid],sag[pid],net[pid],V.sb,dv);sag[pid]={...(sag[pid]||{}),kalan:Math.round(r.kalan*100)/100};});return sag;}
-function onayla(){const V=ptVerisi();const ak=S.ay,sid=S.subeId;const sol=solHesap(ak);const b=writeBatch(db);const V2={...V,sol};
+  Object.keys(V.sol).forEach(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;const r=sagHesap(pid,V.sol[pid],sag[pid],net[pid],V.sb,dv,veriOzet(V.D&&V.D.veri)[pid]);sag[pid]={...(sag[pid]||{}),kalan:Math.round(r.kalan*100)/100};});return sag;}
+function onayla(){const V=ptVerisi();const ak=S.ay,sid=S.subeId;const sol=ptSol(ak,V.D||{});const b=writeBatch(db);const V2={...V,sol};
   b.set(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,sol,sag:sagSonuclu(V2),kilitli:true,onaylayan:S.user.uid,onaylayanAd:S.me.adSoyad||'',onayTarihi:new Date().toISOString(),guncellendi:new Date().toISOString()},{merge:true});
   b.set(doc(db,'subeler',sid,'aylar',ak),{durum:'bolge_onay',onaylayan:S.user.uid,onayTarihi:new Date().toISOString()},{merge:true});
   b.set(doc(db,'ozetler',ak+'__'+sid),{sube:sid,ay:ak,kisiler:subeOzeti(ak,sid),guncellendi:new Date().toISOString()});
@@ -684,7 +726,7 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
 
 /* ================= Muhasebe çıktısı ================= */
 function muhasebeCiktisi(V){const w=window.open('','_blank');if(!w){toast('Açılır pencere engellendi. Tarayıcıda izin verin.');return;}const ay=AY[+V.ak.slice(5)-1].toLocaleUpperCase('tr-TR');
-  const rows=V.satir.filter(x=>x.sol.sekil!=='Yarı esnaf'&&muhasebedeMi(x.sol)).map(({sol})=>`<tr class="${sol.cikis?'c':''}"><td>${esc(sol.sgkSube.toLocaleUpperCase('tr-TR'))}</td><td class="ad">${esc(sol.ad.toLocaleUpperCase('tr-TR'))}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td></tr>`).join('');
+  const rows=V.satir.filter(x=>muhasebedeMi(x.sol)).map(({sol})=>`<tr class="${sol.cikis?'c':''}"><td>${esc(sol.sgkSube.toLocaleUpperCase('tr-TR'))}</td><td class="ad">${esc(sol.ad.toLocaleUpperCase('tr-TR'))}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td></tr>`).join('');
   w.document.write(`<!doctype html><html lang="tr"><head><meta charset="utf-8"><title>${esc(V.sb.ad)} ${ay} ${V.ak.slice(0,4)} Puantaj</title><style>
    body{font-family:Calibri,Arial,sans-serif;margin:24px;color:#000}.ay{display:inline-block;border:1.5px solid #000;background:#ffd84d;font-weight:700;padding:4px 22px;margin-bottom:10px}
    table{border-collapse:collapse;width:100%;font-size:11px}th{background:#1aa3e8;color:#fff;border:1px solid #fff;padding:6px 4px;font-weight:700}td{border:1px solid #9ab;padding:3px 4px;text-align:center}
