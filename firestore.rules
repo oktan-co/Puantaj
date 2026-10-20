@@ -44,8 +44,6 @@ service cloud.firestore {
 
     // Kullanıcı adı → giriş e-postası eşlemesi gerekmez; giriş e-postası kullanıcı adından üretilir.
 
-    // Şirket geneli personel listesi: tüm aktif kullanıcılar okur (çizelgeye seçmek için);
-    // sadece kişinin kayıtlı olduğu şubenin yetkilileri ekler/düzenler. Maaş bilgisi burada YOK.
     // Personel: ortak havuz yok. Herkes sadece kendi şubesinin listesini görür (telefon, IBAN dahil).
     // Bölge müdürü ayrıca SGK'sı kendi şubelerinde olanları görür (puantaj için).
     match /personel/{p} {
