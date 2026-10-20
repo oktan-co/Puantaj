@@ -233,3 +233,7 @@ table.bl.sade .mini{opacity:.35}table.bl.sade tr:hover .mini{opacity:1}
 table.bl.sade td.bi input::placeholder{color:transparent}
 table.bl.sade td.bi input:focus::placeholder{color:var(--mut);opacity:.6}
 table.pt tr.tot.ust td{border-bottom:2px solid var(--line)}
+.fchips{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 10px}
+.fchip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:600;color:var(--mut)}
+.fchip span{font-size:11px;font-weight:700;color:var(--mut);background:var(--soft);border-radius:999px;padding:0 6px}
+.fchip.on{background:var(--accent-ink);border-color:var(--accent-ink);color:#fff}.fchip.on span{background:rgba(255,255,255,.2);color:#fff}
