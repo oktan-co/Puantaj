@@ -1,0 +1,103 @@
+rules_version = '2';
+
+// Puantaj Merkezi — yetki kuralları
+// Roller (kullanicilar/{uid}.rol):
+//   sube    → şube müdürü: sadece kendi şubelerinin çizelgesi + personeli + ayı kapatma
+//   bolge   → bölge müdürü: kendi şubelerinin çizelgesi + puantajı + onay
+//   isveren → her şey
+// Puantaj ve maaş verisi ayrı yollarda tutulur; şube müdürü bunlara hiç erişemez.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function girisli() { return request.auth != null; }
+    function ben() { return get(/databases/$(database)/documents/kullanicilar/$(request.auth.uid)).data; }
+    function aktif() { return girisli()
+      && exists(/databases/$(database)/documents/kullanicilar/$(request.auth.uid))
+      && ben().aktif == true; }
+    function isveren() { return aktif() && ben().rol == 'isveren'; }
+    function subede(s) { return aktif() && (ben().rol == 'isveren' || s in ben().subeler); }
+    function bolgede(s) { return aktif() && (ben().rol == 'isveren' || (ben().rol == 'bolge' && s in ben().subeler)); }
+    function kurulumYapildi() { return exists(/databases/$(database)/documents/sistem/kurulum); }
+
+    // İlk kurulum: sistemde hiç işveren yokken, giriş yapan ilk kişi kendini işveren yapabilir.
+    match /sistem/kurulum {
+      allow read: if girisli();
+      allow create: if girisli() && !kurulumYapildi()
+        && getAfter(/databases/$(database)/documents/kullanicilar/$(request.auth.uid)).data.rol == 'isveren';
+      allow update, delete: if false;
+    }
+
+    match /kullanicilar/{uid} {
+      allow read: if girisli() && (request.auth.uid == uid || isveren());
+      allow create: if isveren()
+        || (girisli() && request.auth.uid == uid && !kurulumYapildi()
+            && request.resource.data.rol == 'isveren' && request.resource.data.aktif == true);
+      allow update, delete: if isveren();
+    }
+
+    // Kullanıcı adı → giriş e-postası eşlemesi gerekmez; giriş e-postası kullanıcı adından üretilir.
+
+    match /subeler/{s} {
+      allow read: if subede(s);
+      allow create, delete: if isveren();
+      allow update: if isveren();
+
+      match /personel/{p} {
+        allow read, write: if subede(s);
+      }
+
+      match /haftalar/{w} {
+        allow read: if subede(s);
+        // Ay kapanmış ya da onaylanmışsa o ayın çizelgesini sadece bölge müdürü / işveren değiştirebilir.
+        allow write: if bolgede(s) || (subede(s) && !ayKilitli(s, w));
+      }
+
+      // Ay durumu: taslak → sube_onay → bolge_onay; bölge müdürü 'geri' ile iade edebilir.
+      match /aylar/{a} {
+        allow read: if subede(s);
+        allow write: if bolgede(s)
+          || (subede(s)
+              && request.resource.data.durum in ['taslak', 'sube_onay']
+              && (resource == null || resource.data.durum in ['taslak', 'sube_onay', 'geri']));
+      }
+    }
+
+    // Haftanın pazartesi tarihinden (YYYY-MM-DD) haftanın değdiği iki ayı bul ve kilitli mi bak.
+    function ayDurum(s, ay) {
+      return exists(/databases/$(database)/documents/subeler/$(s)/aylar/$(ay))
+        ? get(/databases/$(database)/documents/subeler/$(s)/aylar/$(ay)).data.durum : 'taslak';
+    }
+    function ilkAy(w) { return w.split('-')[0] + '-' + w.split('-')[1]; }
+    function kilitliDurum(d) { return d in ['sube_onay', 'bolge_onay']; }
+    function ayKilitli(s, w) {
+      return kilitliDurum(ayDurum(s, ilkAy(w)))
+        || (request.resource != null && request.resource.data.keys().hasAll(['ay2'])
+            && request.resource.data.ay2 is string
+            && kilitliDurum(ayDurum(s, request.resource.data.ay2)))
+        || (resource != null && resource.data.keys().hasAll(['ay2'])
+            && resource.data.ay2 is string
+            && kilitliDurum(ayDurum(s, resource.data.ay2)));
+    }
+
+    // PUANTAJ — sadece sorumlu bölge müdürü ve işveren.
+    match /puantaj/{s}/aylar/{a} {
+      allow read: if bolgede(s);
+      // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödeme tarafı (sag) işlenmeye devam eder.
+      allow create: if bolgede(s);
+      allow update: if isveren()
+        || (bolgede(s) && (resource.data.kilitli != true
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'guncellendi'])));
+      allow delete: if isveren();
+    }
+
+    // Anlaşılan net maaşlar — sadece sorumlu bölge müdürü ve işveren.
+    match /maaslar/{s} {
+      allow read, write: if bolgede(s);
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
