@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=48";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=49";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -273,7 +273,7 @@ function sekmeler(){if(!S.me)return[];const t=[['cizelge','Çizelge'],['personel
   if(isSube())t.push(['ay','Ay sonu']);if(puantajYetki())t.push(['puantaj','Puantaj']);if(isIsveren())t.push(['yonetim','Yönetim']);return t;}
 function renderTabs(){const t=sekmeler();if(!t.some(x=>x[0]===S.tab))S.tab='cizelge';const n=byId('tabs');n.hidden=false;
   byId('tabsIn').innerHTML=t.map(([k,a])=>`<button data-tab="${k}" class="${S.tab===k?'on':''}">${a}</button>`).join('');
-  n.querySelectorAll('button').forEach(b=>b.onclick=()=>{S.tab=b.dataset.tab;tryLS('pm.tab',S.tab);if(S.tab==='ay')S.ay=S.ay||gosterAy(S.hafta);if(S.tab==='puantaj'){S.pt.sube=null;}render();window.scrollTo(0,0);});}
+  n.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(S.tab==='puantaj'&&S.pt.sube)veriBosTemizle();S.tab=b.dataset.tab;tryLS('pm.tab',S.tab);if(S.tab==='ay')S.ay=S.ay||gosterAy(S.hafta);if(S.tab==='puantaj'){S.pt.sube=null;}render();window.scrollTo(0,0);});}
 function renderTop(){const sb=S.subeId?sube():null;const ak=S.tab==='ay'?S.ay:gosterAy(S.hafta);
   const baslik={cizelge:'Haftalık çizelge',personel:'Personel',ay:'Ay sonu',puantaj:'Puantaj',yonetim:'Yönetim'}[S.tab];
   const d=S.aylar[ak];const chip=sb&&S.tab!=='puantaj'&&S.tab!=='yonetim'?`<span class="chip on-navy">${AYK[+ak.slice(5)-1]} · ${(DURUM[d&&d.durum]||DURUM.taslak).ad}</span>`:'';
@@ -673,7 +673,7 @@ function renderPuantaj(){if(!puantajYetki())return;if(!S.ay)S.ay=ayKaydir(ayKey(
 let listeAy=null;function listeDinle(ak){if(listeAy===ak+S.subeIds.join())return;listeAy=ak+S.subeIds.join();subs.liste.forEach(u=>u());subs.liste=[];
   S.subeIds.forEach(id=>subs.liste.push(onSnapshot(doc(db,'subeler',id,'aylar',ak),s=>{S.pt.listeAylar[id+'|'+ak]=s.exists()?s.data():{durum:'taslak'};if(S.tab==='puantaj'&&!S.pt.sube)render();},()=>{})));}
 function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=null;S.pt.maas=null;S.pt.prev=null;S.pt.ozetler={};subs.detay.forEach(u=>u());subs.detay=[];const ak=S.ay;
-  subs.detay.push(onSnapshot(doc(db,'puantaj',id,'aylar',ak),s=>{S.pt.doc=s.exists()?s.data():{};render();},e=>{S.pt.doc={};yazmaHatasi(e);}));
+  S.pt.temiz=false;subs.detay.push(onSnapshot(doc(db,'puantaj',id,'aylar',ak),s=>{S.pt.doc=s.exists()?s.data():{};if(!S.pt.temiz){S.pt.temiz=true;veriBosTemizle();}render();},e=>{S.pt.doc={};yazmaHatasi(e);}));
   subs.detay.push(onSnapshot(doc(db,'maaslar',id),s=>{S.pt.maas=s.exists()?s.data():{};render();},()=>{S.pt.maas={};}));
   getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{const m={};q.docs.forEach(d=>{const x=d.data();if(x.sube)m[x.sube]=x.kisiler||{};});S.pt.ozetler=m;render();}).catch(e=>console.error(e));
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
@@ -733,7 +733,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
      <div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span><i style="background:var(--red)"></i>Kalan eksi: sonraki aya devreder</span><span>Satıra dokunup ödemeleri girin</span></div>`;}
   const bolgeIs=durum==='sube_onay'||(isIsveren()&&durum!=='bolge_onay');
   h+=`<div class="row2">${bolgeIs?`<button class="btn danger grow" id="geriB">Şubeye geri gönder</button><button class="btn primary grow" id="onayB">Onayla ve kilitle</button>`:''}${isIsveren()&&durum==='bolge_onay'?'<button class="btn grow" id="acB">Kilidi aç</button>':''}</div>`;
-  view(h,()=>{byId('geriL').onclick=listeyeDon;document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{S.pt.gorunum=b.dataset.v;render();});
+  view(h,()=>{byId('geriL').onclick=listeyeDon;document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{if(S.pt.gorunum==='veri'&&b.dataset.v!=='veri')veriBosTemizle();S.pt.gorunum=b.dataset.v;S.pt.vsel=null;render();});
     const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
     if(S.pt._kf&&S.pt.gorunum!=='veri'){kfBagla(S.pt._kf.t,S.pt._kf.cols,S.pt._kf.rows);const kh=byId('kfHepsi');if(kh)kh.onclick=()=>{kfDurum(S.pt._kf.t).f={};render();};}
     if(S.pt.gorunum==='veri')veriGirisiBagla(V);else document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
@@ -771,7 +771,7 @@ function kfAc(t,c,rows,btn){kfKapat();const st=kfDurum(t);const pop=document.cre
   byId('kfOk').onclick=()=>{pop.querySelectorAll('.kfsec').forEach(sec=>{const k=sec.dataset.k;const boxes=[...sec.querySelectorAll('.kflist input')];const ara=sec.querySelector('.kfara');
       // Excel gibi: aramada sadece görünenler seçilir
       const secili=boxes.filter(b=>b.checked&&!(ara&&ara.value&&b.closest('.kfrow').hidden)).map(b=>b.value);
-      if(secili.length===boxes.length)delete st.f[k];else st.f[k]=secili;});kfKapat();render();};
+      if(secili.length===boxes.length)delete st.f[k];else st.f[k]=secili;});S.pt.vsel=null;kfKapat();render();};
   setTimeout(()=>document.addEventListener('click',kfKapat,{once:true}),0);}
 function kfKapat(){const p=byId('kfPop');if(p)p.remove();}
 
@@ -805,9 +805,15 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   oto.sort((a,b)=>String(adOf(a.pid)).localeCompare(String(adOf(b.pid)),'tr'));
   const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
   const hataSay=veri.filter(v=>veriKontrol(v,kL,ak,V.kilitli).gecersiz).length;
+  const adYazi=v=>v.ad!=null&&v.ad!==''?v.ad:(v.pid?adBuyuk(adOf(v.pid)):'');
+  const VC=[{k:'tarih',ad:'Tarih',v:x=>x.v.tarih?trTarih(x.v.tarih):'',n:x=>x.v.tarih||''},{k:'ad',ad:'Ad soyad',v:x=>adYazi(x.v),l:1},{k:'tur',ad:'Veri türü',v:x=>veriTur(x.v.tur)?veriTur(x.v.tur).ad:'',l:1},
+    {k:'miktar',ad:'Miktar',v:x=>x.v.miktar===''||x.v.miktar==null?'':fmt(sayi(x.v.miktar)),n:x=>sayi(x.v.miktar)},{k:'ack',ad:'Açıklama',v:x=>x.v.aciklama||'',l:1},{k:'durum',ad:'Durum',v:x=>x.k.bos?'Boş satır':x.k.gecersiz?x.k.hata:'Tamam',l:1}];
+  const tumR=veri.map((v,i)=>({v,i,k:veriKontrol(v,kL,ak,V.kilitli)}));let VIS=kfUygula('veri',VC,tumR);tumR.forEach(x=>{if(x.k.bos&&!VIS.includes(x))VIS.push(x);});
+  S.pt._vvis=VIS.map(x=>x.i);S.pt._vkf={cols:VC,rows:tumR};
   let h=`<div class="actions" style="margin-top:0"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}
-   <div class="tbl-wrap"><table class="pt vt vg2" id="vGrid"><thead><tr><th style="width:110px">Tarih</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th style="width:110px">Miktar</th><th class="l">Açıklama</th><th class="l">Durum</th><th></th></tr></thead><tbody>`;
-  veri.forEach((v,r)=>{const k=veriKontrol(v,kL,ak,V.kilitli);const kil=V.kilitli&&veriTur(v.tur)&&veriTur(v.tur).y==='sol'&&!k.gecersiz;
+   ${kfAktifMi('veri')?`<div class="kfbar">Filtre açık · ${VIS.length} / ${veri.length} satır gösteriliyor <button class="mini" id="kfHepsiV">Filtreleri kaldır</button></div>`:''}
+   <div class="tbl-wrap"><table class="pt vt vg2" id="vGrid"><thead><tr>${VC.map(c=>kfBaslik('veri',c,c.l?'l':'')).join('')}<th></th></tr></thead><tbody>`;
+  VIS.forEach((x,r)=>{const v=x.v;const k=x.k;const kil=V.kilitli&&veriTur(v.tur)&&veriTur(v.tur).y==='sol'&&!k.gecersiz;
     h+=`<tr data-vid="${esc(v.id)}" data-r="${r}" class="${k.gecersiz?'hata':''}">
      <td class="bi"><input data-c="0" value="${esc(v.tarih?trTarih(v.tarih):'')}" placeholder="gg.aa.yyyy" ${kil?'disabled':''}></td>
      <td class="bi l"><input data-c="1" list="vKisiL" value="${esc(v.ad!=null?v.ad:adBuyuk(adOf(v.pid)))}" autocomplete="off" ${kil?'disabled':''}></td>
@@ -845,15 +851,17 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
     const sb=tumSubeler().map(([i,a])=>isimAnahtar(a));const w=Math.max(...M.map(r=>r.length));const at=[];
     for(let j=0;j<w;j++){const col=M.map(r=>r[j]||'').filter(x=>x.trim());if(col.length&&col.every(x=>sb.includes(isimAnahtar(x))))at.push(j);}
     return M.map(r=>r.filter((x,j)=>!at.includes(j)));};
+  const vis=()=>S.pt._vvis||veri0().map((v,i)=>i);
   const yapistir=(t,r0,c0)=>{let M=t.replace(/\r/g,'').split('\n');while(M.length&&!M[M.length-1].trim())M.pop();M=sutunlar(M.map(x=>x.split('\t')));if(!M.length)return;
-    const L=veri0().slice();M.forEach((row,i)=>{let r=r0+i;if(r>=L.length){L.push(yeniSatir());r=L.length-1;}let v={...L[r]};row.forEach((val,j)=>{const c=c0+j;if(c<=4)v=hucreYaz(v,c,val);});L[r]=v;});
-    const hata=L.slice(r0,r0+M.length).filter(v=>veriKontrol(v,kL,ak,V.kilitli).gecersiz).length;ayarla(L,true);toast(`${M.length} satır yapıştırıldı${hata?`, ${hata} satırda uyuşmazlık var (kırmızı)`:''}.`);};
+    const L=veri0().slice();const VI=vis();const dok=[];M.forEach((row,i)=>{const pos=r0+i;let r=pos<VI.length?VI[pos]:null;if(r==null){L.push(yeniSatir());r=L.length-1;}let v={...L[r]};row.forEach((val,j)=>{const c=c0+j;if(c<=4)v=hucreYaz(v,c,val);});L[r]=v;dok.push(r);});
+    const hata=dok.filter(r=>veriKontrol(L[r],kL,ak,V.kilitli).gecersiz).length;ayarla(L,true);toast(`${M.length} satır yapıştırıldı${hata?`, ${hata} satırda uyuşmazlık var (kırmızı)`:''}.`);};
   byId('vSatir').onclick=()=>{S.pt.odak={c:1};ayarla([...veri0(),yeniSatir()],true);};
   byId('vSatir10').onclick=()=>{const L=veri0().slice();for(let i=0;i<10;i++)L.push(yeniSatir());S.pt.odak={c:1,ilkBos:true};ayarla(L,true);};
   const ob=byId('vOto');if(ob)ob.onclick=()=>{S.pt.otoAcik=!S.pt.otoAcik;render();};
+  if(S.pt._vkf)kfBagla('veri',S.pt._vkf.cols,S.pt._vkf.rows);const kv=byId('kfHepsiV');if(kv)kv.onclick=()=>{kfDurum('veri').f={};kfDurum('veri').sort=null;S.pt.vsel=null;render();};
   document.querySelectorAll('[data-sil]').forEach(b=>b.onclick=()=>{const v=veri0().find(x=>x.id===b.dataset.sil);const bos=v&&veriKontrol(v,kL,ak,V.kilitli).bos;if(!bos&&!b.dataset.ok){b.dataset.ok='1';b.textContent='Sil?';return;}ayarla(veri0().filter(x=>x.id!==b.dataset.sil),true);});
   if(!veriYapistirBagli){veriYapistirBagli=true;document.addEventListener('paste',e=>{if(S.tab!=='puantaj'||!S.pt.sube||S.pt.gorunum!=='veri'||byId('sheetRoot').innerHTML)return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;
-    const t=(e.clipboardData||window.clipboardData).getData('text');if(!t||!/[\t\n]/.test(t))return;e.preventDefault();const L=veri0();const bosI=L.findIndex(v=>veriKontrol(v,kL,ak,V.kilitli).bos);(window.__vYapistir||(()=>{}))(t,bosI>=0?bosI:L.length,0);});}
+    const t=(e.clipboardData||window.clipboardData).getData('text');if(!t||!/[\t\n]/.test(t))return;e.preventDefault();const L=veri0();const VI=S.pt._vvis||L.map((v,i)=>i);const bosP=VI.findIndex(i=>L[i]&&veriKontrol(L[i],kL,ak,V.kilitli).bos);(window.__vYapistir||(()=>{}))(t,bosP>=0?bosP:VI.length,0);});}
   window.__vYapistir=yapistir;
   // Excel gibi hücre seçimi: sürükle ya da Shift+tıkla; Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır, tek değer seçili tüm hücrelere yapıştırılır.
   const hucreEl=(r,c)=>grid.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);const tdOf=el=>el&&el.closest('td');
@@ -879,14 +887,18 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
       if(tek&&A&&(cokluMu()||(ae&&ae.tagName==='SELECT'&&g.contains(ae)))){e.preventDefault();e.stopPropagation();(window.__vDoldur||(()=>{}))(t.replace(/[\r\n]+$/,''),A);}},true);
     document.addEventListener('keydown',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri')return;if((e.key==='Delete'||e.key==='Backspace')&&cokluMuG()){const ae=document.activeElement;if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName))return;e.preventDefault();(window.__vDoldur||(()=>{}))('',aralikG());}});}
   const cokluMuG=()=>cokluMu();const aralikG=()=>aralik();window.cokluMuG=cokluMuG;window.aralikG=aralikG;
-  window.__vDoldur=(val,A)=>{const L=veri0().slice();let n=0;for(let r=A.r0;r<=A.r1;r++){if(!L[r])continue;let v={...L[r]};for(let c=A.c0;c<=A.c1;c++){if(c>4)continue;v=hucreYaz(v,c,val);n++;}L[r]=v;}
+  window.__vDoldur=(val,A)=>{const L=veri0().slice();const VI=vis();let n=0;for(let p=A.r0;p<=A.r1;p++){const r=VI[p];if(r==null||!L[r])continue;let v={...L[r]};for(let c=A.c0;c<=A.c1;c++){if(c>4)continue;v=hucreYaz(v,c,val);n++;}L[r]=v;}
     ayarla(L,true);toast(val===''?`${n} hücre temizlendi.`:`${n} hücreye yapıştırıldı.`);};
   selCiz();
   // odak
   if(S.pt.odak){const o=S.pt.odak;S.pt.odak=null;const rows=[...grid.querySelectorAll('tr[data-vid]')];let tr=o.ilkBos?rows.find(t=>{const v=veri0().find(x=>x.id===t.dataset.vid);return v&&veriKontrol(v,kL,ak,V.kilitli).bos;}):rows[rows.length-1];
     const el=tr&&tr.querySelector(`[data-c="${o.c}"]`);if(el)el.focus();}}
 
-function listeyeDon(){S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
+// Boş satırlar: sekme değişince, şubeden çıkınca ve sayfa açılınca silinir.
+function bosSatirMi(v){return !String(v.ad||'').trim()&&!v.pid&&!v.tur&&(v.miktar===''||v.miktar==null)&&!String(v.aciklama||'').trim();}
+function veriBosTemizle(){const D=S.pt.doc;if(!D||!Array.isArray(D.veri)||!S.pt.sube)return;const yeni=D.veri.filter(v=>!bosSatirMi(v));if(yeni.length===D.veri.length)return;
+  const sid=S.pt.sube,ak=S.ay;S.pt.doc={...D,veri:yeni};sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{veri:yeni,guncellendi:new Date().toISOString()},{merge:true}));}
+function listeyeDon(){veriBosTemizle();S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
 function sagSonuclu(V,degisen){const sag=JSON.parse(JSON.stringify((V.D&&V.D.sag)||{}));if(degisen)Object.entries(degisen).forEach(([pid,v])=>sag[pid]={...(sag[pid]||{}),...v});
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=(S.pt.maas&&S.pt.maas.net)||{};
   Object.keys(V.sol).forEach(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;const r=sagHesap(pid,V.sol[pid],sag[pid],net[pid],V.sb,dv,veriOzet(V.D&&V.D.veri)[pid],usOf(pid));sag[pid]={...(sag[pid]||{}),kalan:Math.round(r.kalan*100)/100};});return sag;}
