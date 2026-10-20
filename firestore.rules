@@ -88,7 +88,10 @@ service cloud.firestore {
         allow write: if bolgede(s)
           || (subede(s)
               && request.resource.data.durum in ['taslak', 'sube_onay']
-              && (resource == null || resource.data.durum in ['taslak', 'sube_onay', 'geri']));
+              && (resource == null || resource.data.durum in ['taslak', 'sube_onay', 'geri']))
+          // geri gönderilmiş ayda kontrol işaretleri (durum değişmeden)
+          || (subede(s) && resource != null && resource.data.durum == 'geri'
+              && request.resource.data.durum == 'geri');
       }
     }
 

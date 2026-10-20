@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=57";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=58";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -648,17 +648,18 @@ function ayKontrolleri(ak,R,sb,d){const[y,m]=ak.split('-').map(Number);const ilk
     const ic=t=>t&&t.slice(0,7)===ak;if(ic(p.giris)||ic(p.cikis)||ic(p.baslama))K.gc.push({p});});
   const ids=ayKadroIds(ak);subePersoneli().filter(p=>p.anaSube===S.subeId&&aktifAyda(p,ak)&&!ids.has(p.id)&&!isEsnaf(p)).forEach(p=>K.yok.push({p}));
   return K;}
-function ayKontrolHtml(K,ak,kilit){const gunY=dd=>`${dd.getDate()} ${AYK[dd.getMonth()]} ${GUN[(dd.getDay()+6)%7]}`;const ad=p=>esc(kisaAd(p.ad));
+function ayKontrolHtml(K,ak,kilit,kon={}){const tik=(key,t)=>`<label class="kchip ${kon[key]?'on':''}"><input type="checkbox" data-kon="${esc(key)}" ${kon[key]?'checked':''} ${kilit?'disabled':''}> ${t}</label>`;const gunY=dd=>`${dd.getDate()} ${AYK[dd.getMonth()]} ${GUN[(dd.getDay()+6)%7]}`;const ad=p=>esc(kisaAd(p.ad));
   const bolum=(cls,baslik,aciklama,ic)=>`<div class="kt ${cls}"><div class="kth"><b>${baslik}</b><span>${aciklama}</span></div><div class="kti">${ic}</div></div>`;
   const git=(wid,t)=>`<button class="kchip" data-git="${wid}">${t}</button>`;let h='';
   if(K.bos.length)h+=bolum('kirmizi',`Boş günler · ${K.bos.length}`,'Bu günler doldurulmadan ay kapatılamaz. Tıklayınca o haftanın çizelgesi açılır.',K.bos.map(x=>git(x.wid,`${ad(x.p)} · ${gunY(x.d)}`)).join(''));
   if(K.yedi.length)h+=bolum(K.yedi.every(x=>x.ok)?'yesil':'sari',`Haftalık izin kullanmadan 7 gün çalışanlar · ${K.yedi.length}`,'Doğruysa teyit edin. Teyit edilmeden ay kapatılamaz.',K.yedi.map(x=>`<label class="kchip ${x.ok?'on':''}"><input type="checkbox" data-teyit="${esc(x.key)}" ${x.ok?'checked':''} ${kilit?'disabled':''}> ${ad(x.p)} · ${rangeLabel(x.wid)}</label>`).join(''));
-  if(K.eksi.length)h+=bolum('sari',`Eksi fazla mesai · ${K.eksi.length}`,'Eksik çalışma mı, yanlış saat mi kontrol edin.',K.eksi.map(x=>`<span class="kchip">${ad(x.p)} · ${sg(x.a.fm)} sa</span>`).join(''));
-  if(K.yuksek.length)h+=bolum('sari',`Çok yüksek fazla mesai (${YUKSEK_FM} saatin üstü) · ${K.yuksek.length}`,'Saatlerin doğru girildiğini kontrol edin.',K.yuksek.map(x=>`<span class="kchip">${ad(x.p)} · ${sg(x.a.fm)} sa</span>`).join(''));
-  if(K.izin.length)h+=bolum('gri',`Rapor ve izinler · ${K.izin.length}`,'Rapor evrakı ve izin dilekçeleri tamam mı?',K.izin.map(x=>`<span class="kchip">${ad(x.p)} · ${x.iz.map(k=>`${x.a.kod[k]} ${KOD[k].ad.toLocaleLowerCase('tr-TR')}`).join(', ')}</span>`).join(''));
-  if(K.gc.length)h+=bolum('gri',`Ay içinde giren / çıkan · ${K.gc.length}`,'Tarihleri kontrol edin.',K.gc.map(({p})=>`<span class="kchip">${ad(p)} · ${[p.baslama&&p.baslama.slice(0,7)===ak?'deneme '+trTarih(p.baslama):'',p.giris&&p.giris.slice(0,7)===ak?'giriş '+trTarih(p.giris):'',p.cikis&&p.cikis.slice(0,7)===ak?'çıkış '+trTarih(p.cikis):''].filter(Boolean).join(' · ')}</span>`).join(''));
-  if(K.yok.length)h+=bolum('gri',`Bu ay çizelgede hiç görünmeyenler · ${K.yok.length}`,'Personel listesinde aktif ama çizelgeye eklenmemiş. Unutulmadıysa sorun yok.',K.yok.map(({p})=>`<span class="kchip">${ad(p)}</span>`).join(''));
-  return h?`<div class="sec">Kontrol edilecekler</div><div class="card kcard">${h}</div>`:`<div class="banner ok">Kontrol edilecek bir şey yok.</div>`;}
+  const tamam=(L,f)=>L.every(x=>kon[f(x)]);
+  if(K.eksi.length)h+=bolum(tamam(K.eksi,x=>'eksi_'+x.p.id)?'yesil':'sari',`Eksi fazla mesai · ${K.eksi.length}`,'Eksik çalışma mı, yanlış saat mi kontrol edip işaretleyin.',K.eksi.map(x=>tik('eksi_'+x.p.id,`${ad(x.p)} · ${sg(x.a.fm)} sa`)).join(''));
+  if(K.yuksek.length)h+=bolum(tamam(K.yuksek,x=>'yuksek_'+x.p.id)?'yesil':'sari',`Çok yüksek fazla mesai (${YUKSEK_FM} saatin üstü) · ${K.yuksek.length}`,'Saatlerin doğru girildiğini kontrol edip işaretleyin.',K.yuksek.map(x=>tik('yuksek_'+x.p.id,`${ad(x.p)} · ${sg(x.a.fm)} sa`)).join(''));
+  if(K.izin.length)h+=bolum(tamam(K.izin,x=>'izin_'+x.p.id)?'yesil':'sari',`Rapor ve izinler · ${K.izin.length}`,'Rapor evrakı ve izin dilekçeleri tamamsa işaretleyin.',K.izin.map(x=>tik('izin_'+x.p.id,`${ad(x.p)} · ${x.iz.map(k=>`${x.a.kod[k]} ${KOD[k].ad.toLocaleLowerCase('tr-TR')}`).join(', ')}`)).join(''));
+  if(K.gc.length)h+=bolum(tamam(K.gc,x=>'gc_'+x.p.id)?'yesil':'sari',`Ay içinde giren / çıkan · ${K.gc.length}`,'Tarihler doğruysa işaretleyin.',K.gc.map(({p})=>tik('gc_'+p.id,`${ad(p)} · ${[p.baslama&&p.baslama.slice(0,7)===ak?'deneme '+trTarih(p.baslama):'',p.giris&&p.giris.slice(0,7)===ak?'giriş '+trTarih(p.giris):'',p.cikis&&p.cikis.slice(0,7)===ak?'çıkış '+trTarih(p.cikis):''].filter(Boolean).join(' · ')}`)).join(''));
+  if(K.yok.length)h+=bolum(tamam(K.yok,x=>'yok_'+x.p.id)?'yesil':'sari',`Bu ay çizelgede hiç görünmeyenler · ${K.yok.length}`,'Personel listesinde aktif ama çizelgeye eklenmemiş. Unutulmadıysa işaretleyin.',K.yok.map(({p})=>tik('yok_'+p.id,ad(p))).join(''));
+  return h?`<div class="sec">Kontrol edilecekler · hepsi işaretlenmeden ay kapatılamaz</div><div class="card kcard">${h}</div>`:`<div class="banner ok">Kontrol edilecek bir şey yok.</div>`;}
 function renderAy(){const ak=S.ay||gosterAy(S.hafta);S.ay=ak;const sb=sube();const kisiler=sirala(ayKadrosu(ak));const R=kisiler.map(p=>({p,a:ayHesap(p,ak,sb)}));
   const d=S.aylar[ak]||{durum:'taslak'};const kilit=d.durum==='sube_onay'||d.durum==='bolge_onay';
   const topFm=R.reduce((s,x)=>s+x.a.fm,0),rap=R.reduce((s,x)=>s+(x.a.kod.R||0),0),ui=R.reduce((s,x)=>s+(x.a.kod.UI||0),0),bos=R.reduce((s,x)=>s+x.a.bos,0);
@@ -668,8 +669,10 @@ function renderAy(){const ak=S.ay||gosterAy(S.hafta);S.ay=ak;const sb=sube();con
   if(d.durum==='sube_onay')h+=`<div class="banner">Ay kapatıldı, bölge müdürünün onayı bekleniyor. Bu ayın günleri kilitli.</div>`;
   if(d.durum==='bolge_onay')h+=`<div class="banner ok">Bölge müdürü onayladı. Puantaj işverene gönderildi.</div>`;
   h+=`<div class="kpis"><div class="kpi"><span>Toplam fazla mesai</span><b>${fmt(topFm)} sa</b></div><div class="kpi"><span>Çalışan</span><b>${R.length}</b></div><div class="kpi"><span>Rapor / Ücr. izin</span><b>${rap} / ${ui} gün</b></div><div class="kpi"><span>Boş gün</span><b style="color:${bos?'var(--warn)':'var(--ok)'}">${bos?bos+' gün':'Yok'}</b></div></div>`;
-  const K=ayKontrolleri(ak,R,sb,d);const engel=K.bos.length?`${K.bos.length} boş gün doldurulmadan`:K.yedi.some(x=>!x.ok)?`7 gün çalışılan haftalar teyit edilmeden`:'';
-  if(R.length)h+=ayKontrolHtml(K,ak,kilit);
+  const K=ayKontrolleri(ak,R,sb,d);const kon=d.kontrol||{};
+  const isaretsiz=[...K.eksi.map(x=>'eksi_'+x.p.id),...K.yuksek.map(x=>'yuksek_'+x.p.id),...K.izin.map(x=>'izin_'+x.p.id),...K.gc.map(x=>'gc_'+x.p.id),...K.yok.map(x=>'yok_'+x.p.id)].filter(k=>!kon[k]).length;
+  const engel=K.bos.length?`${K.bos.length} boş gün doldurulmadan`:K.yedi.some(x=>!x.ok)?`7 gün çalışılan haftalar teyit edilmeden`:isaretsiz?`Kontrol edilecekler listesinde ${isaretsiz} madde işaretlenmeden`:'';
+  if(R.length)h+=ayKontrolHtml(K,ak,kilit,kon);
   let son=null;R.forEach(({p,a})=>{const g=p.grup||'K';if(g!==son){if(son)h+='</div>';son=g;h+=`<div class="sec">${GRUP[g]}</div><div class="card list">`;}
     const tags=['R','UI','YI','B'].filter(k=>a.kod[k]).map(k=>`<span class="tag">${a.kod[k]} ${KOD[k].ad.toLocaleLowerCase('tr-TR')}</span>`).join('')+(a.bos?`<span class="tag warn">${a.bos} boş gün</span>`:'');
     const sag=a.esnaf?`<b>${fmt(a.h)} sa</b><span>esnaf</span>`:a.part?`<b>${fmt(a.h)} sa</b><span>part</span>`:`<b>${sg(a.fm)} sa</b><span>${fmt(a.h)} sa çalıştı</span>`;
@@ -683,9 +686,14 @@ function renderAy(){const ak=S.ay||gosterAy(S.hafta);S.ay=ak;const sb=sube();con
     document.querySelectorAll('[data-teyit]').forEach(c=>c.onchange=()=>{const k=c.dataset.teyit;const i=k.lastIndexOf('_');const pid=k.slice(0,i),wid=k.slice(i+1);
       const w0=S.haftalar[wid]||{};S.haftalar[wid]={...w0,teyit7:{...(w0.teyit7||{}),[pid]:c.checked}};
       sirayla(wid,()=>setDoc(weekRef(wid,S.subeId),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),teyit7:{[pid]:c.checked}},{merge:true}));render();});
-    const kb=byId('kapB');if(kb)kb.onclick=()=>{if(!kb.dataset.ok){kb.dataset.ok='1';kb.textContent='Kapatmayı onayla';return;}
+    document.querySelectorAll('[data-kon]').forEach(c=>c.onchange=()=>{const k=c.dataset.kon;S.aylar[ak]={...d,kontrol:{...(d.kontrol||{}),[k]:c.checked}};
+      sirayla('ay'+ak,()=>setDoc(doc(db,'subeler',S.subeId,'aylar',ak),{durum:d.durum||'taslak',kontrol:{[k]:c.checked}},{merge:true}));render();});
+    const kb=byId('kapB');if(kb)kb.onclick=()=>openSheet(`<h2>Ayı kapat</h2><div class="sub">${esc(trBuyukBas(sb.ad))} şubesi · ${ayAdi(ak)}</div>
+      <div class="confirm">Ay kapatılınca bu ayın çizelgesi şube tarafından değiştirilemez. Çalışma günleri, fazla mesai, rapor ve izinler bölge müdürünün onayına gönderilir.</div>
+      <p class="note">${R.length} çalışan · toplam fazla mesai ${fmt(topFm)} sa · rapor ${rap} gün · ücretsiz izin ${ui} gün</p>
+      <div class="row2"><button class="btn grow" id="kNo">Vazgeç</button><button class="btn primary grow" id="kOk">Evet, kapat ve gönder</button></div>`,()=>{byId('kNo').onclick=closeSheet;byId('kOk').onclick=()=>{closeSheet();
       const sid=S.subeId;sirayla('ay'+ak,async()=>{const b=writeBatch(db);b.set(doc(db,'subeler',sid,'aylar',ak),{durum:'sube_onay',kapatan:S.user.uid,kapatanAd:S.me.adSoyad||'',kapatma:new Date().toISOString(),not:''},{merge:true});
-        b.set(doc(db,'ozetler',ak+'__'+sid),{sube:sid,ay:ak,kisiler:subeOzeti(ak,sid),guncellendi:new Date().toISOString()});await b.commit();});toast(`${ayAdi(ak)} kapatıldı, bölge müdürüne gönderildi.`);};
+        b.set(doc(db,'ozetler',ak+'__'+sid),{sube:sid,ay:ak,kisiler:subeOzeti(ak,sid),guncellendi:new Date().toISOString()});await b.commit();});toast(`${ayAdi(ak)} kapatıldı, bölge müdürüne gönderildi.`);};});
     const cb=byId('cekB');if(cb)cb.onclick=()=>{sirayla('ay'+ak,()=>setDoc(doc(db,'subeler',S.subeId,'aylar',ak),{durum:'taslak'},{merge:true}));toast('Kapatma geri çekildi.');};});}
 
 /* ================= Puantaj (bölge müdürü + işveren) ================= */
@@ -730,13 +738,13 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   const durumK={k:'durum',ad:'Durum',vals:etiketler};const n0=v=>v||0;const tlv=v=>Math.abs(v||0)>0.004?tl(v):'';
   if(S.pt.gorunum==='sol'){
     const KS=[{k:'sgk',ad:'SGK şube',v:x=>x.sol.sgkSube,l:1},{k:'ad',ad:'Ad soyad',v:x=>x.sol.ad,ek:durumK,l:1},{k:'gorev',ad:'Görev',v:x=>muhGorev(x.sol)},{k:'sekil',ad:'Şekil',v:x=>x.sol.muhSekil||x.sol.sekil},{k:'giris',ad:'Giriş',v:x=>trTarih(x.sol.giris),n:x=>x.sol.giris||''},{k:'cikis',ad:'Çıkış',v:x=>trTarih(x.sol.cikis),n:x=>x.sol.cikis||''},
-      {k:'rapor',ad:'Rapor',v:x=>x.sol.rapor||'',n:x=>n0(x.sol.rapor)},{k:'ui',ad:'Ücr. izin',v:x=>x.sol.ucretsiz||'',n:x=>n0(x.sol.ucretsiz)},{k:'pg',ad:'Part gün',v:x=>x.sol.partGun?fmt(x.sol.partGun):'',n:x=>n0(x.sol.partGun)},{k:'yi',ad:'Yıllık izin',v:x=>x.sol.yillik||'',n:x=>n0(x.sol.yillik)},{k:'b',ad:'Bayram',v:x=>x.sol.bayram||'',n:x=>n0(x.sol.bayram)},{k:'gun',ad:'Bordro gün',v:x=>x.sol.maasBurada===false&&!x.sol.muhBurada?'—':x.sol.gun,n:x=>n0(x.sol.gun)}];
+      {k:'rapor',ad:'Rapor',v:x=>x.sol.rapor||'',n:x=>n0(x.sol.rapor)},{k:'ui',ad:'Ücr. izin',v:x=>x.sol.ucretsiz||'',n:x=>n0(x.sol.ucretsiz)},{k:'pg',ad:'Part gün',v:x=>x.sol.partGun?fmt(x.sol.partGun):'',n:x=>n0(x.sol.partGun)},{k:'yi',ad:'Yıllık izin',v:x=>x.sol.yillik||'',n:x=>n0(x.sol.yillik)},{k:'b',ad:'Bayram',v:x=>x.sol.bayram||'',n:x=>n0(x.sol.bayram)},{k:'gun',ad:'Gün sayısı',v:x=>x.sol.maasBurada===false&&!x.sol.muhBurada?'—':x.sol.gun,n:x=>n0(x.sol.gun)}];
     const tabanS=V.satir.filter(x=>muhasebedeMi(x.sol));const LS=kfUygula('sol',KS,tabanS);S.pt._kf={t:'sol',cols:KS,rows:tabanS};
     if(kfAktifMi('sol'))h+=`<div class="kfbar">Filtre açık · ${LS.length} / ${tabanS.length} kişi gösteriliyor <button class="mini" id="kfHepsi">Filtreleri kaldır</button></div>`;
     h+=`<div class="tbl-wrap"><table class="pt"><thead><tr>${KS.map(c=>kfBaslik('sol',c,c.l?'l':'')).join('')}</tr></thead><tbody>`;
     const gizli=V.satir.filter(({sol})=>!muhasebedeMi(sol));
     LS.forEach(({sol})=>{const fo=sol.maasBurada===false&&!sol.muhBurada;h+=`<tr class="${cikisMi(sol)?'cikis':''}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.muhBurada&&sol.maasBurada===false?` <span class="tag">ödemesi ${esc(sol.odemeSube)}</span>`:''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}${sol.sekil==='Part'&&!sol.partGun?' <span class="tag warn">part gün girilmedi</span>':''}</td><td>${esc(muhGorev(sol))}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${fo?'—':sol.gun}</td></tr>`;});
-    h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Bordro gün = 30 − rapor − ücretsiz izin (ay ortasında giriş/çıkışta çalışılan takvim günü); part çalışanlarda bordro gün = part gün</span></div>
+    h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Gün sayısı = 30 − rapor − ücretsiz izin (ay ortasında giriş/çıkışta çalışılan takvim günü); part çalışanlarda gün sayısı = part gün</span></div>
     ${gizli.length?`<p class="note"><b>Muhasebede gösterilmeyen ${gizli.length} kişi</b> (SGK'sı başka şubede ya da SGK'sı yok): ${gizli.map(x=>esc(x.sol.ad)).join(', ')}. Bu kişiler sadece Ödemeler tarafında.</p>`:''}
     <p class="note">Maaş, rapor ve izinler kişinin SGK şubesinde. Fazla mesai muhasebeye gitmez; Ödemeler tarafında, çalıştığı her şubede ayrı hesaplanır. Diğer şubelerdeki izin günleri o şubeler ayı kapattıkça eklenir. "+ şube adı" etiketi o şubeden gelen günlerin eklendiğini gösterir.</p>`;
     h+=`<div class="actions" style="margin-top:12px"><button class="btn grow" id="pdfB">Muhasebe çıktısı · PDF / fotoğraf / WhatsApp</button></div>`;}
@@ -991,7 +999,7 @@ async function muhasebeGorseli(V,temaK){try{await document.fonts.ready;}catch(e)
   const rows=V.satir.filter(x=>muhasebedeMi(x.sol)).map(x=>x.sol).sort((a,b)=>String(a.ad).localeCompare(String(b.ad),'tr'));
   const tmp=document.createElement('canvas').getContext('2d');const F=(w,s)=>`${w} ${s}px Figtree,system-ui,sans-serif`;const olc=(t,f)=>{tmp.font=f;return tmp.measureText(String(t)).width;};
   const veri=rows.map((r,i)=>[i+1,r.ad.toLocaleUpperCase('tr-TR'),muhGorev(r).toLocaleUpperCase('tr-TR'),(r.muhSekil||r.sekil||'').toLocaleUpperCase('tr-TR'),trTarih(r.giris),trTarih(r.cikis),r.rapor||'',r.ucretsiz||'',r.partGun?fmt(r.partGun):'',r.yillik||'',r.bayram||'',r.gun??'']);
-  const bas=['#','ADI SOYADI','GÖREV','ŞEKİL','GİRİŞ','ÇIKIŞ','RAPOR','ÜCR. İZİN','PART GÜN','YILLIK İZİN','BAYRAM','BORDRO GÜN'];
+  const bas=['#','ADI SOYADI','GÖREV','ŞEKİL','GİRİŞ','ÇIKIŞ','RAPOR','ÜCR. İZİN','PART GÜN','YILLIK İZİN','BAYRAM','GÜN SAYISI'];
   const fH=F(800,10.5),fA=F(700,12),fD=F(600,11.5);
   const cw=bas.map((b,j)=>Math.ceil(Math.max(olc(b,fH),...veri.map(r=>olc(r[j],j===1?fA:fD)),j===1?150:24)+(j===1?22:16)));
   const pad=28,tw=cw.reduce((a,b)=>a+b,0),W=Math.max(tw+pad*2,560),ox=(W-tw)/2,rowH=26,thH=30,top=104;const H=top+thH+rows.length*rowH+70;
