@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=23";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=24";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -504,7 +504,10 @@ function renderBilgiListesi(){const T=byId('blTbl');
     tb.querySelectorAll('[data-x]').forEach(el=>{const x=el.dataset.x;
       if(x==='menu'){el.onclick=()=>personelPanel(el.closest('tr').dataset.pid);return;}
       if(x==='ad')el.oninput=()=>{const a=el.selectionStart,b=el.selectionEnd;el.value=el.value.toLocaleUpperCase('tr-TR');try{el.setSelectionRange(a,b);}catch(_){}};
-      el.onchange=()=>{const p=pOf(el);if(!p)return;const v=el.value;
+      const tarihMi=el.type==='date';
+      // Tarih alanı yazılırken her rakamda değişiklik gelir; sadece alandan çıkınca ve yıl tamamsa kaydet.
+      if(tarihMi){el.onchange=null;el.onkeydown=e=>{if(e.key==='Enter')el.blur();};}
+      el[tarihMi?'onblur':'onchange']=()=>{const p=pOf(el);if(!p)return;const v=el.value;if(tarihMi){if(v===(p[x]||''))return;if(v&&(+v.slice(0,4)<1990||+v.slice(0,4)>2100))return geri(el,'Tarih hatalı, yılı 4 haneli yazın.',p[x]||'');}
         if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı.`,adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
         if(x==='gorev'){const g=gorevBul(v);if(!g)return;const body={gorev:g.ad,grup:g.grup,sekil:g.sekil||(p.sekil==='Part'?'Part':'Tam')};yaz1(p,body,true);return;}
         if(x==='sekil'){yaz1(p,{sekil:v});return;}
