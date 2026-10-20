@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=47";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=48";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -24,7 +24,7 @@ const SGK_YOK='-';
 const VERI_TUR=[{k:'R',ad:'Rapor',b:'gün',y:'sol'},{k:'UI',ad:'Ücretsiz izin',b:'gün',y:'sol'},{k:'YI',ad:'Yıllık izin',b:'gün',y:'sol'},{k:'B',ad:'Bayram',b:'gün',y:'sol'},{k:'PG',ad:'Part gün',b:'gün',y:'sol'},{k:'FM',ad:'Fazla mesai (saat)',b:'saat',y:'sol',gizli:true},
   {k:'BY',ad:'Bankaya yatan',b:'₺',y:'sag'},{k:'SA',ad:'Çalışılan saat',b:'saat',y:'sag'},{k:'FMT',ad:'Fazla mesai tutarı',b:'₺',y:'sag'},{k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag',gizli:true},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag',gizli:true},{k:'KS',ad:'Kesinti',b:'₺',y:'sag',gizli:true}];
 const veriTur=k=>VERI_TUR.find(t=>t.k===k);
-function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||!v.pid||!sayi(v.miktar))return;if(v.tarih&&S.ay&&v.tarih.slice(0,7)!==S.ay)return;const x=o[v.pid]=o[v.pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
+function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||!v.pid||v.miktar===''||v.miktar==null)return;if(v.tarih&&S.ay&&v.tarih.slice(0,7)!==S.ay)return;const x=o[v.pid]=o[v.pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
 // Elle girilen gün/saat verilerini muhasebe tarafına ekle.
 function veriUygula(sol,oz){Object.entries(oz).forEach(([pid,e])=>{const r=sol[pid];if(!r)return;const n=k=>e[k]||0;
   if(r.maasBurada!==false||r.muhBurada){r.rapor=(r.rapor||0)+n('R');r.ucretsiz=(r.ucretsiz||0)+n('UI');r.yillik=(r.yillik||0)+n('YI');r.bayram=(r.bayram||0)+n('B');
@@ -789,7 +789,7 @@ function trTarihCoz(x){x=String(x||'').trim();let m=x.match(/^(\d{1,2})[.\/-](\d
   if(/^\d{5}$/.test(x)){const d=xSerialTarih(+x);if(d)return d;}return null;}
 function veriKontrol(v,kL,ak,kilitli){const r={pid:'',tur:'',hata:''};const bos=!String(v.ad||'').trim()&&!v.pid&&!v.tur&&!String(v.miktar??'').toString().trim()&&!String(v.aciklama||'').trim();if(bos)return{...r,bos:true};
   const adT=v.ad!=null&&v.ad!==''?v.ad:(v.pid?((kL.find(([id])=>id===v.pid)||[])[1]||''):'');const k=isimAnahtar(adT);const x=adT?kL.find(([id,a])=>isimAnahtar(a)===k):null;if(x)r.pid=x[0];const t=veriTur(v.tur);if(t)r.tur=t.k;
-  if(!adT.trim())r.hata='İsim yok';else if(!x)r.hata='Böyle bir personel yok';else if(!t)r.hata='Veri türü seçin';else if(!sayi(v.miktar))r.hata='Miktar yok';
+  if(!adT.trim())r.hata='İsim yok';else if(!x)r.hata='Böyle bir personel yok';else if(!t)r.hata='Veri türü seçin';else if(v.miktar===''||v.miktar==null||String(v.miktar).trim()==='')r.hata='Miktar yok';
   else if(v.tarih&&v.tarih.slice(0,7)!==ak)r.hata='Başka ay';else if(kilitli&&t.y==='sol')r.hata='Muhasebe kilitli';
   if(r.hata){r.pid=r.hata==='Başka ay'||r.hata==='Muhasebe kilitli'||r.hata==='Miktar yok'?'':r.pid;if(r.hata!=='Veri türü seçin')r.tur=r.tur;r.gecersiz=true;}return r;}
 function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL=veriKisileri(V);const kisiler=new Map(kL);const adOf=pid=>kisiler.get(pid)||((S.personel.find(p=>p.id===pid)||{}).ad)||'?';
