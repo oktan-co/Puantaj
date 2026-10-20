@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=51";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=52";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -22,7 +22,7 @@ const GOREVLER=[{ad:'R. Müdür',grup:'M'},{ad:'V. Müdür',grup:'M'},{ad:'Mutfa
 const SGK_YOK='-';
 // Puantaj veri girişi türleri. b: birim, y: hangi tarafa etki eder (sol=muhasebe, sag=ödeme)
 const VERI_TUR=[{k:'R',ad:'Rapor',b:'gün',y:'sol'},{k:'UI',ad:'Ücretsiz izin',b:'gün',y:'sol'},{k:'YI',ad:'Yıllık izin',b:'gün',y:'sol'},{k:'B',ad:'Bayram',b:'gün',y:'sol'},{k:'PG',ad:'Part gün',b:'gün',y:'sol'},{k:'FM',ad:'Fazla mesai (saat)',b:'saat',y:'sol',gizli:true},
-  {k:'BY',ad:'Bankaya yatan',b:'₺',y:'sag'},{k:'SA',ad:'Çalışılan saat',b:'saat',y:'sag'},{k:'FMT',ad:'Fazla mesai tutarı',b:'₺',y:'sag'},{k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag',gizli:true},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag',gizli:true},{k:'KS',ad:'Kesinti',b:'₺',y:'sag',gizli:true}];
+  {k:'BY',ad:'Bankaya yatan',b:'₺',y:'sag'},{k:'MF',ad:'Maaş farkı (+ / −)',b:'₺',y:'sag'},{k:'SA',ad:'Çalışılan saat',b:'saat',y:'sag'},{k:'FMT',ad:'Fazla mesai tutarı',b:'₺',y:'sag'},{k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag',gizli:true},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag',gizli:true},{k:'KS',ad:'Kesinti',b:'₺',y:'sag',gizli:true}];
 const veriTur=k=>VERI_TUR.find(t=>t.k===k);
 function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||!v.pid||v.miktar===''||v.miktar==null)return;if(v.tarih&&S.ay&&v.tarih.slice(0,7)!==S.ay)return;const x=o[v.pid]=o[v.pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
 // Elle girilen gün/saat verilerini muhasebe tarafına ekle.
@@ -179,7 +179,7 @@ function sagHesap(pid,sol,sag,net,sb,devir,ek={},us={}){const e=k=>ek[k]||0;if(t
   else{const n=sayi(net);const hg=sol.hakGun!=null?sol.hakGun:sol.gun;hak=n?n*hg/30:0;maasFarki=n?hak-bankaya:0;
     const fm=(sol.fmSaat||0)/* eksi mesai de işlenir */;fmTl=sb.fmYontem==='maas'?(n?fm*n/30/9:0):fm*sayi(sb.fmUcret);}
   const maasYok=!esnaf&&!saat&&sol.maasBurada===false;const bank2=maasYok?0:bankaya;
-  fmTl+=e('FMT');const ekOd=e('EK')-e('KS');const pp=paketPrimi;const pbBanka=pb&&!esnaf&&sol.maasBurada!==false?bankaya:0;const kalanHam=maasFarki+fmTl+pp+ciroPrimi-avans-araOdeme+ekOd-pbBanka;const kalan=Math.round(kalanHam/5)*5||0;// kuruş ödenmez: 5 TL'ye yuvarla
+  fmTl+=e('FMT');maasFarki+=e('MF');const ekOd=e('EK')-e('KS');const pp=paketPrimi;const pbBanka=pb&&!esnaf&&sol.maasBurada!==false?bankaya:0;const kalanHam=maasFarki+fmTl+pp+ciroPrimi-avans-araOdeme+ekOd-pbBanka;const kalan=Math.round(kalanHam/5)*5||0;// kuruş ödenmez: 5 TL'ye yuvarla
   return{esnaf,maasYok,pb:pb&&!esnaf&&sol.maasBurada!==false,saat,saatSayi:(sol.calisilanSaat||0)+e('SA'),cizelgeSaat:sol.calisilanSaat||0,saatUcret:sayi(us.saatUcret),bankaya:bank2,paketPrimi:pp,kalanHam,ciroPrimi,avans,araOdeme,devirAvans,hak,maasFarki,fmTl,paketHak,devir,kalan,ekOd,netYok:!esnaf&&!maasYok&&!pb&&!saat&&!sayi(net)};}
 
 /* ================= Yazma ================= */
@@ -783,7 +783,7 @@ function veriKisileri(V){const kisiler=new Map();V.satir.forEach(x=>kisiler.set(
   return [...kisiler.entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'tr'));}
 // Excel'den gelen veri türü yazısını koda çevir
 function turCoz(s){const a=ascii(s).replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();if(!a)return null;
-  const L=[['calisilan saat','SA'],['saat','SA'],['banka','BY'],['net odenen','BY'],['fazla mesai tutar','FMT'],['fazla mesai','FMT'],['ucretsiz','UI'],['yillik','YI'],['rapor','R'],['bayram','B'],['part','PG'],['avans','AV'],['ara odeme','AO'],['paket sayi','PS'],['paket prim','PP'],['ciro','CP'],['prim','CP'],['ek odeme','EK'],['kesinti','KS']];
+  const L=[['maas fark','MF'],['calisilan saat','SA'],['saat','SA'],['banka','BY'],['net odenen','BY'],['fazla mesai tutar','FMT'],['fazla mesai','FMT'],['ucretsiz','UI'],['yillik','YI'],['rapor','R'],['bayram','B'],['part','PG'],['avans','AV'],['ara odeme','AO'],['paket sayi','PS'],['paket prim','PP'],['ciro','CP'],['prim','CP'],['ek odeme','EK'],['kesinti','KS']];
   const x=L.find(([k])=>a.includes(k));return x?x[1]:null;}
 // Veri girişi: Excel gibi tablo. Satır ekle ya da Excel'den yapıştır; isim/tür tutmazsa satır kırmızı.
 function trTarihCoz(x){x=String(x||'').trim();let m=x.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;
