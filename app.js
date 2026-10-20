@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=35";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=36";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -22,7 +22,7 @@ const GOREVLER=[{ad:'R. Müdür',grup:'M'},{ad:'V. Müdür',grup:'M'},{ad:'Mutfa
 const SGK_YOK='-';
 // Puantaj veri girişi türleri. b: birim, y: hangi tarafa etki eder (sol=muhasebe, sag=ödeme)
 const VERI_TUR=[{k:'R',ad:'Rapor',b:'gün',y:'sol'},{k:'UI',ad:'Ücretsiz izin',b:'gün',y:'sol'},{k:'YI',ad:'Yıllık izin',b:'gün',y:'sol'},{k:'B',ad:'Bayram',b:'gün',y:'sol'},{k:'PG',ad:'Part gün',b:'gün',y:'sol'},{k:'FM',ad:'Fazla mesai (saat)',b:'saat',y:'sol',gizli:true},
-  {k:'FMT',ad:'Fazla mesai tutarı',b:'₺',y:'sag'},{k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag'},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag'},{k:'KS',ad:'Kesinti',b:'₺',y:'sag'}];
+  {k:'BY',ad:'Bankaya yatan',b:'₺',y:'sag'},{k:'FMT',ad:'Fazla mesai tutarı',b:'₺',y:'sag'},{k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag',gizli:true},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag',gizli:true},{k:'KS',ad:'Kesinti',b:'₺',y:'sag',gizli:true}];
 const veriTur=k=>VERI_TUR.find(t=>t.k===k);
 function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||!v.pid||!sayi(v.miktar))return;if(v.tarih&&S.ay&&v.tarih.slice(0,7)!==S.ay)return;const x=o[v.pid]=o[v.pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
 // Elle girilen gün/saat verilerini muhasebe tarafına ekle.
@@ -159,7 +159,7 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
 function muhasebedeMi(sol){return sol.maasBurada!==false&&sol.sgkYok!==true;}
 // Puantaj sağ tarafı (ödemeler).
 function sagHesap(pid,sol,sag,net,sb,devir,ek={},pb=false){const e=k=>ek[k]||0;const s0=sag||{};const devirAvans=devir<0?-devir:0;const araOdeme=e('AO');const s={...s0,avans:sayi(s0.avans)+e('AV')+devirAvans,paketPrimi:sayi(s0.paketPrimi)+e('PP'),ciroPrimi:sayi(s0.ciroPrimi)+e('CP'),paketSayisi:sayi(s0.paketSayisi)+e('PS')};const esnaf=sol.sekil==='Esnaf kurye';
-  const bankaya=sayi(s.bankaya),paketPrimi=sayi(s.paketPrimi),ciroPrimi=sayi(s.ciroPrimi),avans=sayi(s.avans);
+  const bankaya=sayi(s.bankaya)+e('BY'),paketPrimi=sayi(s.paketPrimi),ciroPrimi=sayi(s.ciroPrimi),avans=sayi(s.avans);
   let hak=0,maasFarki=0,fmTl=0,paketHak=0;
   if(esnaf){paketHak=sayi(s.paketSayisi)*sayi(s.paketUcret!=null&&s.paketUcret!==''?s.paketUcret:sb.paketUcret);hak=paketHak;maasFarki=paketHak-bankaya;}
   else if(pb&&sol.maasBurada!==false){hak=0;maasFarki=0;fmTl=0;/* paket başı: kazanç paket primi sütununda; fazla mesai yok */}
@@ -667,7 +667,6 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   else{
     const T=V.satir.reduce((t,x)=>{t.hak+=x.hes.hak+x.hes.fmTl+x.hes.paketPrimi+x.hes.ciroPrimi;t.bankaya+=x.hes.bankaya;t.avans+=x.hes.avans+x.hes.araOdeme;t.nakit+=Math.max(x.hes.kalan,0);return t;},{hak:0,bankaya:0,avans:0,nakit:0});
     h+=`<div class="kpis"><div class="kpi"><span>Toplam hak ediş</span><b>${tl0(T.hak)}</b></div><div class="kpi"><span>Bankaya yatan</span><b>${tl0(T.bankaya)}</b></div><div class="kpi"><span>Avans + ara ödeme</span><b>${tl0(T.avans)}</b></div><div class="kpi"><span>İhtiyaç duyulan nakit</span><b>${tl0(T.nakit)}</b></div></div>`;
-    h+=`<div class="actions"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>`;
     const netOf=x=>x.hes.esnaf||x.hes.maasYok||x.hes.pb?0:sayi(x.net);
     const KO=[{k:'ad',ad:'Ad soyad',v:x=>x.sol.ad,ek:durumK,l:1},{k:'gun',ad:'Gün',v:x=>x.hes.esnaf||x.hes.maasYok?'—':(x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun),n:x=>n0(x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun)},
 {k:'hak',ad:'Hak edilen',v:x=>x.hes.pb?'':tlv(x.hes.hak),n:x=>n0(x.hes.hak)},{k:'bankaya',ad:'Bankaya yatan',v:x=>tlv(x.hes.bankaya),n:x=>n0(x.hes.bankaya)},{k:'ara',ad:'Ara ödeme',v:x=>tlv(x.hes.araOdeme),n:x=>n0(x.hes.araOdeme)},
@@ -735,7 +734,7 @@ function veriKisileri(V){const kisiler=new Map();V.satir.forEach(x=>kisiler.set(
   return [...kisiler.entries()].sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'tr'));}
 // Excel'den gelen veri türü yazısını koda çevir
 function turCoz(s){const a=ascii(s).replace(/[^a-z ]/g,' ').replace(/\s+/g,' ').trim();if(!a)return null;
-  const L=[['fazla mesai tutar','FMT'],['fazla mesai','FMT'],['ucretsiz','UI'],['yillik','YI'],['rapor','R'],['bayram','B'],['part','PG'],['avans','AV'],['ara odeme','AO'],['paket sayi','PS'],['paket prim','PP'],['ciro','CP'],['prim','CP'],['ek odeme','EK'],['kesinti','KS']];
+  const L=[['banka','BY'],['net odenen','BY'],['fazla mesai tutar','FMT'],['fazla mesai','FMT'],['ucretsiz','UI'],['yillik','YI'],['rapor','R'],['bayram','B'],['part','PG'],['avans','AV'],['ara odeme','AO'],['paket sayi','PS'],['paket prim','PP'],['ciro','CP'],['prim','CP'],['ek odeme','EK'],['kesinti','KS']];
   const x=L.find(([k])=>a.includes(k));return x?x[1]:null;}
 // Veri girişi: Excel gibi tablo. Satır ekle ya da Excel'den yapıştır; isim/tür tutmazsa satır kırmızı.
 function trTarihCoz(x){x=String(x||'').trim();let m=x.match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;if(/^\d{4}-\d{2}-\d{2}$/.test(x))return x;
@@ -756,7 +755,7 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   oto.sort((a,b)=>String(adOf(a.pid)).localeCompare(String(adOf(b.pid)),'tr'));
   const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
   const hataSay=veri.filter(v=>veriKontrol(v,kL,ak,V.kilitli).gecersiz).length;
-  let h=`${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}
+  let h=`<div class="actions" style="margin-top:0"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}
    <div class="tbl-wrap"><table class="pt vt vg2" id="vGrid"><thead><tr><th style="width:110px">Tarih</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th style="width:110px">Miktar</th><th class="l">Açıklama</th><th class="l">Durum</th><th></th></tr></thead><tbody>`;
   veri.forEach((v,r)=>{const k=veriKontrol(v,kL,ak,V.kilitli);const kil=V.kilitli&&veriTur(v.tur)&&veriTur(v.tur).y==='sol'&&!k.gecersiz;
     h+=`<tr data-vid="${esc(v.id)}" data-r="${r}" class="${k.gecersiz?'hata':''}">
@@ -830,13 +829,13 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
    <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,String(V.sb.paketUcret||'')):x.hes.maasYok?'<p class="note" style="grid-column:1/-1">Maaşı SGK şubesinin puantajında. Burada sadece bu şubede yaptığı fazla mesai ve buraya ait primler hesaplanır.</p>':`<div style="grid-column:1/-1"><span class="lbl">Ücret şekli</span><div class="seg" id="oSekil"><button data-v="maas" class="${pb?'':'on'}">Maaşlı</button><button data-v="paket" class="${pb?'on':''}">Paket başı</button></div></div>
      <div id="oNetW" style="grid-column:1/-1" ${pb?'hidden':''}>${inp('oNet','Anlaşılan aylık net (₺)',x.net,'örn. 50000')}</div>
      <p class="note" id="oPbNot" style="grid-column:1/-1" ${pb?'':'hidden'}>Paket başı: kazanç paket primleridir. Paket primlerini Veri girişinden "Paket primi" olarak girin; bankaya yatan, ara ödeme ve avans düşülür, kalan elden ödenir. Fazla mesai hesaplanmaz.</p>`}
-   ${inp('oBank','Bankaya yatan (₺)',s.bankaya,'bordrodan')}${inp('oPaket','Paket primi (₺)',s.paketPrimi)}${inp('oCiro','Ciro primi (₺)',s.ciroPrimi)}${inp('oAvans','Avans (₺)',s.avans)}
+   ${inp('oPaket','Paket primi (₺)',s.paketPrimi)}${inp('oCiro','Ciro primi (₺)',s.ciroPrimi)}${inp('oAvans','Avans (₺)',s.avans)}
    <label class="field"><span>TC kimlik no (bordro eşleşmesi için)</span><input id="oTc" inputmode="numeric" maxlength="11" value="${esc(tc)}"></label></div>
    <div class="calc" id="oCalc"></div><div id="oErr"></div><div class="row2"><button class="btn grow" id="oNo">Vazgeç</button><button class="btn primary grow" id="oOk">Kaydet</button></div>`,sh=>{
-   const oku=()=>{const v=id=>{const e=byId(id);return e?e.value.trim():undefined;};const o={bankaya:v('oBank'),paketPrimi:v('oPaket'),ciroPrimi:v('oCiro'),avans:v('oAvans')};if(esnaf){o.paketSayisi=v('oPs');o.paketUcret=v('oPu');}return o;};
+   const oku=()=>{const v=id=>{const e=byId(id);return e?e.value.trim():undefined;};const o={paketPrimi:v('oPaket'),ciroPrimi:v('oCiro'),avans:v('oAvans')};if(esnaf){o.paketSayisi=v('oPs');o.paketUcret=v('oPu');}return o;};
    const ekV=V.oz[pid]||{};
    sh.querySelectorAll('#oSekil button').forEach(b=>b.onclick=()=>{pb=b.dataset.v==='paket';sh.querySelectorAll('#oSekil button').forEach(q=>q.classList.toggle('on',q===b));byId('oNetW').hidden=pb;byId('oPbNot').hidden=!pb;calc();});
-   const calc=()=>{const o=oku();const n=esnaf?0:byId('oNet')?sayi(byId('oNet').value):sayi(x.net);const r=sagHesap(pid,x.sol,o,n,V.sb,x.hes.devir,ekV,pb);
+   const calc=()=>{const o=oku();const n=esnaf?0:byId('oNet')?sayi(byId('oNet').value):sayi(x.net);const r=sagHesap(pid,x.sol,{...s,...o},n,V.sb,x.hes.devir,ekV,pb);
      byId('oCalc').innerHTML=`${esnaf?`<div><span>Paket hak edişi</span><b>${tl(r.paketHak)}</b></div>`:pb?'':`<div><span>Hak edilen (net × ${x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun}/30${x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun-x.sol.gun} gün deneme`:''})</span><b>${tl(r.hak)}</b></div>`}<div><span>− Bankaya yatan</span><b>${tl(r.bankaya)}</b></div>${pb?'':`<div><span>= Maaş farkı</span><b>${tl(r.maasFarki)}</b></div>`}
        ${r.fmTl?`<div><span>+ Fazla mesai</span><b>${tl(r.fmTl)}</b></div>`:''}${r.paketPrimi?`<div><span>+ Paket primi</span><b>${tl(r.paketPrimi)}</b></div>`:''}${r.ciroPrimi?`<div><span>+ Ciro primi</span><b>${tl(r.ciroPrimi)}</b></div>`:''}${r.araOdeme?`<div><span>− Ara ödeme</span><b>${tl(r.araOdeme)}</b></div>`:''}${r.avans?`<div><span>− Avans${r.devirAvans?` (${tl(r.devirAvans)} geçen ay devri dahil)`:''}</span><b>${tl(r.avans)}</b></div>`:''}
        ${Math.abs(r.kalan-r.kalanHam)>0.004?`<div><span>Yuvarlama (5 ₺)</span><b>${tl(r.kalan-r.kalanHam)}</b></div>`:''}<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Kalan ödeme</span><b class="${r.kalan<0?'neg':'pos'}">${tl(r.kalan)}</b></div>${r.kalan<0?'<div><span class="note" style="margin:0">Eksi tutar sonraki ayın ödemesinden düşülür.</span></div>':''}`;};
@@ -875,7 +874,7 @@ function bordroCoz(lines){const para=/-?\d{1,3}(?:\.\d{3})*,\d{2}/g;const out={i
       out.kisiler.push({ad:m[2].replace(/\s+/g,' ').trim(),tc:m[3],giris:m[4],sgkGun:g?+g[3]:null,eksikGun:eksik?+eksik[1]:0,neden,net:nums.length?sayi(nums[nums.length-1]):null});}
     if((m=l.match(/Toplamlar:/))){const nums=l.match(para)||[];if(nums.length)out.toplam=sayi(nums[nums.length-1]);}});
   return out;}
-function bordroPanel(V){openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${esc(V.sb.ad)} · ${ayAdi(V.ak)}. Net ödenen tutarlar "bankaya yatan" olarak işlenir.</div>
+function bordroPanel(V){openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${esc(V.sb.ad)} · ${ayAdi(V.ak)}. Net ödenen tutarlar veri girişine "Bankaya yatan" satırı olarak eklenir. PDF okunmazsa tutarları veri girişine elle yazabilirsiniz.</div>
   <label class="field"><span>Bordro PDF dosyası</span><input id="bF" type="file" accept="application/pdf"></label><div id="bOut"></div>`,()=>{
   byId('bF').onchange=async e=>{const f=e.target.files[0];if(!f)return;const O=byId('bOut');O.innerHTML='<p class="note">PDF okunuyor…</p>';
     let r;try{r=bordroCoz(await pdfSatirlari(f));}catch(err){O.innerHTML='<div class="confirm bad">PDF okunamadı. Taranmış (resim) PDF olabilir; muhasebeden metin içeren PDF isteyin.</div>';return;}
@@ -896,8 +895,14 @@ function bordroPanel(V){openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${
     byId('bOk').onclick=async()=>{const deg={},tcYeni={};eslesme.forEach(k=>{if(!k.pid)return;deg[k.pid]={bankaya:k.net};if(!tcMap[k.pid])tcYeni[k.pid]=k.tc;});
       const n=Object.keys(deg).length;if(!n){toast('Eşleşen personel yok.');return;}
       try{if(Object.keys(tcYeni).length)await setDoc(doc(db,'maaslar',S.subeId),{tc:tcYeni},{merge:true});
-        const sag=sagSonuclu(V,deg);await setDoc(doc(db,'puantaj',S.subeId,'aylar',V.ak),V.kilitli?{sag,guncellendi:new Date().toISOString()}:{sube:S.subeId,ay:V.ak,sag,guncellendi:new Date().toISOString()},{merge:true});
-        closeSheet();toast(`${n} kişinin bankaya yatan tutarı işlendi.`);}catch(e){yazmaHatasi(e);}};};});}
+        // Bordro tutarları veri girişine "Bankaya yatan" satırı olarak yazılır; aynı kişinin eski bordro satırı değiştirilir.
+        const sonGun=ymd(new Date(+V.ak.slice(0,4),+V.ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
+        const eski=((S.pt.doc&&S.pt.doc.veri)||[]).filter(v=>!(v.kaynak==='bordro'&&deg[v.pid]));
+        const yeni=[...eski,...Object.entries(deg).map(([pid,d])=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:d.bankaya,aciklama:'Bordro PDF',kaynak:'bordro',kim,zaman:z}))];
+        const degS={};Object.keys(deg).forEach(pid=>degS[pid]={bankaya:''});// eski yöntemle yazılmış tutar varsa iki kez sayılmasın
+        S.pt.doc={...(S.pt.doc||{}),veri:yeni};const V2={...V,D:{...V.D,veri:yeni}};const sag=sagSonuclu(V2,degS);
+        await setDoc(doc(db,'puantaj',S.subeId,'aylar',V.ak),{...(V.kilitli?{}:{sube:S.subeId,ay:V.ak}),sag,veri:yeni,guncellendi:z},{merge:true});
+        closeSheet();toast(`${n} kişinin bankaya yatan tutarı veri girişine eklendi.`);render();}catch(e){yazmaHatasi(e);}};};});}
 
 /* ================= Paylaş (görsel) ================= */
 async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds=weekDays(wid);const ak=gosterAy(wid);const kisiler=cizelgeKisileri(wid);
