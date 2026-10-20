@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=44";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=45";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -855,6 +855,32 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
   if(!veriYapistirBagli){veriYapistirBagli=true;document.addEventListener('paste',e=>{if(S.tab!=='puantaj'||!S.pt.sube||S.pt.gorunum!=='veri'||byId('sheetRoot').innerHTML)return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;
     const t=(e.clipboardData||window.clipboardData).getData('text');if(!t||!/[\t\n]/.test(t))return;e.preventDefault();const L=veri0();const bosI=L.findIndex(v=>veriKontrol(v,kL,ak,V.kilitli).bos);(window.__vYapistir||(()=>{}))(t,bosI>=0?bosI:L.length,0);});}
   window.__vYapistir=yapistir;
+  // Excel gibi hücre seçimi: sürükle ya da Shift+tıkla; Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır, tek değer seçili tüm hücrelere yapıştırılır.
+  const hucreEl=(r,c)=>grid.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);const tdOf=el=>el&&el.closest('td');
+  const konum=el=>{const tr=el.closest('tr[data-r]');const x=el.closest('td')&&el.closest('td').querySelector('[data-c]');return tr&&x?{r:+tr.dataset.r,c:+x.dataset.c}:null;};
+  const aralik=()=>{const A=S.pt.vsel;if(!A)return null;return{r0:Math.min(A.r0,A.r1),r1:Math.max(A.r0,A.r1),c0:Math.min(A.c0,A.c1),c1:Math.max(A.c0,A.c1)};};
+  const selCiz=()=>{grid.querySelectorAll('td.vsel').forEach(t=>t.classList.remove('vsel'));const A=aralik();if(!A||(A.r0===A.r1&&A.c0===A.c1))return;for(let r=A.r0;r<=A.r1;r++)for(let c=A.c0;c<=A.c1;c++){const t=tdOf(hucreEl(r,c));if(t)t.classList.add('vsel');}};
+  const cokluMu=()=>{const A=aralik();return A&&(A.r0!==A.r1||A.c0!==A.c1);};
+  let surukle=null;
+  grid.querySelectorAll('tr[data-vid] td.bi').forEach(td=>{const el=td.querySelector('[data-c]');if(!el)return;
+    td.addEventListener('mousedown',e=>{const k=konum(el);if(!k)return;if(e.shiftKey&&S.pt.vsel){e.preventDefault();S.pt.vsel={...S.pt.vsel,r1:k.r,c1:k.c};selCiz();return;}S.pt.vsel={r0:k.r,c0:k.c,r1:k.r,c1:k.c};surukle=k;selCiz();});
+    td.addEventListener('mouseenter',e=>{if(!surukle||!(e.buttons&1))return;const k=konum(el);if(!k||(k.r===S.pt.vsel.r1&&k.c===S.pt.vsel.c1))return;S.pt.vsel={...S.pt.vsel,r1:k.r,c1:k.c};if(cokluMu()){document.activeElement&&document.activeElement.blur&&document.activeElement.blur();window.getSelection&&window.getSelection().removeAllRanges();}selCiz();});});
+  document.addEventListener('mouseup',()=>{surukle=null;},{once:true});
+  const degerOf=el=>el.tagName==='SELECT'?(el.value?el.selectedOptions[0].text:''):el.value;
+  grid.oncopy=null;
+  if(!S.pt.vgDinle){S.pt.vgDinle=true;
+    document.addEventListener('copy',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri')return;const ae=document.activeElement;const icinde=ae&&g.contains(ae);
+      const A=aralik();if(!A)return;const tekSelect=icinde&&ae.tagName==='SELECT';if(!cokluMu()&&!tekSelect)return;
+      const R=[];for(let r=A.r0;r<=A.r1;r++){const row=[];for(let c=A.c0;c<=A.c1;c++){const x=g.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);row.push(x?degerOf(x):'');}R.push(row.join('\t'));}
+      e.clipboardData.setData('text/plain',R.join('\n'));e.preventDefault();toast(`${(A.r1-A.r0+1)*(A.c1-A.c0+1)} hücre kopyalandı.`);});
+    document.addEventListener('paste',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri'||byId('sheetRoot').innerHTML)return;const ae=document.activeElement;const A=aralik();
+      const t=(e.clipboardData||window.clipboardData).getData('text');if(t==null)return;const tek=!/[\t\n]/.test(t.replace(/[\r\n]+$/,''));
+      if(tek&&A&&(cokluMu()||(ae&&ae.tagName==='SELECT'&&g.contains(ae)))){e.preventDefault();e.stopPropagation();(window.__vDoldur||(()=>{}))(t.replace(/[\r\n]+$/,''),A);}},true);
+    document.addEventListener('keydown',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri')return;if((e.key==='Delete'||e.key==='Backspace')&&cokluMuG()){const ae=document.activeElement;if(ae&&/INPUT/.test(ae.tagName)&&g.contains(ae)&&!cokluMuG())return;e.preventDefault();(window.__vDoldur||(()=>{}))('',aralikG());}});}
+  const cokluMuG=()=>cokluMu();const aralikG=()=>aralik();window.cokluMuG=cokluMuG;window.aralikG=aralikG;
+  window.__vDoldur=(val,A)=>{const L=veri0().slice();let n=0;for(let r=A.r0;r<=A.r1;r++){if(!L[r])continue;let v={...L[r]};for(let c=A.c0;c<=A.c1;c++){if(c>4)continue;v=hucreYaz(v,c,val);n++;}L[r]=v;}
+    ayarla(L,true);toast(val===''?`${n} hücre temizlendi.`:`${n} hücreye yapıştırıldı.`);};
+  selCiz();
   // odak
   if(S.pt.odak){const o=S.pt.odak;S.pt.odak=null;const rows=[...grid.querySelectorAll('tr[data-vid]')];let tr=o.ilkBos?rows.find(t=>{const v=veri0().find(x=>x.id===t.dataset.vid);return v&&veriKontrol(v,kL,ak,V.kilitli).bos;}):rows[rows.length-1];
     const el=tr&&tr.querySelector(`[data-c="${o.c}"]`);if(el)el.focus();}}
