@@ -28,6 +28,12 @@ service cloud.firestore {
       allow update, delete: if false;
     }
 
+    // Şube adları listesi (SGK şubesi seçimi için) — tüm aktif kullanıcılar okur, sadece işveren yazar.
+    match /sistem/subeAdlari {
+      allow read: if aktif();
+      allow write: if isveren();
+    }
+
     match /kullanicilar/{uid} {
       allow read: if girisli() && (request.auth.uid == uid || isveren());
       allow create: if isveren()
