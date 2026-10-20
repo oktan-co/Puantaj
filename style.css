@@ -162,3 +162,17 @@ table.pt tr.tot td{font-weight:800;background:var(--soft)}
 .subebar{display:flex;align-items:center;gap:10px;max-width:520px;margin:2px auto 12px;background:var(--surface);border:1.5px solid var(--navy);border-radius:14px;padding:6px 8px 6px 14px}
 .subebar span{font-size:12px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.6px}
 .subebar select{flex:1;min-width:0;font:inherit;font-size:17px;font-weight:800;color:var(--ink);background:transparent;border:0;padding:8px 4px;cursor:pointer}
+/* Personel bilgi listesi */
+table.bl{width:max-content;min-width:100%}
+table.bl td.nmc{position:sticky;left:0;background:var(--surface);z-index:1;width:150px;min-width:150px;max-width:150px;white-space:normal;line-height:1.25;box-shadow:1px 0 0 var(--line)}
+table.bl th.l{position:sticky;left:0;z-index:2}
+table.bl td.nmc span{display:block;font-size:11px;color:var(--mut);font-weight:500}
+table.bl td.bi{padding:0;border-left:1px solid var(--line)}
+table.bl td.bi input{display:block;width:150px;border:0;background:transparent;padding:10px 8px;font:inherit;font-size:13px;color:var(--ink);border-radius:0;outline:none}
+table.bl td.bi input[data-f="iban"]{width:290px;font-variant-numeric:tabular-nums}
+table.bl td.bi input[data-f="eposta"]{width:200px}
+table.bl td.bi input:focus{box-shadow:inset 0 0 0 2px var(--accent-ink);background:var(--surface)}
+table.bl td.bi input.bad{box-shadow:inset 0 0 0 2px var(--bad);background:var(--bad-bg)}
+table.bl td.bi input:disabled{background:var(--soft)}
+table.bl tr.mutr td{color:var(--mut)}table.bl tr.mutr input{color:var(--mut)}
+table.bl input::placeholder{color:var(--line)}

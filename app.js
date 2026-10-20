@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=10";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=11";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -123,10 +123,14 @@ function subeOzeti(ak,sid=S.subeId){const sb=sube(sid);const out={};ayKadrosu(ak
 // Puantaj sol tarafı. Maaş (bordro günü, izinler) kişinin SGK şubesinde; fazla mesai çalıştığı her şubede ayrı.
 function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{}){const sb=sube(sid);const out={};const burada=subeOzeti(ak,sid);
   const ids=new Set(Object.keys(burada));S.personel.forEach(p=>{if(maasSubesi(p)===sid&&aktifAyda(p,ak))ids.add(p.id);});
+  // Aynı kişi birden fazla şubenin listesinde ayrı kayıtla olabilir (SGK'sı burada): isimle tek satırda birleşir.
+  const esler={};const grp={};[...ids].forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(p&&maasSubesi(p)===sid)(grp[isimAnahtar(p.ad)]=grp[isimAnahtar(p.ad)]||[]).push(p);});
+  Object.values(grp).forEach(L=>{if(L.length<2)return;L.sort((a,b)=>(b.anaSube===sid)-(a.anaSube===sid));esler[L[0].id]=L.map(x=>x.id);L.slice(1).forEach(x=>ids.delete(x.id));});
   const[y,m]=ak.split('-').map(Number);const last=new Date(y,m,0);
-  ids.forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(!p)return;const o=burada[pid]||{saat:0,fm:0,gun:0,bos:0,R:0,UI:0,YI:0,B:0};const maasBurada=maasSubesi(p)===sid;
+  ids.forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(!p)return;const pids=esler[pid]||[pid];const o={saat:0,fm:0,gun:0,bos:0,R:0,UI:0,YI:0,B:0};
+    pids.forEach(q=>{const b=burada[q];if(b)Object.keys(o).forEach(k=>o[k]+=b[k]||0);});const maasBurada=maasSubesi(p)===sid;
     const t={R:o.R,UI:o.UI,YI:o.YI,B:o.B,saat:o.saat,baska:[]};
-    if(maasBurada)Object.entries(diger).forEach(([s2,k])=>{if(s2===sid||!k)return;const x=k[pid];if(!x)return;t.R+=x.R||0;t.UI+=x.UI||0;t.YI+=x.YI||0;t.B+=x.B||0;t.saat+=x.saat||0;t.baska.push(subeAdi(s2));});
+    if(maasBurada)Object.entries(diger).forEach(([s2,k])=>{if(s2===sid||!k)return;let var_=false;pids.forEach(q=>{const x=k[q];if(!x)return;var_=true;t.R+=x.R||0;t.UI+=x.UI||0;t.YI+=x.YI||0;t.B+=x.B||0;t.saat+=x.saat||0;});if(var_)t.baska.push(subeAdi(s2));});
     let ist=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1))if(employed(p,d))ist++;
     const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const part=p.sekil==='Part';
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
@@ -198,10 +202,16 @@ function subeleriDinle(){subs.subeDocs.forEach(u=>u());subs.subeDocs=[];
   if(isIsveren()){subs.subeDocs.push(onSnapshot(collection(db,'subeler'),s=>{S.subeler={};s.docs.forEach(d=>S.subeler[d.id]=d.data());bitti();},e=>toast('Şubeler okunamadı.')));}
   else{const ids=(S.me.subeler||[]);if(!ids.length){S.subeler={};bitti();return;}let gelen=0;
     ids.forEach(id=>subs.subeDocs.push(onSnapshot(doc(db,'subeler',id),s=>{if(s.exists())S.subeler[id]=s.data();else delete S.subeler[id];gelen++;if(gelen>=ids.length)bitti();},()=>{gelen++;if(gelen>=ids.length)bitti();})));}
-  subs.subeDocs.push(onSnapshot(collection(db,'personel'),s=>{S.personel=s.docs.map(d=>({id:d.id,...d.data()}));S.loaded.personel=true;S.kuralHata=false;gocKontrol();render();},
-    e=>{console.error(e);S.kuralHata=true;S.loaded.personel=true;render();}));
+  personelDinle();
   subs.subeDocs.push(onSnapshot(doc(db,'sistem','subeAdlari'),s=>{S.subeAdlari=s.exists()?(s.data().adlar||{}):{};if(isIsveren())subeAdSenkron();},()=>{}));
   if(isIsveren()&&!subs.users)subs.users=onSnapshot(collection(db,'kullanicilar'),s=>{S.users=s.docs.map(d=>({uid:d.id,...d.data()}));if(S.tab==='yonetim')render();});}
+// Personel şube şube tutulur: herkes sadece kendi şubelerinin listesini okur. Bölge müdürü ayrıca SGK'sı kendi şubelerinde olanları görür (puantaj için).
+function personelDinle(){const parca={};const yay=()=>{const m={};Object.values(parca).forEach(L=>L.forEach(p=>m[p.id]=p));S.personel=Object.values(m);S.loaded.personel=true;S.kuralHata=false;gocKontrol();render();};
+  const hata=e=>{console.error(e);S.kuralHata=true;S.loaded.personel=true;render();};
+  const dinle=(k,q)=>subs.subeDocs.push(onSnapshot(q,s=>{parca[k]=s.docs.map(d=>({id:d.id,...d.data()}));yay();},hata));
+  if(isIsveren()){dinle('hepsi',collection(db,'personel'));return;}
+  const ids=S.me.subeler||[];if(!ids.length){S.personel=[];S.loaded.personel=true;return;}
+  ids.forEach(sid=>{dinle('a:'+sid,query(collection(db,'personel'),where('anaSube','==',sid)));if(isBolge())dinle('s:'+sid,query(collection(db,'personel'),where('sgkSube','==',sid)));});}
 let senkronT;function subeAdSenkron(){clearTimeout(senkronT);senkronT=setTimeout(()=>{const adlar={};Object.entries(S.subeler).forEach(([id,v])=>adlar[id]=v.ad);
   const a=JSON.stringify(Object.entries(adlar).sort()),b=JSON.stringify(Object.entries(S.subeAdlari||{}).sort());if(a!==b&&Object.keys(adlar).length)setDoc(doc(db,'sistem','subeAdlari'),{adlar}).catch(()=>{});},800);}
 function tumSubeler(){const m={...S.subeAdlari};Object.entries(S.subeler).forEach(([id,v])=>m[id]=v.ad);return Object.entries(m).sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'tr'));}
@@ -211,7 +221,7 @@ async function gocKontrol(){if(!isIsveren()||S.gocBakildi||!S.subeIds.length)ret
     for(const sid of S.subeIds){const q=await getDocs(collection(db,'subeler',sid,'personel'));const b=writeBatch(db);let k=0;
       q.docs.forEach(d=>{if(var_.has(d.id))return;b.set(doc(db,'personel',d.id),{...d.data(),anaSube:sid});k++;n++;});if(k)await b.commit();}
     await setDoc(doc(db,'sistem','goc'),{v2:true,tarih:new Date().toISOString(),tasinan:n});if(n)toast(`${n} personel şirket geneli listeye taşındı.`);}catch(e){console.error(e);S.gocBakildi=false;}}
-function selectSube(id){subs.sube.forEach(u=>u());subs.sube=[];S.subeId=id;S.haftalar={};S.aylar={};S.loaded.haftalar=false;undo.length=0;SEL=null;MOD=null;tryLS('pm.sube',id);
+function selectSube(id){subs.sube.forEach(u=>u());subs.sube=[];S.tcler={};S.subeId=id;S.haftalar={};S.aylar={};S.loaded.haftalar=false;undo.length=0;SEL=null;MOD=null;tryLS('pm.sube',id);
   subs.sube.push(onSnapshot(collection(db,'subeler',id,'haftalar'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.haftalar=m;S.loaded.haftalar=true;render();},e=>yazmaHatasi(e)));
   subs.sube.push(onSnapshot(collection(db,'subeler',id,'aylar'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.aylar=m;render();},()=>{}));
   render();}
@@ -376,9 +386,9 @@ function kopyala(){const wid=S.hafta;const prev=ymd(addDays(parse(wid),-7));cons
 function kadroEkle(pid){const wid=S.hafta;const kad=kadroOf(wid).ids.slice();if(kad.includes(pid))return;kad.push(pid);setWeek(wid,JSON.parse(JSON.stringify((S.haftalar[wid]&&S.haftalar[wid].cells)||{})),kad);}
 function kadroCikar(pid){const wid=S.hafta;const kad=kadroOf(wid).ids.filter(x=>x!==pid);const cells=JSON.parse(JSON.stringify((S.haftalar[wid]&&S.haftalar[wid].cells)||{}));delete cells[pid];setWeek(wid,cells,kad);}
 function kisiSec(g){const wid=S.hafta;const ds=weekDays(wid);const var_=new Set(kadroOf(wid).ids);
-  const L=S.personel.filter(p=>(p.grup||'K')===g&&!var_.has(p.id)&&ds.some(d=>employed(p,d))).sort((a,b)=>((b.anaSube===S.subeId)-(a.anaSube===S.subeId))||String(a.ad).localeCompare(String(b.ad),'tr'));
-  const satir=p=>`<button class="row" data-id="${esc(p.id)}" data-ara="${esc(isimAnahtar(p.ad))}"><div class="av">${esc(bas(p.ad))}</div><div class="m"><b>${esc(p.ad)}</b><span>${esc(gorevTahmin(p))}${p.anaSube&&p.anaSube!==S.subeId?' · '+esc(subeAdi(p.anaSube)):''}</span></div></button>`;
-  openSheet(`<h2>${GRUP[g]} ekle · ${rangeLabel(wid)}</h2><div class="sub">Personel listesinden seçin. Kişi sadece bu haftanın çizelgesine eklenir.</div>
+  const L=S.personel.filter(p=>p.anaSube===S.subeId&&(p.grup||'K')===g&&!var_.has(p.id)&&ds.some(d=>employed(p,d))).sort((a,b)=>String(a.ad).localeCompare(String(b.ad),'tr'));
+  const satir=p=>`<button class="row" data-id="${esc(p.id)}" data-ara="${esc(isimAnahtar(p.ad))}"><div class="av">${esc(bas(p.ad))}</div><div class="m"><b>${esc(p.ad)}</b><span>${esc(gorevTahmin(p))}</span></div></button>`;
+  openSheet(`<h2>${GRUP[g]} ekle · ${rangeLabel(wid)}</h2><div class="sub">${esc(sube().ad)} personel listesinden seçin. Başka şubeden gelen biri listede yoksa "Yeni personel oluştur" ile bu şubenin listesine ekleyin.</div>
    <label class="field"><span>Ara</span><input id="kAra" autocomplete="off" placeholder="İsim yazın"></label>
    <div class="card list" id="kList" style="margin-top:10px;max-height:46vh;overflow:auto">${L.map(satir).join('')||'<div class="note" style="padding:12px">Bu bölümde eklenebilecek kişi yok.</div>'}</div>
    <div class="row2"><button class="btn grow" id="kNo">Kapat</button><button class="btn grow" id="kYeni">+ Yeni personel oluştur</button></div>`,sh=>{
@@ -410,17 +420,67 @@ async function cizelgeyeKoy(sid,wid,pid){if(!erisimVar(sid))return;try{
   if(s0.exists()){const d=s0.data();kad=Array.isArray(d.kadro)?d.kadro.slice():Object.keys(d.cells||{});}
   else for(let i=1;i<=8&&!kad;i++){const q=await getDoc(weekRef(ymd(addDays(parse(wid),-7*i)),sid));if(q.exists()){const d=q.data();kad=Array.isArray(d.kadro)?d.kadro.slice():Object.keys(d.cells||{});}}
   kad=kad||[];if(kad.includes(pid))return;kad.push(pid);await setDoc(ref,{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),kadro:kad},{merge:true});}catch(e){console.error(e);}}
+/* ================= Personel bilgileri (telefon, acil durum, e-posta, IBAN) ================= */
+// Bu bilgiler personel kaydında durur; kayıt sadece kişinin şubesi (ve SGK şubesinin bölge müdürü / işveren) tarafından okunur.
+const BILGI=[{k:'tel',ad:'Telefon',tip:'tel',im:'tel',ph:'05xx xxx xx xx'},{k:'acilAd',ad:'Acil durum kişisi',tip:'metin',im:'text',ph:'Örn: Annesi Ayşe'},{k:'acilTel',ad:'Acil durum no',tip:'tel',im:'tel',ph:'05xx xxx xx xx'},
+  {k:'eposta',ad:'E-posta',tip:'eposta',im:'email',ph:'ornek@mail.com'},{k:'iban',ad:'IBAN',tip:'iban',im:'text',ph:'TR00 0000 0000 0000 0000 0000 00'}];
+const TC_ALAN={k:'tc',ad:'TC kimlik no',tip:'tc',im:'numeric',ph:'11 hane'};
+function ibanGecerli(s){if(!/^TR\d{24}$/.test(s))return false;const r=s.slice(4)+s.slice(0,4);let m=0;for(const ch of r){const n=/\d/.test(ch)?ch:String(ch.charCodeAt(0)-55);for(const d of n)m=(m*10+(+d))%97;}return m===1;}
+function tcGecerli(s){if(!/^[1-9]\d{10}$/.test(s))return false;const d=s.split('').map(Number);const t1=((d[0]+d[2]+d[4]+d[6]+d[8])*7-(d[1]+d[3]+d[5]+d[7]))%10;const t2=d.slice(0,10).reduce((a,b)=>a+b,0)%10;return((t1+10)%10)===d[9]&&t2===d[10];}
+function bilgiCoz(f,raw){const s=String(raw??'').trim();if(!s)return{v:''};
+  if(f.tip==='tel'){let d=s.replace(/\D/g,'');if(d.startsWith('90')&&d.length===12)d=d.slice(2);if(d.length===10&&d[0]==='5')d='0'+d;return /^0\d{10}$/.test(d)?{v:d}:{hata:'11 haneli telefon numarası yazın (05xx xxx xx xx).'};}
+  if(f.tip==='iban'){const d=s.toLocaleUpperCase('tr-TR').replace(/[^A-Z0-9]/g,'');return ibanGecerli(d)?{v:d}:{hata:'IBAN hatalı. TR ile başlayan 26 karakterli IBAN\'ı kontrol edin.'};}
+  if(f.tip==='eposta'){const d=s.toLocaleLowerCase('tr-TR').replace(/\s/g,'');return /^[^@]+@[^@]+\.[a-z]{2,}$/.test(d)?{v:d}:{hata:'E-posta adresi hatalı.'};}
+  if(f.tip==='tc'){const d=s.replace(/\D/g,'');return tcGecerli(d)?{v:d}:{hata:'TC kimlik numarası hatalı.'};}
+  return{v:s.replace(/\s+/g,' ').slice(0,80)};}
+function bilgiGoster(f,v){v=v||'';if(f.tip==='tel'&&/^0\d{10}$/.test(v))return`${v.slice(0,4)} ${v.slice(4,7)} ${v.slice(7,9)} ${v.slice(9)}`;if(f.tip==='iban')return v.replace(/(.{4})/g,'$1 ').trim();return v;}
+function excelBilgi(o){const out={};BILGI.forEach(f=>{if(o[f.k]==null)return;const r=bilgiCoz(f,typeof o[f.k]==='number'?String(o[f.k]):o[f.k]);if(r.v)out[f.k]=r.v;});return out;}
+// TC sadece bölge müdürü / işveren: maaslar/{SGK şubesi}.tc
+async function tcYukle(list){if(!puantajYetki())return;S.tcler=S.tcler||{};const need=[...new Set(list.map(maasSubesi))].filter(s=>s&&!(s in S.tcler)&&(isIsveren()||(S.me.subeler||[]).includes(s)));
+  if(!need.length)return;await Promise.all(need.map(async s=>{try{const d=await getDoc(doc(db,'maaslar',s));S.tcler[s]=(d.exists()&&d.data().tc)||{};}catch(e){S.tcler[s]=null;}}));render();}
+function tcOf(p){const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':null;}
+function bilgiKaydet(p,f,v){if(f.k==='tc'){const s=maasSubesi(p);(S.tcler[s]=S.tcler[s]||{})[p.id]=v;return sirayla('m'+s,()=>setDoc(doc(db,'maaslar',s),{tc:{[p.id]:v}},{merge:true}));}
+  p[f.k]=v;return sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),{[f.k]:v},{merge:true}));}
+function renderBilgiListesi(){const T=byId('blTbl');
+  const list=sirala(subePersoneli());const td=ymd(today());const L=[...list.filter(p=>!p.cikis||p.cikis>=td),...list.filter(p=>p.cikis&&p.cikis<td)];
+  const tcVar=puantajYetki();const F=tcVar?[...BILGI,TC_ALAN]:BILGI;
+  if(T&&T.contains(document.activeElement)&&T.dataset.n===String(L.length))return; // yazarken yeniden çizme
+  if(tcVar)tcYukle(L);
+  const eksik=L.filter(p=>!p.cikis||p.cikis>=td).filter(p=>!p.tel||!p.iban).length;
+  const hucre=(p,f,r,c)=>{let v,dis='';if(f.k==='tc'){const t=tcOf(p);if(t===null){v='';dis='disabled title="Bu kişinin SGK şubesi yetkiniz dışında"';}else v=t;}else v=p[f.k];
+    return `<td class="bi"><input data-r="${r}" data-c="${c}" data-f="${f.k}" value="${esc(bilgiGoster(f,v))}" placeholder="${esc(f.ph)}" inputmode="${f.im}" autocomplete="off" spellcheck="false" ${dis}></td>`;};
+  const h=personelMod()+`<p class="note" style="margin-top:0">${esc(sube().ad)} · ${L.length} kişi${eksik?` · <b style="color:var(--warn)">${eksik} kişide telefon veya IBAN eksik</b>`:''}. Hücreye yazın, çıkınca kaydedilir. Excel'den birden çok hücreyi kopyalayıp bir hücreye yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.${tcVar?' TC kimlik no sütununu sadece bölge müdürü ve işveren görür.':''}</p>
+   <div class="tbl-wrap" style="scroll-padding-left:165px"><table class="pt bl" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${F.map(f=>`<th>${f.ad}</th>`).join('')}</tr></thead>
+   <tbody>${L.map((p,r)=>`<tr data-pid="${esc(p.id)}" class="${p.cikis&&p.cikis<td?'mutr':''}"><td class="l nmc"><b>${esc(p.ad)}</b><span>${esc(gorevTahmin(p))}${p.cikis&&p.cikis<td?' · çıktı':''}</span></td>${F.map((f,c)=>hucre(p,f,r,c)).join('')}</tr>`).join('')||`<tr><td class="l" colspan="${F.length+1}">Henüz personel yok.</td></tr>`}</tbody></table></div>`;
+  view(h,()=>{personelModBagla();const tb=byId('blTbl');
+    const inp=(r,c)=>tb.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
+    const kaydet=(el,sessiz)=>{const p=L[+el.dataset.r];const f=F[+el.dataset.c];if(!p||!f)return true;const r=bilgiCoz(f,el.value);
+      if(r.hata){el.classList.add('bad');el.title=r.hata;if(!sessiz)toast(`${kisaAd(p.ad)} · ${r.hata}`);return false;}
+      el.classList.remove('bad');el.title='';el.value=bilgiGoster(f,r.v);const eski=f.k==='tc'?(tcOf(p)||''):(p[f.k]||'');if(r.v!==eski)bilgiKaydet(p,f,r.v);return true;};
+    tb.querySelectorAll('input').forEach(el=>{el.onchange=()=>kaydet(el);
+      el.onkeydown=e=>{const r=+el.dataset.r,c=+el.dataset.c;let n=null;if(e.key==='Enter'||e.key==='ArrowDown')n=inp(r+1,c);else if(e.key==='ArrowUp')n=inp(r-1,c);if(n||e.key==='Enter'){e.preventDefault();if(n){n.focus();n.select();}else el.blur();}};
+      el.onpaste=e=>{const t=(e.clipboardData||window.clipboardData).getData('text');if(!/[\t\n]/.test(t.trim()))return;e.preventDefault();
+        let M=t.replace(/\r/g,'').split('\n');while(M.length&&!M[M.length-1].trim())M.pop();M=M.map(x=>x.split('\t'));
+        const r0=+el.dataset.r,c0=+el.dataset.c;const ad={};L.forEach((p,i)=>ad[isimAnahtar(p.ad)]=i);
+        const isimli=M[0].length>1&&M.filter(x=>x[0].trim()).every(x=>ad[isimAnahtar(x[0])]!=null);let n=0,bad=0,yok=0;
+        M.forEach((row,i)=>{const r=isimli?ad[isimAnahtar(row[0])]:r0+i;const cells=isimli?row.slice(1):row;if(r==null||r>=L.length){yok++;return;}
+          cells.forEach((v,j)=>{const x=inp(r,c0+j);if(!x||x.disabled)return;x.value=v.trim();if(kaydet(x,true))n++;else bad++;});});
+        toast(`${n} hücre yapıştırıldı${bad?`, ${bad} hücre hatalı (kırmızı)`:''}${yok?`, ${yok} satır eşleşmedi`:''}.`);};});});}
+
 function personelYazabilir(p){return isIsveren()||!p.anaSube||(S.me.subeler||[]).includes(p.anaSube);}
 function erisimVar(sid){return isIsveren()||(S.me.subeler||[]).includes(sid);}
-function renderPersonel(){const list=sirala(S.personel.filter(p=>p.anaSube===S.subeId||maasSubesi(p)===S.subeId));const td=ymd(today());
-  let h=`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button></div><p class="note" style="margin-top:0">${esc(sube().ad)} şubesine kayıtlı personel. Çizelgeye eklemek için çizelgedeki "+ ekle" butonlarını kullanın; diğer şubelerin personeli de oradan seçilebilir.</p>`;
-  if(!list.length)return view(h+`<div class="empty-state"><b>Henüz personel yok</b>"Personel ekle" ile şubenin çalışanlarını girin.</div>`,()=>byId('addP').onclick=()=>personelPanel(null));
+function subePersoneli(sid=S.subeId){return S.personel.filter(p=>p.anaSube===sid);}
+function personelMod(){return `<div class="seg" id="pMod" style="margin-bottom:10px"><button data-v="kart" class="${S.plist?'':'on'}">Kartlar</button><button data-v="liste" class="${S.plist?'on':''}">Bilgi listesi</button></div>`;}
+function personelModBagla(){document.querySelectorAll('#pMod button').forEach(b=>b.onclick=()=>{S.plist=b.dataset.v==='liste';tryLS('pm.plist',S.plist?'1':'0');render();});}
+function renderPersonel(){if(S.plist===undefined)S.plist=tryLS('pm.plist')==='1';if(S.plist)return renderBilgiListesi();const list=sirala(subePersoneli());const td=ymd(today());
+  let h=personelMod()+`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button></div><p class="note" style="margin-top:0">${esc(sube().ad)} personel listesi. Başka şubeden gelen biri burada çalışacaksa bu listeye ekleyin; SGK şubesi olarak kendi şubesini seçin.</p>`;
+  if(!list.length)return view(h+`<div class="empty-state"><b>Henüz personel yok</b>"Personel ekle" ile şubenin çalışanlarını girin.</div>`,()=>{personelModBagla();byId('addP').onclick=()=>personelPanel(null);});
   const aktif=list.filter(p=>!p.cikis||p.cikis>=td),cikan=list.filter(p=>p.cikis&&p.cikis<td);
   const row=p=>`<button class="row" data-id="${esc(p.id)}"><div class="av">${esc(bas(p.ad))}</div><div class="m"><b>${esc(p.ad)}</b><span>${esc(gorevTahmin(p)||'Görev seçilmemiş')}${p.sekil==='Part'?' · Part':''} · SGK: ${p.sgkSube===SGK_YOK?'yok':p.sgkSube?esc(subeAdi(p.sgkSube)):'<b style="color:var(--warn)">seçilmemiş</b>'}${p.giris?' · giriş '+trTarih(p.giris):''}</span></div>
     <div class="r">${p.cikis?`<span class="chip ${p.cikis<td?'mut':'warn'}">Çıkış ${trTarih(p.cikis)}</span>`:''}</div></button>`;
   GRUP_SIRA.forEach(g=>{const l=aktif.filter(p=>(p.grup||'K')===g);if(l.length)h+=`<div class="sec">${GRUP[g]} · ${l.length}</div><div class="card list">${l.map(row).join('')}</div>`;});
   if(cikan.length)h+=`<div class="sec">Çıkış yapanlar · ${cikan.length}</div><div class="card list">${cikan.map(row).join('')}</div>`;
-  view(h,()=>{byId('addP').onclick=()=>personelPanel(null);document.querySelectorAll('.row[data-id]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.id));});}
+  view(h,()=>{personelModBagla();byId('addP').onclick=()=>personelPanel(null);document.querySelectorAll('.row[data-id]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.id));});}
 function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{ad:'',grup:gr||'K',gorev:'',sekil:'Tam',giris:ymd(today()),cikis:'',anaSube:S.subeId};if(!p)return;
   const yaz=personelYazabilir(p);const gv=id?gorevTahmin(p):'';const sgk=p.sgkSube||'';const subeler=tumSubeler();
   const anaSec=(isIsveren()?S.subeIds:(S.me.subeler||[])).filter(x=>S.subeler[x]);
@@ -432,6 +492,8 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
    <label class="field"><span>SGK şubesi (maaşı bu şubenin puantajında)</span><select id="pSgk" ${yaz?'':'disabled'}><option value="" ${!sgk?'selected':''}>Seçin</option><option value="${SGK_YOK}" ${sgk===SGK_YOK?'selected':''}>Boş (SGK şubesi yok)</option>${subeler.map(([sid,ad])=>`<option value="${esc(sid)}" ${sgk===sid?'selected':''}>${esc(ad)}</option>`).join('')}</select></label>
    <label class="field"><span>Çalıştığı şube (çizelgesinde göründüğü)</span><select id="pAna" ${yaz?'':'disabled'}>${(anaSec.includes(p.anaSube||S.subeId)?anaSec:[p.anaSube||S.subeId,...anaSec]).map(x=>`<option value="${esc(x)}" ${(p.anaSube||S.subeId)===x?'selected':''}>${esc(subeAdi(x))}</option>`).join('')}</select></label>
    <div class="fgrid"><label class="field"><span>İşe giriş</span><input id="pGiris" type="date" value="${esc(p.giris||'')}" ${yaz?'':'disabled'}></label><label class="field"><span>Çıkış (boşsa çalışıyor)</span><input id="pCikis" type="date" value="${esc(p.cikis||'')}" ${yaz?'':'disabled'}></label></div>
+   <div class="sec" style="margin-left:0">İletişim ve banka</div>
+   <div class="fgrid">${BILGI.map(f=>`<label class="field"${f.k==='iban'||f.k==='eposta'?' style="grid-column:1/-1"':''}><span>${f.ad}</span><input id="pB_${f.k}" value="${esc(bilgiGoster(f,p[f.k]))}" inputmode="${f.im}" autocomplete="off" placeholder="${f.ph}" ${yaz?'':'disabled'}></label>`).join('')}</div>
    ${id&&!p.cikis&&yaz?'<button class="btn" id="pOut" style="margin-top:8px;width:100%">Bugün itibarıyla çıkış ver</button>':''}
    <div id="pWarn"></div><div class="row2">${id&&yaz?'<button class="btn danger" id="pDel">Personeli sil</button>':''}<button class="btn grow" id="pNo">${yaz?'Vazgeç':'Kapat'}</button>${yaz?'<button class="btn primary grow" id="pOk">Kaydet</button>':''}</div>`,sh=>{
    sh.querySelectorAll('#pSekil button').forEach(bt=>bt.onclick=()=>{sh.querySelectorAll('#pSekil button').forEach(x=>x.classList.remove('on'));bt.classList.add('on');});
@@ -440,11 +502,12 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
    byId('pOk').onclick=()=>{const ad=byId('pAd').value.trim().replace(/\s+/g,' ');if(!ad){W.innerHTML='<div class="confirm">Ad soyad gerekli.</div>';return;}
      const g=gorevBul(G.value);if(!g){W.innerHTML='<div class="confirm">Görev seçin.</div>';return;}
      const sgkV=byId('pSgk').value;if(!sgkV){W.innerHTML='<div class="confirm">SGK şubesini seçin. SGK şubesi yoksa "Boş" seçeneğini seçin.</div>';return;}
-     const ayni=S.personel.find(x=>x.id!==id&&isimAnahtar(x.ad)===isimAnahtar(ad));if(ayni&&!W.dataset.ok){W.dataset.ok='1';W.innerHTML=`<div class="confirm">Bu isimde başka bir personel var (${esc(subeAdi(ayni.anaSube))}). Aynı kişiyse yeni kayıt açmayın, çizelgede "+ ekle" ile seçin. Farklı kişiyse tekrar Kaydet'e basın.</div>`;return;}
+     const anaS=byId('pAna').value||S.subeId;const ayni=S.personel.find(x=>x.id!==id&&x.anaSube===anaS&&isimAnahtar(x.ad)===isimAnahtar(ad));if(ayni&&!W.dataset.ok){W.dataset.ok='1';W.innerHTML=`<div class="confirm">${esc(subeAdi(anaS))} listesinde bu isimde biri zaten var. Aynı kişiyse yeni kayıt açmayın. Farklı kişiyse tekrar Kaydet'e basın.</div>`;return;}
+     const bilgi={};for(const f of BILGI){const r=bilgiCoz(f,byId('pB_'+f.k).value);if(r.hata){W.innerHTML=`<div class="confirm">${esc(f.ad)}: ${esc(r.hata)}</div>`;return;}bilgi[f.k]=r.v;}
      const giris=byId('pGiris').value,cikis=byId('pCikis').value;if(giris&&cikis&&cikis<giris){W.innerHTML='<div class="confirm">Çıkış tarihi girişten önce olamaz.</div>';return;}
      const sekil=g.sekil||sh.querySelector('#pSekil .on').dataset.v;const ana=byId('pAna').value||S.subeId;
-     const body={ad,gorev:g.ad,grup:g.grup,sekil,giris,cikis,sgkSube:sgkV,anaSube:ana};if(p.sira!=null)body.sira=p.sira;const pid=id||(slug(ad)+'-'+Math.random().toString(36).slice(2,6));
-     sirayla('p'+pid,()=>setDoc(doc(db,'personel',pid),body));if(!id)S.personel.push({id:pid,...body});else Object.assign(p,body);closeSheet();
+     const body={ad,gorev:g.ad,grup:g.grup,sekil,giris,cikis,sgkSube:sgkV,anaSube:ana,...bilgi};if(p.sira!=null)body.sira=p.sira;const pid=id||(slug(ad)+'-'+Math.random().toString(36).slice(2,6));
+     sirayla('p'+pid,()=>setDoc(doc(db,'personel',pid),body,{merge:true}));if(!id)S.personel.push({id:pid,...body});else Object.assign(p,body);closeSheet();
      const ilkHafta=mondayOf(giris&&parse(giris)>today()?parse(giris):today());
      if(opt.sonra)opt.sonra(pid);
      const yeniSube=!id||(p.anaSube!==ana);if(yeniSube&&!(opt.sonra&&ana===S.subeId))cizelgeyeKoy(ana,ilkHafta,pid);
@@ -693,7 +756,9 @@ function excelCoz(X,wb){const val=(ws,r,c)=>{const x=ws[X.utils.encode_cell({r,c
     for(let r=0;r<=Math.min(maxR,12);r++)for(let c=0;c<=Math.min(R.e.c,20);c++){if(String(val(ws,r,c)||'').trim().toLocaleUpperCase('tr-TR')==='ADI SOYADI'){
       const hdr={};for(let cc=c;cc<=Math.min(R.e.c,c+12);cc++)hdr[String(val(ws,r,cc)||'').trim().toLocaleUpperCase('tr-TR')]=cc;
       if(hdr['GİRİŞ TARİHİ']!=null&&!liste){liste={};for(let rr=r+1;rr<=maxR;rr++){const ad=val(ws,rr,c);if(!ad||typeof ad!=='string')continue;
-        liste[isimAnahtar(ad)]={sekil:hdr['ÇALIŞMA ŞEKLİ']!=null?xSekil(val(ws,rr,hdr['ÇALIŞMA ŞEKLİ'])):null,giris:xTarihMetin(val(ws,rr,hdr['GİRİŞ TARİHİ'])),cikis:hdr['ÇIKIŞ TARİHİ']!=null?xTarihMetin(val(ws,rr,hdr['ÇIKIŞ TARİHİ'])):''};}}}}
+        const hv=k=>hdr[k]!=null?val(ws,rr,hdr[k]):null;
+        liste[isimAnahtar(ad)]={sekil:hdr['ÇALIŞMA ŞEKLİ']!=null?xSekil(val(ws,rr,hdr['ÇALIŞMA ŞEKLİ'])):null,giris:xTarihMetin(val(ws,rr,hdr['GİRİŞ TARİHİ'])),cikis:hdr['ÇIKIŞ TARİHİ']!=null?xTarihMetin(val(ws,rr,hdr['ÇIKIŞ TARİHİ'])):'',
+          bilgi:excelBilgi({tel:hv('TELEFON'),eposta:hv('MAİL')??hv('E-POSTA')??hv('MAIL'),iban:hv('IBAN')})};}}}}
     // Çizelge sayfası: A sütununda "N. HAFTA", bir alt satırda C,E,G… tarihler, altında isimler
     const hafta=[];for(let r=0;r<=maxR;r++){const a=String(val(ws,r,0)||'').toLocaleUpperCase('tr-TR');if(!/HAFTA/.test(a))continue;const mon=xSerialTarih(val(ws,r+1,2));if(!mon)continue;
       const kisiler={};for(let rr=r+2;rr<=Math.min(maxR,r+26);rr++){const a2=String(val(ws,rr,0)||'').toLocaleUpperCase('tr-TR');if(/HAFTA/.test(a2))break;const ad=val(ws,rr,1);if(!ad||typeof ad!=='string'||!ad.trim())continue;
@@ -706,7 +771,7 @@ function excelCoz(X,wb){const val=(ws,r,c)=>{const x=ws[X.utils.encode_cell({r,c
     if(hafta.length)sayfalar.push({name,hafta,ilk:hafta[0].mon,son:hafta[hafta.length-1].mon});});
   return{sayfalar,liste};}
 function excelAktarPanel(sid){const sb=sube(sid);
-  openSheet(`<h2>Excel'den çizelge aktar</h2><div class="sub">${esc(sb.ad)} · Mevcut MESAİ ÇİZELGESİ dosyanızı seçin. Personel listesi sayfası varsa giriş/çıkış tarihleri de alınır.</div>
+  openSheet(`<h2>Excel'den çizelge aktar</h2><div class="sub">${esc(sb.ad)} · Mevcut MESAİ ÇİZELGESİ dosyanızı seçin. Personel listesi sayfası varsa giriş/çıkış tarihleri, telefon, e-posta ve IBAN da alınır.</div>
    <label class="field"><span>Excel dosyası (.xlsx)</span><input id="xF" type="file" accept=".xlsx,.xlsm,.xls"></label><div id="xOut"></div>`,()=>{
    byId('xF').onchange=async e=>{const f=e.target.files[0];if(!f)return;const O=byId('xOut');O.innerHTML='<p class="note">Dosya okunuyor…</p>';let X,P;
      try{X=await xlsxLib();P=excelCoz(X,X.read(await f.arrayBuffer(),{type:'array'}));}catch(err){O.innerHTML='<div class="confirm bad">Dosya okunamadı.</div>';return;}
@@ -717,7 +782,7 @@ function excelAktarPanel(sid){const sb=sube(sid);
      byId('xOn').onclick=()=>{const sec=[...O.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);if(!sec.length){toast('En az bir sayfa seçin.');return;}
        const haftalar={};sirali.filter(s=>sec.includes(s.name)).forEach(s=>s.hafta.forEach(h=>{const w=haftalar[h.mon]||(haftalar[h.mon]={});Object.entries(h.kisiler).forEach(([k,v])=>{w[k]={ad:v.ad,gun:{...((w[k]||{}).gun||{}),...v.gun}};});}));
        const kisi={};Object.values(haftalar).forEach(w=>Object.entries(w).forEach(([k,v])=>{if(!kisi[k])kisi[k]={ad:v.ad,vardiya:0};kisi[k].vardiya+=Object.keys(v.gun).length;}));
-       const mevcut={};S.personel.forEach(p=>mevcut[isimAnahtar(p.ad)]=p);
+       const mevcut={};subePersoneli(sid).forEach(p=>mevcut[isimAnahtar(p.ad)]=p);
        const keys=Object.keys(kisi).sort((a,b)=>kisi[a].ad.localeCompare(kisi[b].ad,'tr'));
        byId('xOn2').innerHTML=`<span class="lbl">Personel · ${keys.length} kişi</span><p class="note" style="margin:0 0 8px">Yeni kişilerin görevini ve SGK şubesini seçin. Mevcut personel aynen kalır.</p>
         <div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">İsim</th><th>Durum</th><th>Görev</th><th>SGK şubesi</th><th>Giriş</th><th>Çıkış</th></tr></thead><tbody>${keys.map(k=>{const m=mevcut[k],l=(P.liste||{})[k]||{};
@@ -730,9 +795,9 @@ function excelAktarPanel(sid){const sb=sube(sid);
        byId('xOk').onclick=async()=>{const eksik=keys.filter(k=>!mevcut[k]&&!gorevBul((byId('xOn2').querySelector(`select[data-t="g"][data-k="${CSS.escape(k)}"]`)||{}).value));
          if(eksik.length){toast(`${eksik.length} kişinin görevi seçilmedi.`);return;}
          const btn=byId('xOk');btn.disabled=true;btn.textContent='Aktarılıyor…';const pidOf={};const ops=[];
-         keys.forEach(k=>{const m=mevcut[k];if(m){pidOf[k]=m.id;return;}const l=(P.liste||{})[k]||{};const pid=slug(kisi[k].ad)+'-'+Math.random().toString(36).slice(2,6);pidOf[k]=pid;
+         keys.forEach(k=>{const m=mevcut[k];if(m){pidOf[k]=m.id;const lb=((P.liste||{})[k]||{}).bilgi||{};const ek={};Object.entries(lb).forEach(([f,v])=>{if(v&&!m[f])ek[f]=v;});if(Object.keys(ek).length)ops.push([doc(db,'personel',m.id),ek,true]);return;}const l=(P.liste||{})[k]||{};const pid=slug(kisi[k].ad)+'-'+Math.random().toString(36).slice(2,6);pidOf[k]=pid;
            const g=gorevBul(byId('xOn2').querySelector(`select[data-t="g"][data-k="${CSS.escape(k)}"]`).value);const sgkV=byId('xOn2').querySelector(`select[data-t="s"][data-k="${CSS.escape(k)}"]`).value;
-           ops.push([doc(db,'personel',pid),{ad:kisi[k].ad,grup:g.grup,gorev:g.ad,sekil:g.sekil||(l.sekil==='Part'?'Part':'Tam'),giris:l.giris||'',cikis:l.cikis||'',sgkSube:sgkV,anaSube:sid},false]);});
+           ops.push([doc(db,'personel',pid),{ad:kisi[k].ad,grup:g.grup,gorev:g.ad,sekil:g.sekil||(l.sekil==='Part'?'Part':'Tam'),giris:l.giris||'',cikis:l.cikis||'',sgkSube:sgkV,anaSube:sid,...(l.bilgi||{})},false]);});
          Object.entries(haftalar).forEach(([mon,w])=>{const cells={};Object.entries(w).forEach(([k,v])=>{cells[pidOf[k]]=Object.fromEntries(Object.entries(v.gun).map(([i,x])=>[String(i),x]));});
            ops.push([doc(db,'subeler',sid,'haftalar',mon),{hafta:mon,ay2:ayKey(addDays(parse(mon),6)),kadro:Object.keys(cells),cells},true]);});
          try{for(let i=0;i<ops.length;i+=400){const b=writeBatch(db);ops.slice(i,i+400).forEach(([r,d,m])=>m?b.set(r,d,{merge:true}):b.set(r,d));await b.commit();}
