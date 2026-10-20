@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=38";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=39";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -838,7 +838,7 @@ function kilidiAc(){const ak=S.ay,sid=S.subeId;const b=writeBatch(db);b.set(doc(
 function geriGonderPanel(){openSheet(`<h2>Şubeye geri gönder</h2><div class="sub">Şube müdürü notu görür, düzeltip ayı yeniden kapatır.</div><label class="field"><span>Not</span><textarea id="gNot" rows="3" placeholder="Örn: Ali'nin 14 Ekim raporu eksik"></textarea></label>
   <div class="row2"><button class="btn grow" id="gNo">Vazgeç</button><button class="btn danger grow" id="gOk">Geri gönder</button></div>`,()=>{byId('gNo').onclick=closeSheet;
   byId('gOk').onclick=()=>{const not=byId('gNot').value.trim();sirayla('ay'+S.ay,()=>setDoc(doc(db,'subeler',S.subeId,'aylar',S.ay),{durum:'geri',not,geriGonderen:S.user.uid,geriTarih:new Date().toISOString()},{merge:true}));closeSheet();toast('Şubeye geri gönderildi.');};});}
-function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const us0=usOf(pid);let tip=us0.tip;const maasDisi=x.sol.maasBurada===false;if(maasDisi&&tip==='paket')tip='maas';const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
+function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const ekToplam=k=>{const v=(V.oz[pid]||{})[k]||0;return v?tl(v):'';};const us0=usOf(pid);let tip=us0.tip;const maasDisi=x.sol.maasBurada===false;if(maasDisi&&tip==='paket')tip='maas';const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
   const inp=(id,label,val,ph='')=>`<label class="field"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val??''}" placeholder="${ph}"></label>`;
   openSheet(`<h2>${esc(x.sol.ad)}</h2><div class="sub">${ayAdi(V.ak)} · ${esc(x.sol.sekil)} · ${esnaf?'paket başı':x.sol.gun+' bordro günü'+(x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun} çalışılan gün`:'')}${x.sol.fmSaat&&!esnaf?' · fazla mesai '+sg(x.sol.fmSaat)+' sa':''}</div>
    <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,String(V.sb.paketUcret||'')):`<div style="grid-column:1/-1"><span class="lbl">Ücret şekli</span><div class="seg" id="oSekil">${(maasDisi?[['maas','Maaşı başka şubede'],['saat','Saatlik']]:[['maas','Maaşlı'],['paket','Paket başı'],['saat','Saatlik']]).map(([k,a])=>`<button data-v="${k}" class="${tip===k?'on':''}">${a}</button>`).join('')}</div></div>
@@ -846,14 +846,15 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
      <p class="note" id="oMdNot" style="grid-column:1/-1" ${tip==='maas'&&maasDisi?'':'hidden'}>Maaşı ${esc(x.sol.odemeSube||'SGK şubesinin')} puantajında. Burada sadece bu şubede yaptığı fazla mesai ve buraya ait primler hesaplanır.</p>
      <p class="note" id="oPbNot" style="grid-column:1/-1" ${tip==='paket'?'':'hidden'}>Paket başı: kazanç paket primleridir. Paket primlerini Veri girişinden "Paket primi" olarak girin; bankaya yatan, ara ödeme ve avans düşülür, kalan elden ödenir. Fazla mesai hesaplanmaz.</p>
      <div id="oSaatW" style="grid-column:1/-1" ${tip==='saat'?'':'hidden'}>${inp('oSaat','Saat ücreti (₺)',us0.saatUcret||'','örn. 120')}<p class="note" style="margin-top:0">Çalıştığı saatleri Veri girişinden "Çalışılan saat" olarak girin. Hak ediş = saat × ücret; bankaya yatan, ara ödeme ve avans düşülür. Fazla mesai hesaplanmaz.</p></div>`}
-   ${inp('oPaket','Paket primi (₺)',s.paketPrimi)}${inp('oCiro','Ciro primi (₺)',s.ciroPrimi)}${inp('oAvans','Avans (₺)',s.avans)}
+   ${inp('oPaket','Paket primi ekle (₺)','')}${inp('oCiro','Ciro primi ekle (₺)','')}
+   <p class="note" style="grid-column:1/-1;margin-top:0">Buraya yazdığınız primler veri girişine ayın son günü tarihli satır olarak eklenir. Avans ve ara ödemeyi veri girişinden girin.${ekToplam('PP')||ekToplam('CP')?` Bu ay girilmiş: ${ekToplam('PP')?'paket primi '+ekToplam('PP'):''}${ekToplam('PP')&&ekToplam('CP')?', ':''}${ekToplam('CP')?'ciro primi '+ekToplam('CP'):''}.`:''}</p>
    <label class="field"><span>TC kimlik no (bordro eşleşmesi için)</span><input id="oTc" inputmode="numeric" maxlength="11" value="${esc(tc)}"></label></div>
    <div class="calc" id="oCalc"></div><div id="oErr"></div><div class="row2"><button class="btn grow" id="oNo">Vazgeç</button><button class="btn primary grow" id="oOk">Kaydet</button></div>`,sh=>{
-   const oku=()=>{const v=id=>{const e=byId(id);return e?e.value.trim():undefined;};const o={paketPrimi:v('oPaket'),ciroPrimi:v('oCiro'),avans:v('oAvans')};if(esnaf){o.paketSayisi=v('oPs');o.paketUcret=v('oPu');}return o;};
+   const oku=()=>{const v=id=>{const e=byId(id);return e?e.value.trim():undefined;};const o={};if(esnaf){o.paketSayisi=v('oPs');o.paketUcret=v('oPu');}return o;};
    const ekV=V.oz[pid]||{};
    sh.querySelectorAll('#oSekil button').forEach(b=>b.onclick=()=>{tip=b.dataset.v;sh.querySelectorAll('#oSekil button').forEach(q=>q.classList.toggle('on',q===b));byId('oNetW').hidden=!(tip==='maas'&&!maasDisi);byId('oMdNot').hidden=!(tip==='maas'&&maasDisi);byId('oPbNot').hidden=tip!=='paket';byId('oSaatW').hidden=tip!=='saat';calc();});
    const usSimdi=()=>({tip,saatUcret:byId('oSaat')?sayi(byId('oSaat').value):0});
-   const calc=()=>{const o=oku();const n=esnaf?0:byId('oNet')?sayi(byId('oNet').value):sayi(x.net);const r=sagHesap(pid,x.sol,{...s,...o},n,V.sb,x.hes.devir,ekV,esnaf?{}:usSimdi());const pb=r.pb;
+   const calc=()=>{const o=oku();const n=esnaf?0:byId('oNet')?sayi(byId('oNet').value):sayi(x.net);const ek2={...ekV,PP:(ekV.PP||0)+sayi(byId('oPaket').value),CP:(ekV.CP||0)+sayi(byId('oCiro').value)};const r=sagHesap(pid,x.sol,{...s,...o},n,V.sb,x.hes.devir,ek2,esnaf?{}:usSimdi());const pb=r.pb;
      byId('oCalc').innerHTML=`${esnaf?`<div><span>Paket hak edişi</span><b>${tl(r.paketHak)}</b></div>`:pb?'':r.saat?`<div><span>Hak edilen (${fmt(r.saatSayi)} saat × ${tl(r.saatUcret)})</span><b>${tl(r.hak)}</b></div>`:`<div><span>Hak edilen (net × ${x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun}/30${x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun-x.sol.gun} gün deneme`:''})</span><b>${tl(r.hak)}</b></div>`}<div><span>− Bankaya yatan</span><b>${tl(r.bankaya)}</b></div>${pb?'':`<div><span>= Maaş farkı</span><b>${tl(r.maasFarki)}</b></div>`}
        ${r.fmTl?`<div><span>+ Fazla mesai</span><b>${tl(r.fmTl)}</b></div>`:''}${r.paketPrimi?`<div><span>+ Paket primi</span><b>${tl(r.paketPrimi)}</b></div>`:''}${r.ciroPrimi?`<div><span>+ Ciro primi</span><b>${tl(r.ciroPrimi)}</b></div>`:''}${r.araOdeme?`<div><span>− Ara ödeme</span><b>${tl(r.araOdeme)}</b></div>`:''}${r.avans?`<div><span>− Avans${r.devirAvans?` (${tl(r.devirAvans)} geçen ay devri dahil)`:''}</span><b>${tl(r.avans)}</b></div>`:''}
        ${Math.abs(r.kalan-r.kalanHam)>0.004?`<div><span>Yuvarlama (5 ₺)</span><b>${tl(r.kalan-r.kalanHam)}</b></div>`:''}<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Kalan ödeme</span><b class="${r.kalan<0?'neg':'pos'}">${tl(r.kalan)}</b></div>${r.kalan<0?'<div><span class="note" style="margin:0">Eksi tutar sonraki ayın ödemesinden düşülür.</span></div>':''}`;};
@@ -865,8 +866,14 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
          await setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatUcret:{[pid]:u.saatUcret}}:{})},{merge:true});}}
        if((!esnaf&&netEl&&!byId('oNetW').hidden)||tcv!==tc){const m={};if(!esnaf&&netEl&&!byId('oNetW').hidden)m.net={[pid]:sayi(netEl.value)||null};if(tcv!==tc)m.tc={[pid]:tcv||null};
          if(m.net){S.pt.maas={...S.pt.maas,net:{...((S.pt.maas||{}).net||{}),[pid]:m.net[pid]}};}await setDoc(doc(db,'maaslar',sid),m,{merge:true});}
-       const sag2=sagSonuclu({...V,D:{...V.D,sag}});
-       await setDoc(doc(db,'puantaj',sid,'aylar',ak),V.kilitli?{sag:sag2,guncellendi:new Date().toISOString()}:{sube:sid,ay:ak,sag:sag2,guncellendi:new Date().toISOString()},{merge:true});closeSheet();toast('Ödeme bilgileri kaydedildi.');}
+       // Primler ve eski kayıtlı avans/prim tutarları veri girişine taşınır: veri tek yerde.
+       const sonGun=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();const adP=adBuyuk(x.sol.ad);
+       const satir=(tur,m,a)=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adP,pid,tur,miktar:m,aciklama:a,kim,zaman:z});const ek=[];
+       if(sayi(byId('oPaket').value))ek.push(satir('PP',sayi(byId('oPaket').value),'Ödeme penceresinden'));if(sayi(byId('oCiro').value))ek.push(satir('CP',sayi(byId('oCiro').value),'Ödeme penceresinden'));
+       const eskiS=sag[pid]||{};[['paketPrimi','PP'],['ciroPrimi','CP'],['avans','AV']].forEach(([f,t])=>{if(sayi(eskiS[f])){ek.push(satir(t,sayi(eskiS[f]),'Önceki kayıttan taşındı'));sag[pid]={...sag[pid],[f]:''};}});
+       const veriY=[...((S.pt.doc&&S.pt.doc.veri)||[]),...ek];S.pt.doc={...(S.pt.doc||{}),veri:veriY};
+       const sag2=sagSonuclu({...V,D:{...V.D,sag,veri:veriY}});
+       await setDoc(doc(db,'puantaj',sid,'aylar',ak),{...(V.kilitli?{}:{sube:sid,ay:ak}),sag:sag2,...(ek.length?{veri:veriY}:{}),guncellendi:z},{merge:true});closeSheet();toast(ek.length?'Kaydedildi, primler veri girişine eklendi.':'Ödeme bilgileri kaydedildi.');}
      catch(e){yazmaHatasi(e);}};});}
 
 /* ================= Muhasebe çıktısı ================= */
