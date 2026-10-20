@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=22";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=23";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -151,7 +151,8 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
     let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(sgkli(p,d))ist++;if(employed(p,d))istF++;}
     const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const hakGun=Math.max(0,(istF===last.getDate()?30:Math.min(30,istF))-t.R-t.UI);const yari=p.sekil==='Yarı esnaf';const part=p.sekil==='Part'||(yari&&p.sgkSekil==='Part');
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
-      rapor:maasBurada?t.R:0,ucretsiz:maasBurada?t.UI:0,yillik:maasBurada?t.YI:0,bayram:maasBurada?t.B:0,partGun:part&&maasBurada&&!yari?Math.round(t.saat/(sb.partSaat||8)*100)/100:0,muhSekil:yari?(p.sgkSekil==='Part'?'Part':'Tam'):(p.sekil||'Tam'),
+      rapor:maasBurada?t.R:0,ucretsiz:maasBurada?t.UI:0,yillik:maasBurada?t.YI:0,bayram:maasBurada?t.B:0,partGun:0,// part gün elle, veri girişinden
+      muhSekil:yari?(p.sgkSekil==='Part'?'Part':'Tam'):(p.sekil||'Tam'),
       fmSaat:o.fm,calisilanSaat:o.saat,gun:maasBurada?gun:0,hakGun:maasBurada?hakGun:0,baslama:p.baslama&&p.baslama<(p.giris||'9')?p.baslama:'',bosGun:o.bos,baska:t.baska,sgkYok:p.sgkSube===SGK_YOK};});
   return out;}
 // Muhasebeye giden tarafta sadece SGK'sı bu şubede olanlar; başka şubenin SGK'lısı ve SGK'sı olmayanlar sadece ödemelerde.
@@ -311,7 +312,7 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
     kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayHesap(p,ak,sb);
       const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
-      const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.partGun)}<small>gün</small>`]:[sg(wk.fm),sg(ay.fm)];
+      const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.h)}<small>sa</small>`]:[sg(wk.fm),sg(ay.fm)];
       h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}">${esc(kisaAd(p.ad))}</b><span>${alt}</span></button>`;
       ds.forEach((d,i)=>{if(!employed(p,d)){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
         const lk=!cizelgeYazabilir(d);const val=cellOf(p.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(p.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
@@ -595,7 +596,7 @@ function renderAy(){const ak=S.ay||gosterAy(S.hafta);S.ay=ak;const sb=sube();con
   if(bos)h+=`<p class="note">Boş gün: kişinin o hafta başka kaydı var ama o gün boş. Fazla mesaiden ${fmt(sb.gunluk)} saat düşülür. Ayı kapatmadan önce doldurun.</p>`;
   let son=null;R.forEach(({p,a})=>{const g=p.grup||'K';if(g!==son){if(son)h+='</div>';son=g;h+=`<div class="sec">${GRUP[g]}</div><div class="card list">`;}
     const tags=['R','UI','YI','B'].filter(k=>a.kod[k]).map(k=>`<span class="tag">${a.kod[k]} ${KOD[k].ad.toLocaleLowerCase('tr-TR')}</span>`).join('')+(a.bos?`<span class="tag warn">${a.bos} boş gün</span>`:'');
-    const sag=a.esnaf?`<b>${fmt(a.h)} sa</b><span>esnaf</span>`:a.part?`<b>${fmt(a.partGun)} gün</b><span>part · ${fmt(a.h)} sa</span>`:`<b>${sg(a.fm)} sa</b><span>${fmt(a.h)} sa çalıştı</span>`;
+    const sag=a.esnaf?`<b>${fmt(a.h)} sa</b><span>esnaf</span>`:a.part?`<b>${fmt(a.h)} sa</b><span>part</span>`:`<b>${sg(a.fm)} sa</b><span>${fmt(a.h)} sa çalıştı</span>`;
     h+=`<div class="row"><div class="av">${esc(bas(p.ad))}</div><div class="m"><b>${esc(p.ad)}</b><span>${esc(p.gorev||GRUP[g])} · ${a.gun} gün</span>${tags?`<div class="tags">${tags}</div>`:''}</div><div class="r">${sag}</div></div>`;});
   if(son)h+='</div>';if(!R.length)h+=`<div class="empty-state"><b>Bu ay için çizelge yok</b></div>`;
   h+=`<div style="margin-top:16px">${d.durum==='sube_onay'?'<button class="btn" style="width:100%" id="cekB">Kapatmayı geri çek</button>':d.durum==='bolge_onay'?'':`<button class="btn primary" style="width:100%" id="kapB">Ayı kapat → bölge müdürüne gönder</button>`}</div>
@@ -801,7 +802,7 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
       if(isShift(v)){const k=shiftKind(v,sb);const[a,b]=v.split('-');const hw=(w-4)/2;rr(X,Y,hw,hh,7,k.o?C.open:C.soft);rr(X+hw+4,Y,hw,hh,7,k.k?C.close:C.soft);x.font=F(700,18,1);x.fillStyle=k.o?C.openI:C.ink;x.fillText(a,X+hw/2,Y+hh/2+1);x.fillStyle=k.k?C.closeI:C.ink;x.fillText(b,X+hw+4+hw/2,Y+hh/2+1);}
       else if(v&&KOD[v]){const kr=KOD_RENK[v]||[C.code,C.codeI];rr(X,Y,w,hh,7,kr[0]);x.fillStyle=kr[1];x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
       else{rr(X,Y,w,hh,7,BOS_RENK);x.strokeStyle='#f0b4b4';x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
-    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,ak,sb);const vals=isEsnaf(p)?['esnaf',fmt(ay.h)+' sa']:p.sekil==='Part'?['part',fmt(ay.partGun)+' gün']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{x.fillStyle=C.ink;x.font=F(700,17,1);x.fillText(t,pad+nameW+7*dayW+j*fmW+fmW/2,y+rowH/2+1);});}
+    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,ak,sb);const vals=isEsnaf(p)?['esnaf',fmt(ay.h)+' sa']:p.sekil==='Part'?['part',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{x.fillStyle=C.ink;x.font=F(700,17,1);x.fillText(t,pad+nameW+7*dayW+j*fmW+fmW/2,y+rowH/2+1);});}
     y+=rowH;});
   x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
