@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=54";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=55";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -953,7 +953,8 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
 
 /* ================= Muhasebe çıktısı ================= */
 /* ================= Muhasebe çıktısı: görsel / PDF, paylaş ================= */
-function muhBaslik(V){return `${V.sb.ad} Şube ${AY[+V.ak.slice(5)-1]} Ayı Puantaj Verisi`;}
+function trBuyukBas(t){return String(t||'').toLocaleLowerCase('tr-TR').split(/(\s+)/).map(w=>w.trim()?w[0].toLocaleUpperCase('tr-TR')+w.slice(1):w).join('');}
+function muhBaslik(V){return `${trBuyukBas(V.sb.ad)} Şube ${AY[+V.ak.slice(5)-1]} Ayı Puantaj Verisi`;}
 const MUH_TEMA={
   klasik:{ad:'Klasik mavi',bant:'#0f6fc6',bantYazi:'#fff',baslik:'#0b3d6e',ayKutu:'#ffd23f',ayYazi:'#3a2a00',th:'#1593e8',thYazi:'#fff',zebra:'#e9f3fd',cizgi:'#cfe0f1',cik:['#fff1a8','#ffd54a'],cikKen:'#e0b21c',not:'#5a6b80'},
   lacivert:{ad:'Lacivert & altın',bant:'#14284b',bantYazi:'#fff',baslik:'#14284b',ayKutu:'#f2b632',ayYazi:'#2a1d00',th:'#1f3a6b',thYazi:'#fff',zebra:'#eef2f8',cizgi:'#d6deea',cik:['#ffe9a3','#ffcd3c'],cikKen:'#d9a514',not:'#5e6b80'},
@@ -990,7 +991,7 @@ async function muhasebeGorseli(V,temaK){try{await document.fonts.ready;}catch(e)
   x.textAlign='center';x.font=F(500,10);x.fillText(muhBaslik(V),W/2,y+26);
   return cv;}
 let jspdfY=null;function jspdfLib(){if(jspdfY)return jspdfY;jspdfY=new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';s.onload=()=>ok(window.jspdf.jsPDF);s.onerror=no;document.head.appendChild(s);});return jspdfY;}
-async function muhasebeDosya(V,tur){const cv=await muhasebeGorseli(V);const ad=`${slug(V.sb.ad)}-puantaj-${V.ak}`;
+async function muhasebeDosya(V,tur){const cv=await muhasebeGorseli(V);const ad=muhBaslik(V);
   if(tur==='png'){const b=await new Promise(r=>cv.toBlob(r,'image/png'));return new File([b],ad+'.png',{type:'image/png'});}
   const J=await jspdfLib();const w=cv.width/2*0.75,h=cv.height/2*0.75;const pdf=new J({orientation:w>h?'l':'p',unit:'pt',format:[w,h]});pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,w,h);
   pdf.setProperties({title:muhBaslik(V)});return new File([pdf.output('blob')],ad+'.pdf',{type:'application/pdf'});}
