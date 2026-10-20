@@ -244,3 +244,17 @@ table.vg2 tr.hata td{background:var(--bad-bg)}
 table.vg2 tr.ekle td{padding:4px 8px;background:var(--surface)}
 .mini.ekleB{font-size:12.5px;font-weight:700;color:var(--accent-ink);padding:8px 10px}
 table.vg2 td.dur{white-space:nowrap}
+/* Excel tarzı filtre */
+.kfb{font:inherit;font-weight:700;font-size:11px;color:var(--mut);display:inline-flex;align-items:center;gap:3px;padding:2px 4px;border-radius:5px;white-space:nowrap}
+.kfb i{font-style:normal;font-size:9px;opacity:.7}.kfb:hover{background:var(--line);color:var(--ink)}
+.kfb.on{color:var(--accent-ink);background:var(--navy-soft)}.kfb.on i{opacity:1}
+.kfpop{position:absolute;z-index:60;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.18);padding:8px;font-size:13px}
+.kfpop .kfs{display:block;width:100%;text-align:left;padding:7px 8px;border-radius:7px;font-weight:600}.kfpop .kfs:hover{background:var(--soft)}
+.kfsec{border-top:1px solid var(--line);margin-top:6px;padding-top:6px}.kft{font-size:11px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px;margin:2px 4px 4px}
+.kfara{width:100%;padding:7px 9px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);font:inherit;margin-bottom:4px}
+.kflist{max-height:220px;overflow:auto}.kfrow{display:flex;align-items:center;gap:7px;padding:4px 6px;border-radius:6px;cursor:pointer}.kfrow:hover{background:var(--soft)}
+.kfrow span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.kfrow em{font-style:normal;font-size:11px;color:var(--mut)}.kfrow input{width:16px;height:16px}
+.kfall{font-weight:700}.kfbtns{display:flex;gap:6px;justify-content:flex-end;margin-top:8px}
+.kfbar{margin:0 0 8px;padding:7px 10px;border-radius:10px;background:var(--navy-soft);color:var(--accent-ink);font-size:12.5px;font-weight:600;display:flex;align-items:center;gap:8px}
+.kfbar .mini{margin-left:auto;color:var(--accent-ink);font-weight:800}
+.dh.fmh span{font-size:9.5px;line-height:1.1}

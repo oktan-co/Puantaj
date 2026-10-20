@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=33";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=35";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -309,7 +309,7 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
   h+=`<div class="actions"><button class="btn grow" id="copyW">Geçen haftayı kopyala</button><button class="btn" id="undoB" ${undo.length?'':'disabled'}>Geri al</button><button class="btn" id="shareB">Paylaş</button></div>`;
   if(!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Vardiyalar yükleniyor</b></div>`,bindWeek);
   const ak3=AYK[+ak.slice(5)-1];
-  h+=`<div class="grid" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>FM</span></div><div class="dh fmh">${ak3}<span>FM</span></div>`;
+  h+=`<div class="grid" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>fazla mesai</span></div>`;
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
     kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayHesap(p,ak,sb);
       const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
@@ -649,17 +649,16 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   if(durum==='bolge_onay'&&V.kilitli)h+=`<div class="banner ok">Onaylandı${V.D.onaylayanAd?' · '+esc(V.D.onaylayanAd):''}. Muhasebe tarafı kilitli, ödemeler işlenebilir.</div>`;
   h+=`<div class="seg" style="margin:4px 0 12px" id="ptSeg"><button data-v="sol" class="${S.pt.gorunum==='sol'?'on':''}">Muhasebe</button><button data-v="sag" class="${S.pt.gorunum==='sag'?'on':''}">Ödemeler</button><button data-v="veri" class="${S.pt.gorunum==='veri'?'on':''}">Veri girişi</button></div>`;
   const cikisMi=s=>s.cikis&&s.cikis<=ayKaydir(ak,1)+'-00';
-  const sag_=S.pt.gorunum==='sag';
-  const FILT=[['tum','Tümü',()=>true],['tam','Tam',x=>x.sol.sekil==='Tam'&&!x.hes.pb&&!x.hes.esnaf],['part','Part',x=>x.sol.sekil==='Part'],['pb','Paket başı',x=>x.hes.pb],['esnaf','Esnaf kurye',x=>x.hes.esnaf],
-    ['cikis','Çıkış yapan',x=>cikisMi(x.sol)],['eksik','Net maaş yok',x=>x.hes.netYok],['fm','Sadece FM',x=>x.sol.maasBurada===false],...(sag_?[['eksi','Kalan eksi',x=>x.hes.kalan<-0.004]]:[])];
-  if(!FILT.some(f=>f[0]===S.pt.filtre))S.pt.filtre='tum';const fAkt=FILT.find(f=>f[0]===S.pt.filtre);const goster=x=>fAkt[2](x);
-  const taban=sag_?V.satir:V.satir.filter(({sol})=>muhasebedeMi(sol));
-  const filtreHtml=S.pt.gorunum==='veri'?'':`<div class="fchips">${FILT.map(([k,ad,f])=>{const n=taban.filter(f).length;if(!n&&k!=='tum'&&k!==S.pt.filtre)return'';return`<button class="fchip ${S.pt.filtre===k?'on':''}" data-f="${k}">${ad}<span>${n}</span></button>`;}).join('')}</div>`;
-  h+=filtreHtml;
+  const etiketler=x=>{const L=[];if(x.hes.esnaf)L.push('Esnaf kurye');else if(x.hes.pb)L.push('Paket başı');else L.push(x.sol.sekil==='Part'?'Part':'Tam');if(x.hes.netYok)L.push('Net maaş yok');if(cikisMi(x.sol))L.push('Çıkış yapan');if(x.sol.maasBurada===false)L.push('Sadece FM');if(x.hes.kalan<-0.004)L.push('Kalan eksi');if(x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun)L.push('Deneme');return L;};
+  const durumK={k:'durum',ad:'Durum',vals:etiketler};const n0=v=>v||0;const tlv=v=>Math.abs(v||0)>0.004?tl(v):'';
   if(S.pt.gorunum==='sol'){
-    h+=`<div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">SGK şube</th><th class="l">Ad soyad</th><th>Şekil</th><th>Giriş</th><th>Çıkış</th><th>Rapor</th><th>Ücr. izin</th><th>Part gün</th><th>Yıllık izin</th><th>Bayram</th><th>Bordro gün</th></tr></thead><tbody>`;
+    const KS=[{k:'sgk',ad:'SGK şube',v:x=>x.sol.sgkSube,l:1},{k:'ad',ad:'Ad soyad',v:x=>x.sol.ad,ek:durumK,l:1},{k:'sekil',ad:'Şekil',v:x=>x.sol.muhSekil||x.sol.sekil},{k:'giris',ad:'Giriş',v:x=>trTarih(x.sol.giris),n:x=>x.sol.giris||''},{k:'cikis',ad:'Çıkış',v:x=>trTarih(x.sol.cikis),n:x=>x.sol.cikis||''},
+      {k:'rapor',ad:'Rapor',v:x=>x.sol.rapor||'',n:x=>n0(x.sol.rapor)},{k:'ui',ad:'Ücr. izin',v:x=>x.sol.ucretsiz||'',n:x=>n0(x.sol.ucretsiz)},{k:'pg',ad:'Part gün',v:x=>x.sol.partGun?fmt(x.sol.partGun):'',n:x=>n0(x.sol.partGun)},{k:'yi',ad:'Yıllık izin',v:x=>x.sol.yillik||'',n:x=>n0(x.sol.yillik)},{k:'b',ad:'Bayram',v:x=>x.sol.bayram||'',n:x=>n0(x.sol.bayram)},{k:'gun',ad:'Bordro gün',v:x=>x.sol.maasBurada===false?'—':x.sol.gun,n:x=>n0(x.sol.gun)}];
+    const tabanS=V.satir.filter(x=>muhasebedeMi(x.sol));const LS=kfUygula('sol',KS,tabanS);S.pt._kf={t:'sol',cols:KS,rows:tabanS};
+    if(kfAktifMi('sol'))h+=`<div class="kfbar">Filtre açık · ${LS.length} / ${tabanS.length} kişi gösteriliyor <button class="mini" id="kfHepsi">Filtreleri kaldır</button></div>`;
+    h+=`<div class="tbl-wrap"><table class="pt"><thead><tr>${KS.map(c=>kfBaslik('sol',c,c.l?'l':'')).join('')}</tr></thead><tbody>`;
     const gizli=V.satir.filter(({sol})=>!muhasebedeMi(sol));
-    V.satir.filter(x=>muhasebedeMi(x.sol)&&goster(x)).forEach(({sol})=>{const fo=sol.maasBurada===false;h+=`<tr class="${cikisMi(sol)?'cikis':''}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${fo?'—':sol.gun}</td></tr>`;});
+    LS.forEach(({sol})=>{const fo=sol.maasBurada===false;h+=`<tr class="${cikisMi(sol)?'cikis':''}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${fo?'—':sol.gun}</td></tr>`;});
     h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Bordro gün = 30 − rapor − ücretsiz izin (ay ortasında giriş/çıkışta çalışılan takvim günü)</span></div>
     ${gizli.length?`<p class="note"><b>Muhasebede gösterilmeyen ${gizli.length} kişi</b> (SGK'sı başka şubede ya da SGK'sı yok): ${gizli.map(x=>esc(x.sol.ad)).join(', ')}. Bu kişiler sadece Ödemeler tarafında.</p>`:''}
     <p class="note">Maaş, rapor ve izinler kişinin SGK şubesinde. Fazla mesai muhasebeye gitmez; Ödemeler tarafında, çalıştığı her şubede ayrı hesaplanır. Diğer şubelerdeki izin günleri o şubeler ayı kapattıkça eklenir. "+ şube adı" etiketi o şubeden gelen günlerin eklendiğini gösterir.</p>`;
@@ -669,23 +668,66 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     const T=V.satir.reduce((t,x)=>{t.hak+=x.hes.hak+x.hes.fmTl+x.hes.paketPrimi+x.hes.ciroPrimi;t.bankaya+=x.hes.bankaya;t.avans+=x.hes.avans+x.hes.araOdeme;t.nakit+=Math.max(x.hes.kalan,0);return t;},{hak:0,bankaya:0,avans:0,nakit:0});
     h+=`<div class="kpis"><div class="kpi"><span>Toplam hak ediş</span><b>${tl0(T.hak)}</b></div><div class="kpi"><span>Bankaya yatan</span><b>${tl0(T.bankaya)}</b></div><div class="kpi"><span>Avans + ara ödeme</span><b>${tl0(T.avans)}</b></div><div class="kpi"><span>İhtiyaç duyulan nakit</span><b>${tl0(T.nakit)}</b></div></div>`;
     h+=`<div class="actions"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>`;
-    h+=`<div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">Ad soyad</th><th>Gün</th><th>Anlaşılan net</th><th>Hak edilen</th><th>Bankaya yatan</th><th>Ara ödeme</th><th>Maaş farkı</th><th>FM ₺</th><th>Paket primi</th><th>Ciro primi</th><th>Avans</th><th>Kalan ödeme</th></tr></thead><tbody>`;
+    const netOf=x=>x.hes.esnaf||x.hes.maasYok||x.hes.pb?0:sayi(x.net);
+    const KO=[{k:'ad',ad:'Ad soyad',v:x=>x.sol.ad,ek:durumK,l:1},{k:'gun',ad:'Gün',v:x=>x.hes.esnaf||x.hes.maasYok?'—':(x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun),n:x=>n0(x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun)},
+{k:'hak',ad:'Hak edilen',v:x=>x.hes.pb?'':tlv(x.hes.hak),n:x=>n0(x.hes.hak)},{k:'bankaya',ad:'Bankaya yatan',v:x=>tlv(x.hes.bankaya),n:x=>n0(x.hes.bankaya)},{k:'ara',ad:'Ara ödeme',v:x=>tlv(x.hes.araOdeme),n:x=>n0(x.hes.araOdeme)},
+      {k:'mf',ad:'Maaş farkı',v:x=>x.hes.pb?'':tlv(x.hes.maasFarki),n:x=>n0(x.hes.maasFarki)},{k:'fm',ad:'Fazla mesai',v:x=>tlv(x.hes.fmTl),n:x=>n0(x.hes.fmTl)},{k:'pp',ad:'Paket primi',v:x=>tlv(x.hes.paketPrimi),n:x=>n0(x.hes.paketPrimi)},{k:'cp',ad:'Ciro primi',v:x=>tlv(x.hes.ciroPrimi),n:x=>n0(x.hes.ciroPrimi)},
+      {k:'avans',ad:'Avans',v:x=>tlv(x.hes.avans),n:x=>n0(x.hes.avans)},{k:'kalan',ad:'Kalan ödeme',v:x=>tl(x.hes.kalan),n:x=>n0(x.hes.kalan)}];
+    S.pt._kf={t:'sag',cols:KO,rows:V.satir};
+    if(kfAktifMi('sag'))h+=`<div class="kfbar">Filtre açık · toplamlar sadece görünen kişiler için <button class="mini" id="kfHepsi">Filtreleri kaldır</button></div>`;
+    h+=`<div class="tbl-wrap"><table class="pt"><thead><tr>${KO.map(c=>kfBaslik('sag',c,c.l?'l':'')).join('')}</tr></thead><tbody>`;
     const tbBas=h.length;
-    const VS=V.satir.filter(goster);VS.forEach(({pid,sol,net,hes})=>{const cls=hes.kalan<-0.004?'eksi':cikisMi(sol)?'cikis':'';
-      h+=`<tr class="click ${cls}" data-pid="${esc(pid)}"><td class="l"><b>${esc(sol.ad)}</b><br><span class="tag">${esc(sol.sekil)}</span>${hes.netYok?' <span class="tag warn">net maaş yok</span>':''}${hes.pb?' <span class="tag">paket başı</span>':''}</td><td>${hes.esnaf||hes.maasYok?'—':(sol.hakGun!=null&&sol.hakGun!==sol.gun?`${sol.hakGun}<br><span class="tag warn" title="Deneme günleri: SGK ${sol.gun} gün">SGK ${sol.gun}</span>`:sol.gun)}</td><td>${hes.esnaf||hes.pb?'paket':hes.maasYok?'<span class="tag">sadece FM</span>':net?tl(net):'—'}</td><td>${hes.pb?'—':tl(hes.hak)}</td><td>${tl(hes.bankaya)}</td><td>${hes.araOdeme?tl(hes.araOdeme):''}</td><td>${hes.pb?'—':tl(hes.maasFarki)}</td><td>${hes.fmTl?tl(hes.fmTl):''}</td><td>${hes.paketPrimi?tl(hes.paketPrimi):''}</td><td>${hes.ciroPrimi?tl(hes.ciroPrimi):''}</td><td>${hes.avans?tl(hes.avans):''}${hes.devirAvans?`<br><span class="tag" title="Geçen aydan eksi kalan">devir ${tl(hes.devirAvans)}</span>`:''}</td><td class="${hes.kalan<0?'neg':'pos'}">${tl(hes.kalan)}</td></tr>`;});
+    const VS=kfUygula('sag',KO,V.satir);VS.forEach(({pid,sol,net,hes})=>{const cls=hes.kalan<-0.004?'eksi':cikisMi(sol)?'cikis':'';
+      h+=`<tr class="click ${cls}" data-pid="${esc(pid)}"><td class="l"><b>${esc(sol.ad)}</b><br><span class="tag">${esc(sol.sekil)}</span>${hes.netYok?' <span class="tag warn">net maaş yok</span>':''}${hes.pb?' <span class="tag">paket başı</span>':''}${hes.maasYok?' <span class="tag">sadece fazla mesai</span>':''}</td><td>${hes.esnaf||hes.maasYok?'—':(sol.hakGun!=null&&sol.hakGun!==sol.gun?`${sol.hakGun}<br><span class="tag warn" title="Deneme günleri: SGK ${sol.gun} gün">SGK ${sol.gun}</span>`:sol.gun)}</td><td>${hes.pb?'—':tlv(hes.hak)}</td><td>${tlv(hes.bankaya)}</td><td>${hes.araOdeme?tl(hes.araOdeme):''}</td><td>${hes.pb?'—':tlv(hes.maasFarki)}</td><td>${hes.fmTl?tl(hes.fmTl):''}</td><td>${hes.paketPrimi?tl(hes.paketPrimi):''}</td><td>${hes.ciroPrimi?tl(hes.ciroPrimi):''}</td><td>${hes.avans?tl(hes.avans):''}${hes.devirAvans?`<br><span class="tag" title="Geçen aydan eksi kalan">devir ${tl(hes.devirAvans)}</span>`:''}</td><td class="${hes.kalan<0?'neg':'pos'}">${tl(hes.kalan)}</td></tr>`;});
     const top=k=>VS.reduce((t,x)=>t+(x.hes[k]||0),0);const tt=v=>Math.abs(v)>0.004?tl(v):'';const kalT=top('kalan');const netT=VS.reduce((t,x)=>t+(x.hes.esnaf||x.hes.maasYok||x.hes.pb?0:sayi(x.net)),0);
-    const totRow=`<tr class="tot"><td class="l">${S.pt.filtre==='tum'?'Toplam':esc(fAkt[1])} · ${VS.length} kişi</td><td></td><td>${tt(netT)}</td><td>${tt(top('hak'))}</td><td>${tt(top('bankaya'))}</td><td>${tt(top('araOdeme'))}</td><td>${tt(top('maasFarki'))}</td><td>${tt(top('fmTl'))}</td><td>${tt(top('paketPrimi'))}</td><td>${tt(top('ciroPrimi'))}</td><td>${tt(top('avans'))}</td><td class="${kalT<0?'neg':'pos'}">${tl(kalT)}</td></tr>`;
+    const totRow=`<tr class="tot"><td class="l">${kfAktifMi('sag')?`Filtreli toplam · ${VS.length} / ${V.satir.length} kişi`:`Toplam · ${VS.length} kişi`}</td><td></td><td>${tt(top('hak'))}</td><td>${tt(top('bankaya'))}</td><td>${tt(top('araOdeme'))}</td><td>${tt(top('maasFarki'))}</td><td>${tt(top('fmTl'))}</td><td>${tt(top('paketPrimi'))}</td><td>${tt(top('ciroPrimi'))}</td><td>${tt(top('avans'))}</td><td class="${kalT<0?'neg':'pos'}">${tl(kalT)}</td></tr>`;
     h=h.slice(0,tbBas)+totRow.replace('class="tot"','class="tot ust"')+h.slice(tbBas);
-    h+=totRow+`</tbody></table></div>
+    h+=`</tbody></table></div>
      <div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span><i style="background:var(--red)"></i>Kalan eksi: sonraki aya devreder</span><span>Satıra dokunup ödemeleri girin</span></div>`;}
   const bolgeIs=durum==='sube_onay'||(isIsveren()&&durum!=='bolge_onay');
   h+=`<div class="row2">${bolgeIs?`<button class="btn danger grow" id="geriB">Şubeye geri gönder</button><button class="btn primary grow" id="onayB">Onayla ve kilitle</button>`:''}${isIsveren()&&durum==='bolge_onay'?'<button class="btn grow" id="acB">Kilidi aç</button>':''}</div>`;
   view(h,()=>{byId('geriL').onclick=listeyeDon;document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{S.pt.gorunum=b.dataset.v;render();});
     const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
-    document.querySelectorAll('.fchip').forEach(b=>b.onclick=()=>{S.pt.filtre=b.dataset.f;render();});
+    if(S.pt._kf&&S.pt.gorunum!=='veri'){kfBagla(S.pt._kf.t,S.pt._kf.cols,S.pt._kf.rows);const kh=byId('kfHepsi');if(kh)kh.onclick=()=>{kfDurum(S.pt._kf.t).f={};render();};}
     if(S.pt.gorunum==='veri')veriGirisiBagla(V);else document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
     const ob=byId('onayB');if(ob)ob.onclick=()=>{if(!ob.dataset.ok){ob.dataset.ok='1';ob.textContent='Onayı kesinleştir';return;}onayla();};
     const gb=byId('geriB');if(gb)gb.onclick=geriGonderPanel;const ab=byId('acB');if(ab)ab.onclick=()=>{if(!ab.dataset.ok){ab.dataset.ok='1';ab.textContent='Kilidi açmayı onayla';return;}kilidiAc();};});}
+/* ================= Excel tarzı sütun filtresi ================= */
+const BOS_V='(Boş)';
+function kfDurum(t){S.pt.kf=S.pt.kf||{};return S.pt.kf[t]=S.pt.kf[t]||{f:{},sort:null};}
+function kfDegerler(c,x){const v=c.vals?c.vals(x):[c.v(x)];return v.map(y=>y==null||y===''?BOS_V:String(y));}
+function kfUygula(t,cols,rows){const st=kfDurum(t);const hepsi=[];cols.forEach(c=>{hepsi.push(c);if(c.ek)hepsi.push(c.ek);});
+  let R=rows.filter(x=>hepsi.every(c=>{const sel=st.f[c.k];if(!sel)return true;return kfDegerler(c,x).some(v=>sel.includes(v));}));
+  if(st.sort){const c=hepsi.find(c=>c.k===st.sort.k);if(c){const key=c.n||(x=>kfDegerler(c,x)[0]);R=R.slice().sort((a,b)=>{const A=key(a),B=key(b);const r=typeof A==='number'&&typeof B==='number'?A-B:String(A).localeCompare(String(B),'tr');return st.sort.d*r;});}}
+  return R;}
+function kfAktifMi(t){const st=kfDurum(t);return Object.keys(st.f).length>0;}
+function kfBaslik(t,c,cls){const st=kfDurum(t);const akt=!!st.f[c.k]||!!(c.ek&&st.f[c.ek.k]);const so=st.sort&&(st.sort.k===c.k);
+  return `<th class="${cls||''}"><button class="kfb ${akt?'on':''}" data-kft="${t}" data-kfc="${c.k}" title="Filtrele / sırala">${c.ad}<i>${so?(st.sort.d>0?'▲':'▼'):akt?'⧩':'▾'}</i></button></th>`;}
+function kfBagla(t,cols,rows){document.querySelectorAll(`.kfb[data-kft="${t}"]`).forEach(b=>b.onclick=e=>{e.stopPropagation();const c=cols.find(c=>c.k===b.dataset.kfc);if(c)kfAc(t,c,rows,b);});}
+function kfAc(t,c,rows,btn){kfKapat();const st=kfDurum(t);const pop=document.createElement('div');pop.className='kfpop';pop.id='kfPop';
+  const bolum=(cc,ara)=>{const say={};const ord={};rows.forEach(x=>kfDegerler(cc,x).forEach((v,i)=>{say[v]=(say[v]||0)+1;if(ord[v]==null)ord[v]=cc.n?cc.n(x):v;}));
+    const vals=Object.keys(say).sort((a,b)=>a===BOS_V?1:b===BOS_V?-1:typeof ord[a]==='number'&&typeof ord[b]==='number'?ord[a]-ord[b]:String(a).localeCompare(String(b),'tr'));const sel=st.f[cc.k];
+    return `<div class="kfsec" data-k="${cc.k}">${cc.baslik?`<div class="kft">${esc(cc.baslik)}</div>`:''}${ara?`<input class="kfara" placeholder="Ara">`:''}
+      <label class="kfrow kfall"><input type="checkbox" ${!sel?'checked':''}> (Tümünü seç)</label><div class="kflist">${vals.map(v=>`<label class="kfrow" data-ara="${esc(isimAnahtar(v))}"><input type="checkbox" value="${esc(v)}" ${!sel||sel.includes(v)?'checked':''}> <span>${esc(v)}</span><em>${say[v]}</em></label>`).join('')}</div></div>`;};
+  pop.innerHTML=`<button class="kfs" data-d="1">${c.n?'Küçükten büyüğe':'A → Z'} sırala</button><button class="kfs" data-d="-1">${c.n?'Büyükten küçüğe':'Z → A'} sırala</button>
+    ${c.ek?bolum({...c.ek,baslik:c.ek.ad},false):''}${bolum({...c,baslik:c.ek?c.ad:''},true)}
+    <div class="kfbtns"><button class="btn small" id="kfTem">Filtreyi temizle</button><button class="btn small primary" id="kfOk">Tamam</button></div>`;
+  document.body.appendChild(pop);const r=btn.getBoundingClientRect();const w=Math.min(280,window.innerWidth-16);pop.style.width=w+'px';
+  pop.style.left=Math.max(8,Math.min(r.left+window.scrollX,window.scrollX+window.innerWidth-w-8))+'px';pop.style.top=(r.bottom+window.scrollY+4)+'px';
+  pop.onclick=e=>e.stopPropagation();
+  pop.querySelectorAll('.kfsec').forEach(sec=>{const all=sec.querySelector('.kfall input');const boxes=()=>[...sec.querySelectorAll('.kflist input')];
+    all.onchange=()=>boxes().forEach(b=>{if(!b.closest('.kfrow').hidden)b.checked=all.checked;});
+    sec.querySelectorAll('.kflist input').forEach(b=>b.onchange=()=>{all.checked=boxes().every(x=>x.checked);});
+    const ara=sec.querySelector('.kfara');if(ara){ara.oninput=()=>{const q=isimAnahtar(ara.value);sec.querySelectorAll('.kflist .kfrow').forEach(l=>l.hidden=!!q&&!l.dataset.ara.includes(q));};setTimeout(()=>ara.focus(),0);}});
+  pop.querySelectorAll('.kfs').forEach(b=>b.onclick=()=>{st.sort={k:c.k,d:+b.dataset.d};kfKapat();render();});
+  byId('kfTem').onclick=()=>{delete st.f[c.k];if(c.ek)delete st.f[c.ek.k];if(st.sort&&st.sort.k===c.k)st.sort=null;kfKapat();render();};
+  byId('kfOk').onclick=()=>{pop.querySelectorAll('.kfsec').forEach(sec=>{const k=sec.dataset.k;const boxes=[...sec.querySelectorAll('.kflist input')];const ara=sec.querySelector('.kfara');
+      // Excel gibi: aramada sadece görünenler seçilir
+      const secili=boxes.filter(b=>b.checked&&!(ara&&ara.value&&b.closest('.kfrow').hidden)).map(b=>b.value);
+      if(secili.length===boxes.length)delete st.f[k];else st.f[k]=secili;});kfKapat();render();};
+  setTimeout(()=>document.addEventListener('click',kfKapat,{once:true}),0);}
+function kfKapat(){const p=byId('kfPop');if(p)p.remove();}
+
 /* ================= Puantaj veri girişi ================= */
 let veriYapistirBagli=false;
 function veriKisileri(V){const kisiler=new Map();V.satir.forEach(x=>kisiler.set(x.pid,x.sol.ad));
@@ -784,7 +826,7 @@ function geriGonderPanel(){openSheet(`<h2>Şubeye geri gönder</h2><div class="s
   byId('gOk').onclick=()=>{const not=byId('gNot').value.trim();sirayla('ay'+S.ay,()=>setDoc(doc(db,'subeler',S.subeId,'aylar',S.ay),{durum:'geri',not,geriGonderen:S.user.uid,geriTarih:new Date().toISOString()},{merge:true}));closeSheet();toast('Şubeye geri gönderildi.');};});}
 function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;let pb=x.hes.pb;const pbSecilebilir=!esnaf&&!x.hes.maasYok;const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
   const inp=(id,label,val,ph='')=>`<label class="field"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val??''}" placeholder="${ph}"></label>`;
-  openSheet(`<h2>${esc(x.sol.ad)}</h2><div class="sub">${ayAdi(V.ak)} · ${esc(x.sol.sekil)} · ${esnaf?'paket başı':x.sol.gun+' bordro günü'+(x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun} çalışılan gün`:'')}${x.sol.fmSaat&&!esnaf?' · FM '+sg(x.sol.fmSaat)+' sa':''}</div>
+  openSheet(`<h2>${esc(x.sol.ad)}</h2><div class="sub">${ayAdi(V.ak)} · ${esc(x.sol.sekil)} · ${esnaf?'paket başı':x.sol.gun+' bordro günü'+(x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun} çalışılan gün`:'')}${x.sol.fmSaat&&!esnaf?' · fazla mesai '+sg(x.sol.fmSaat)+' sa':''}</div>
    <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,String(V.sb.paketUcret||'')):x.hes.maasYok?'<p class="note" style="grid-column:1/-1">Maaşı SGK şubesinin puantajında. Burada sadece bu şubede yaptığı fazla mesai ve buraya ait primler hesaplanır.</p>':`<div style="grid-column:1/-1"><span class="lbl">Ücret şekli</span><div class="seg" id="oSekil"><button data-v="maas" class="${pb?'':'on'}">Maaşlı</button><button data-v="paket" class="${pb?'on':''}">Paket başı</button></div></div>
      <div id="oNetW" style="grid-column:1/-1" ${pb?'hidden':''}>${inp('oNet','Anlaşılan aylık net (₺)',x.net,'örn. 50000')}</div>
      <p class="note" id="oPbNot" style="grid-column:1/-1" ${pb?'':'hidden'}>Paket başı: kazanç paket primleridir. Paket primlerini Veri girişinden "Paket primi" olarak girin; bankaya yatan, ara ödeme ve avans düşülür, kalan elden ödenir. Fazla mesai hesaplanmaz.</p>`}
@@ -868,7 +910,7 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
   x.fillStyle=C.bg;x.fillRect(0,0,W,H);x.fillStyle=C.navy;x.fillRect(0,0,W,headH-14);x.fillStyle='#fff';x.textBaseline='middle';x.font=F(800,28);x.fillText(`${sb.ad} · Haftalık çizelge`,pad,30);
   x.font=F(600,16);x.globalAlpha=.8;x.fillText(`${rangeLabel(wid)}  ·  Açılış ${sb.acilis}  ·  Kapanış ${sb.kapanis}`,pad,58);x.globalAlpha=1;let y=headH;x.textAlign='center';
   ds.forEach((d,i)=>{const X=pad+nameW+i*dayW;rr(X+3,y,dayW-6,dayH-8,8,C.soft);x.fillStyle=C.ink;x.font=F(800,15);x.fillText(GUNU[i].toLocaleUpperCase('tr-TR'),X+dayW/2,y+15);x.fillStyle=C.mut;x.font=F(600,13);x.fillText(`${d.getDate()} ${AY[d.getMonth()]}`,X+dayW/2,y+32);});
-  if(withFm)['Hafta FM',`${AYK[+ak.slice(5)-1]} FM`].forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;rr(X+3,y,fmW-6,dayH-8,8,C.soft);x.fillStyle=C.ink;x.font=F(800,14);x.fillText(t,X+fmW/2,y+(dayH-8)/2);});
+  if(withFm)['Hafta',`${AYK[+ak.slice(5)-1]}`].forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;rr(X+3,y,fmW-6,dayH-8,8,C.soft);x.fillStyle=C.ink;x.font=F(800,14);x.fillText(t,X+fmW/2,y+14);x.fillStyle=C.mut;x.font=F(600,11);x.fillText('fazla mesai',X+fmW/2,y+31);});
   y+=dayH;let son=null;
   kisiler.forEach(p=>{const g=p.grup||'K';if(g!==son){son=g;x.textAlign='left';x.fillStyle=C.navy;x.font=F(800,14);x.fillText(GRUP[g].toLocaleUpperCase('tr-TR'),pad+2,y+groupH/2+2);x.fillStyle=C.line;x.fillRect(pad+90,y+groupH/2+2,W-pad*2-90,1);y+=groupH;}
     x.textAlign='left';x.fillStyle=C.ink;x.font=F(700,16);x.fillText(p.ad.toLocaleUpperCase('tr-TR'),pad+2,y+rowH/2,nameW-10);x.textAlign='center';
