@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=20";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=21";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -669,26 +669,30 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const ki
   const oto=[];const sol0=V.kilitli&&V.D.sol?null:solHesap(ak);const kaynak=sol0||V.sol;
   Object.entries(kaynak).forEach(([pid,r])=>{[['R','rapor'],['UI','ucretsiz'],['YI','yillik'],['B','bayram'],['PG','partGun'],['FM','fmSaat']].forEach(([k,f])=>{let v=r[f]||0;if(V.kilitli){const e=(V.oz[pid]||{})[k]||0;v-=e;}if(Math.abs(v)>0.001)oto.push({pid,tur:k,miktar:v});});});
   const satirlar=[...oto.map(o=>({...o,oto:true})),...veri.map(v=>({...v,oto:false}))].sort((a,b)=>String(adOf(a.pid)).localeCompare(String(adOf(b.pid)),'tr')||(a.oto===b.oto?0:a.oto?-1:1));
-  let h=`<div class="card" style="padding:12px;margin-bottom:12px"><div class="fgrid vg">
-     <label class="field" style="grid-column:1/-1"><span>Kişi</span><select id="vKisi"><option value="">Seçin</option>${kL.map(([id,ad])=>`<option value="${esc(id)}">${esc(adBuyuk(ad))}</option>`).join('')}</select></label>
-     <label class="field"><span>Veri türü</span><select id="vTur">${turlar.map(t=>`<option value="${t.k}">${esc(t.ad)} (${t.b})</option>`).join('')}</select></label>
-     <label class="field"><span>Miktar</span><input id="vMik" inputmode="decimal" placeholder="Örn: 2 ya da -1"></label>
-     <label class="field"><span>Tarih</span><input id="vTar" type="date" value="${esc(ymd(today())<=sonGun&&ymd(today())>=ak+'-01'?ymd(today()):sonGun)}"></label>
-     <label class="field"><span>Açıklama</span><input id="vAck" placeholder="İsteğe bağlı"></label></div>
-     <button class="btn primary" id="vEkle" style="width:100%;margin-top:8px">Ekle</button>
-     ${V.kilitli?'<p class="note" style="margin-bottom:0">Ay onaylandığı için muhasebe tarafı kilitli; sadece ödeme türleri eklenebilir.</p>':''}</div>
-   <div class="tbl-wrap"><table class="pt"><thead><tr><th>Tarih</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th><th></th></tr></thead><tbody>`;
-  satirlar.forEach(v=>{const t=veriTur(v.tur);const kil=v.oto||(V.kilitli&&t&&t.y==='sol');
-    h+=`<tr class="${v.oto?'oto':''}"><td>${v.oto?'<span class="tag">çizelge</span>':trTarih(v.tarih)}</td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'')}</td><td class="l">${v.oto?'<span style="color:var(--mut)">Mesai çizelgesinden</span>':esc(v.aciklama||'')}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Sil">✕</button>`}</td></tr>`;});
-  if(!satirlar.length)h+=`<tr><td colspan="6" class="l">Bu ay için veri yok.</td></tr>`;
-  h+=`</tbody></table></div><p class="note">"çizelge" etiketli satırlar mesai çizelgesinden otomatik gelir, değiştirilemez. Düzeltmek için aynı türde + ya da − miktarlı satır ekleyin (örn. rapor −1). Eklenen günler muhasebe tarafına, tutarlar ödemeler tarafına işlenir.</p>`;
+  const bugun=ymd(today())<=sonGun&&ymd(today())>=ak+'-01'?ymd(today()):sonGun;const son=S.pt.sonVeri||{};
+  let h=`<div class="tbl-wrap"><table class="pt vt"><thead><tr><th>Tarih</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th><th></th></tr></thead><tbody>`;
+  satirlar.forEach(v=>{const t=veriTur(v.tur);const kil=v.oto||(V.kilitli&&t&&t.y==='sol');const mk=t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'');
+    h+=v.oto?`<tr class="oto"><td><span class="tag">çizelge</span></td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${mk}</td><td class="l">Mesai çizelgesinden</td><td></td></tr>`
+     :`<tr data-vid="${esc(v.id)}"><td>${trTarih(v.tarih)}</td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td>
+       <td class="bi">${kil?mk:`<input data-e="miktar" value="${esc(fmt(sayi(v.miktar)))}" inputmode="decimal" style="width:90px;text-align:right"><span class="birim">${t?t.b:''}</span>`}</td>
+       <td class="bi l">${kil?esc(v.aciklama||''):`<input data-e="aciklama" value="${esc(v.aciklama||'')}" placeholder="—">`}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Sil">✕</button>`}</td></tr>`;});
+  h+=`<tr class="yeni"><td class="bi"><input id="vTar" type="date" value="${esc(son.tarih||bugun)}"></td>
+    <td class="bi l"><select id="vKisi"><option value="">+ Satır ekle: kişi seçin</option>${kL.map(([id,ad])=>`<option value="${esc(id)}" ${son.pid===id?'selected':''}>${esc(adBuyuk(ad))}</option>`).join('')}</select></td>
+    <td class="bi l"><select id="vTur">${turlar.map(t=>`<option value="${t.k}" ${son.tur===t.k?'selected':''}>${esc(t.ad)} (${t.b})</option>`).join('')}</select></td>
+    <td class="bi"><input id="vMik" inputmode="decimal" placeholder="Miktar" style="width:90px;text-align:right"></td>
+    <td class="bi l"><input id="vAck" placeholder="Açıklama"></td><td><button class="mini ok" id="vEkle" title="Ekle">✓</button></td></tr>`;
+  h+=`</tbody></table></div><p class="note">En alttaki satıra kişi, tür ve miktar yazıp Enter'a ya da ✓'e basın. "çizelge" etiketli satırlar mesai çizelgesinden otomatik gelir, değiştirilemez; düzeltmek için aynı türde + ya da − miktarlı satır ekleyin (örn. rapor −1). Eklediğiniz satırlarda miktar ve açıklama değiştirilebilir. Günler muhasebe tarafına, tutarlar ödemeler tarafına işlenir.${V.kilitli?' Ay onaylandığı için sadece ödeme türleri eklenebilir.':''}</p>`;
   return h;}
 function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kaydet=yeni=>sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,veri:yeni,guncellendi:new Date().toISOString()},{merge:true}));
+  const veri0=()=>((S.pt.doc&&S.pt.doc.veri)||[]);
+  document.querySelectorAll('tr[data-vid] input[data-e]').forEach(el=>el.onchange=()=>{const id=el.closest('tr').dataset.vid;const f=el.dataset.e;const val=f==='miktar'?sayi(el.value):el.value.trim();
+    if(f==='miktar'&&!val){toast('Miktar 0 olamaz; satırı silmek için ✕.');render();return;}const yeni=veri0().map(v=>v.id===id?{...v,[f]:val}:v);S.pt.doc={...(S.pt.doc||{}),veri:yeni};kaydet(yeni);render();});
+  ['vMik','vAck'].forEach(k=>byId(k).onkeydown=e=>{if(e.key==='Enter'){e.preventDefault();byId('vEkle').click();}});
   byId('vEkle').onclick=()=>{const pid=byId('vKisi').value,tur=byId('vTur').value,mk=sayi(byId('vMik').value);if(!pid){toast('Kişi seçin.');return;}
     if(!mk){toast('Miktar girin.');return;}const t=veriTur(tur);if(V.kilitli&&t.y==='sol'){toast('Muhasebe tarafı kilitli.');return;}
-    const yeni=[...((V.D&&V.D.veri)||[]),{id:Math.random().toString(36).slice(2,10),pid,tur,miktar:mk,tarih:byId('vTar').value||'',aciklama:byId('vAck').value.trim(),kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString()}];
-    S.pt.doc={...(S.pt.doc||{}),veri:yeni};kaydet(yeni);toast(`${t.ad} eklendi.`);render();};
-  document.querySelectorAll('[data-sil]').forEach(b=>b.onclick=()=>{if(!b.dataset.ok){b.dataset.ok='1';b.textContent='Sil?';return;}const yeni=((V.D&&V.D.veri)||[]).filter(v=>v.id!==b.dataset.sil);S.pt.doc={...(S.pt.doc||{}),veri:yeni};kaydet(yeni);render();});}
+    const yeni=[...veri0(),{id:Math.random().toString(36).slice(2,10),pid,tur,miktar:mk,tarih:byId('vTar').value||'',aciklama:byId('vAck').value.trim(),kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString()}];
+    S.pt.doc={...(S.pt.doc||{}),veri:yeni};S.pt.sonVeri={pid,tur,tarih:byId('vTar').value};kaydet(yeni);toast(`${t.ad} eklendi.`);render();const m=byId('vMik');if(m)m.focus();};
+  document.querySelectorAll('[data-sil]').forEach(b=>b.onclick=()=>{if(!b.dataset.ok){b.dataset.ok='1';b.textContent='Sil?';return;}const yeni=veri0().filter(v=>v.id!==b.dataset.sil);S.pt.doc={...(S.pt.doc||{}),veri:yeni};kaydet(yeni);render();});}
 function listeyeDon(){S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
 function sagSonuclu(V,degisen){const sag=JSON.parse(JSON.stringify((V.D&&V.D.sag)||{}));if(degisen)Object.entries(degisen).forEach(([pid,v])=>sag[pid]={...(sag[pid]||{}),...v});
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=(S.pt.maas&&S.pt.maas.net)||{};

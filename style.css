@@ -209,3 +209,11 @@ table.bl .mini{padding:8px 12px;font-size:16px;font-weight:800;color:var(--mut)}
 
 table.pt tr.oto td{color:var(--mut)}
 .vg .field{margin-top:6px}
+
+table.vt td.bi{padding:0 4px}
+table.vt td.bi input,table.vt td.bi select{border:0;background:transparent;font:inherit;font-size:13px;color:var(--ink);padding:8px 6px;outline:none;border-radius:6px;max-width:220px}
+table.vt td.bi input:focus,table.vt td.bi select:focus{box-shadow:inset 0 0 0 2px var(--accent-ink)}
+table.vt tr.yeni td{background:var(--navy-soft);border-top:2px solid var(--line)}
+table.vt tr.yeni select#vKisi{font-weight:700;color:var(--accent-ink)}
+table.vt .birim{font-size:11px;color:var(--mut);margin-left:2px}
+.mini.ok{color:var(--ok);font-size:18px}
