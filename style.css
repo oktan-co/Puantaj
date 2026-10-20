@@ -237,3 +237,10 @@ table.pt tr.tot.ust td{border-bottom:2px solid var(--line)}
 .fchip{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;border:1px solid var(--line);background:var(--surface);font-size:12px;font-weight:600;color:var(--mut)}
 .fchip span{font-size:11px;font-weight:700;color:var(--mut);background:var(--soft);border-radius:999px;padding:0 6px}
 .fchip.on{background:var(--accent-ink);border-color:var(--accent-ink);color:#fff}.fchip.on span{background:rgba(255,255,255,.2);color:#fff}
+table.vg2 td.bi input{width:100%;min-width:90px}
+table.vg2 td.bi input[data-c="1"]{min-width:200px}
+table.vg2 td.bi input[data-c="4"]{min-width:180px}
+table.vg2 tr.hata td{background:var(--bad-bg)}
+table.vg2 tr.ekle td{padding:4px 8px;background:var(--surface)}
+.mini.ekleB{font-size:12.5px;font-weight:700;color:var(--accent-ink);padding:8px 10px}
+table.vg2 td.dur{white-space:nowrap}
