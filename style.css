@@ -232,3 +232,4 @@ table.bl.sade td.bi select.bad{box-shadow:none;background:var(--warn-bg);color:v
 table.bl.sade .mini{opacity:.35}table.bl.sade tr:hover .mini{opacity:1}
 table.bl.sade td.bi input::placeholder{color:transparent}
 table.bl.sade td.bi input:focus::placeholder{color:var(--mut);opacity:.6}
+table.pt tr.tot.ust td{border-bottom:2px solid var(--line)}
