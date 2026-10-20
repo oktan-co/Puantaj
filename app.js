@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=6";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=7";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -382,12 +382,20 @@ function kisiSec(g){const wid=S.hafta;const ds=weekDays(wid);const var_=new Set(
    byId('kNo').onclick=closeSheet;byId('kYeni').onclick=()=>personelPanel(null,g,{sonra:pid=>kadroEkle(pid)});
    byId('kAra').oninput=e=>{const q=isimAnahtar(e.target.value);sh.querySelectorAll('#kList .row').forEach(r=>r.hidden=!!q&&!r.dataset.ara.includes(q));};
    sh.querySelectorAll('#kList .row').forEach(r=>r.onclick=()=>{kadroEkle(r.dataset.id);r.remove();toast(`${kisaAd(S.personel.find(p=>p.id===r.dataset.id).ad)} bu haftaya eklendi.`);});});}
+function kadroTasi(pid,yon){const wid=S.hafta;const ids=kadroOf(wid).ids.slice();const L=cizelgeKisileri(wid);const p=L.find(x=>x.id===pid);if(!p)return false;
+  const grup=L.filter(x=>(x.grup||'K')===(p.grup||'K'));const k=grup.findIndex(x=>x.id===pid);const hedef=grup[k+yon];if(!hedef)return false;
+  const a=ids.indexOf(pid),b=ids.indexOf(hedef.id);[ids[a],ids[b]]=[ids[b],ids[a]];
+  setWeek(wid,JSON.parse(JSON.stringify((S.haftalar[wid]&&S.haftalar[wid].cells)||{})),ids);return true;}
 function isimMenu(pid){const p=S.personel.find(x=>x.id===pid);if(!p)return;const dolu=Object.values(((S.haftalar[S.hafta]||{}).cells||{})[pid]||{}).some(v=>v);
-  openSheet(`<h2>${esc(p.ad)}</h2><div class="sub">${esc(gorevTahmin(p))} · ${rangeLabel(S.hafta)}</div><div class="card list">
-   ${personelYazabilir(p)?'<button class="row" id="iDuz"><div class="m"><b>Bilgilerini düzenle</b><span>Görev, SGK şubesi, giriş ve çıkış tarihi</span></div></button>':''}
+  const L=cizelgeKisileri(S.hafta).filter(x=>(x.grup||'K')===(p.grup||'K'));const k=L.findIndex(x=>x.id===pid);
+  openSheet(`<h2>${esc(p.ad)}</h2><div class="sub">${rangeLabel(S.hafta)} · ${GRUP[p.grup||'K']} bölümünde ${k+1}. sırada</div>
+   <div class="row2" style="margin-top:4px"><button class="btn grow" id="iUp" ${k<=0?'disabled':''}>▲ Yukarı taşı</button><button class="btn grow" id="iDn" ${k>=L.length-1?'disabled':''}>▼ Aşağı taşı</button></div>
+   <div class="card list" style="margin-top:12px">
    <button class="row" id="iKop"><div class="m"><b>Haftasını kopyala</b><span>Sonra hedef kişinin adına dokunarak yapıştırın</span></div></button>
-   <button class="row" id="iCik"><div class="m"><b style="color:var(--bad)">Bu haftadan çıkar</b><span>${dolu?'Bu haftaki saatleri de silinir. ':''}Personel listesinde kalır.</span></div></button></div>`,()=>{
-   const d=byId('iDuz');if(d)d.onclick=()=>personelPanel(pid);byId('iKop').onclick=()=>{closeSheet();satirKopyaMod(pid);};
+   <button class="row" id="iCik"><div class="m"><b style="color:var(--bad)">Bu haftadan çıkar</b><span>${dolu?'Bu haftaki saatleri de silinir. ':''}Personel listesinde kalır.</span></div></button></div>
+   <p class="note">Görev, SGK şubesi ve tarihler Personel sekmesinden değiştirilir.</p>`,()=>{
+   byId('iUp').onclick=()=>{if(kadroTasi(pid,-1))isimMenu(pid);};byId('iDn').onclick=()=>{if(kadroTasi(pid,1))isimMenu(pid);};
+   byId('iKop').onclick=()=>{closeSheet();satirKopyaMod(pid);};
    const c=byId('iCik');c.onclick=()=>{if(dolu&&!c.dataset.ok){c.dataset.ok='1';c.querySelector('b').textContent='Çıkarmayı onayla';return;}closeSheet();kadroCikar(pid);toast(`${kisaAd(p.ad)} bu haftadan çıkarıldı.`);};});}
 
 /* ================= Personel (şirket geneli liste) ================= */
