@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=62";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=63";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -327,12 +327,14 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
   h+=`<div class="actions"><button class="btn grow" id="copyW">Geçen haftayı kopyala</button><button class="btn" id="undoB" ${undo.length?'':'disabled'}>Geri al</button><button class="btn" id="shareB">Paylaş</button></div>`;
   if(!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Vardiyalar yükleniyor</b></div>`,bindWeek);
   const akF=fmAyi(wid,sb);const ak3=AYK[+akF.slice(5)-1];
-  h+=`<div class="grid" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>fazla mesai</span></div>`;
+  const czMod=tryLS('pm.czMod')||'sutun';
+  h+=`<div class="czmod"><span>Telefon görünümü</span><div class="seg" id="czMod"><button data-v="sutun" class="${czMod==='sutun'?'on':''}">İsim solda</button><button data-v="satir" class="${czMod==='satir'?'on':''}">İsim üstte</button></div></div>`;
+  h+=`<div class="grid cz-${czMod}" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>fazla mesai</span></div>`;
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
     kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayHesap(p,akF,sb);
       const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
       const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.h)}<small>sa</small>`]:[sg(wk.fm),sg(ay.fm)];
-      h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}">${esc(kisaAd(p.ad))}</b><span>${alt}</span></button>`;
+      h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}"><span class="adU">${esc(adBuyuk(p.ad))}</span><span class="adK">${esc(adBuyuk(kisaAd(p.ad)))}</span></b><span>${alt}</span><em class="nmfm">${isEsnaf(p)||p.sekil==='Part'?`${ak3} ${fmH[1]}`:`hafta <i>${fmH[0]}</i> · ${ak3} <i>${fmH[1]}</i>`}</em><em class="nmfmK">${isEsnaf(p)||p.sekil==='Part'?`<i class="fmp sa">${fmt(ay.h)} sa</i>`:`<i class="fmp ${ay.fm>0.004?'art':ay.fm<-0.004?'eks':'sif'}" title="${ak3} fazla mesai">${ay.fm>0.004?'▲':ay.fm<-0.004?'▼':'•'} ${fmt(Math.abs(ay.fm))}</i>`}</em></button>`;
       ds.forEach((d,i)=>{if(!employed(p,d)){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
         const lk=!cizelgeYazabilir(d);const val=cellOf(p.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(p.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
         if(isShift(val)){const k=shiftKind(val,sb);const[a,b]=val.split('-');h+=`<${tag} class="cell" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} ${a}–${b}"><span class="t ${k.o?'o':''}">${a}</span><span class="t ${k.k?'k':''}">${b}</span></${tag}>`;}
@@ -345,7 +347,7 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
    <p class="note"><b>Kopyala-yapıştır:</b> Bilgisayarda hücreleri fareyle sürükleyerek seçin, Ctrl+C ile kopyalayıp hedef hücrede Ctrl+V yapın; Excel'den kopyaladığınız saatler de yapıştırılır. Delete ile silin, çift tıklayarak düzenleyin. Telefonda hücreye ya da isme basılı tutun.</p>
    <p class="note">İsim altında haftanın toplam saati. En sağda: haftanın fazla mesaisi ve ayın toplam fazla mesaisi${sb.fmDonem==='hafta'?` (fazla mesai dönemi ${fmDonemYazi(akF,sb)})`:''}. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa.</p>`;
   if(MOD)h+=`<div class="modbar"><span>${MOD.tip==='hucre'?`<b>${esc(degerYazi(MOD.val))}</b> kopyalandı. Yapıştırmak için hücrelere dokunun.`:`<b>${esc(kisaAd((S.personel.find(p=>p.id===MOD.pid)||{}).ad))}</b> haftası kopyalandı. Hedef kişinin adına dokunun.`}</span><button class="btn small primary" id="modB">Bitti</button></div>`;
-  view(h,()=>{bindWeek();gridBagla();selCiz();const mb=byId('modB');if(mb)mb.onclick=()=>{MOD=null;render();};});}
+  view(h,()=>{bindWeek();gridBagla();selCiz();document.querySelectorAll('#czMod button').forEach(b=>b.onclick=()=>{tryLS('pm.czMod',b.dataset.v);render();});const mb=byId('modB');if(mb)mb.onclick=()=>{MOD=null;render();};});}
 function degerYazi(v){return isShift(v)?v.replace('-',' – '):v&&KOD[v]?KOD[v].ad:'Boş';}
 function bindWeek(){byId('prevW').onclick=()=>{S.hafta=ymd(addDays(parse(S.hafta),-7));SEL=null;render();};byId('nextW').onclick=()=>{S.hafta=ymd(addDays(parse(S.hafta),7));SEL=null;render();};
   byId('thisW').onclick=()=>{S.hafta=mondayOf(today());render();};byId('copyW').onclick=kopyala;byId('undoB').onclick=geriAl;byId('shareB').onclick=paylas;}

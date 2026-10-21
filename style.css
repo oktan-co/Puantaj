@@ -185,13 +185,37 @@ table.bl input::placeholder{color:var(--line)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cell.empty{background:#3d1c1f;border-color:#6b3035;color:#f08a8a}}
 :root[data-theme="dark"] .cell.empty{background:#3d1c1f;border-color:#6b3035;color:#f08a8a}
 /* Dar ekranda FM sütunlarına yer açmak için sıkıştır */
-@media (max-width:520px){
-  .grid{grid-template-columns:50px repeat(7,minmax(0,1fr)) 25px 29px;gap:2px}
-  .grid .cell{padding:1px;border-radius:7px}
-  .cell .t{font-size:10px;letter-spacing:-.45px;border-radius:5px}
-  .nm b{font-size:11.5px}.nm span{font-size:9.5px}
-  .fmc{font-size:11px;letter-spacing:-.3px}.dh.fmh{font-size:9px}
-  .cell.code{font-size:8px}
+/* Telefon çizelge görünümleri */
+.nm .nmfm{display:none}.nm b .adK{display:none}.nm b .adU,.nm b .adK{margin:0;font-size:inherit;color:inherit;display:inline}.nm b .adK{display:none}
+.czmod{display:none}.nm .nmfmK{display:none}
+@media (max-width:620px){
+  .czmod{display:flex;align-items:center;gap:8px;margin:0 0 8px;font-size:11.5px;color:var(--mut)}.czmod .seg{flex:1}.czmod .seg button{padding:6px 4px;font-size:12px}
+  .grid .dh.fmh,.grid .fmc{display:none}
+  /* İsim üstte: isim kendi satırında, günler tam genişlik */
+  .grid.cz-satir{grid-template-columns:repeat(7,minmax(0,1fr));gap:2px 3px}
+  .grid.cz-satir>div:first-child{display:none}
+  .grid.cz-satir .nm{grid-column:1/-1;display:flex;align-items:baseline;gap:6px;padding:5px 2px 0;min-width:0;line-height:1.1}
+  .grid.cz-satir .nm b{font-size:12px;flex:0 1 auto;min-width:0}
+  .grid.cz-satir .nm>span{margin:0;font-size:10.5px;flex:0 0 auto}
+  .grid.cz-satir .nm .nmfm{display:inline;margin-left:auto;font-style:normal;font-size:10.5px;color:var(--mut);white-space:nowrap;flex:0 0 auto}
+  .grid.cz-satir .nm .nmfm i{font-style:normal;font-weight:700;color:var(--ink)}
+  .grid.cz-satir .cell{padding:2px;border-radius:7px;height:40px}
+  .grid.cz-satir .cell .t{font-size:12px;letter-spacing:-.2px}
+  .grid.cz-satir .cell.code{font-size:8.5px}
+  .grid.cz-satir .gt{margin:6px 2px 0}
+  /* İsim solda: kısa isim, günler yanında, fazla mesai ismin altında */
+  .grid.cz-sutun{grid-template-columns:70px repeat(7,minmax(0,1fr));gap:2px}
+  .grid.cz-sutun .nm b .adU{display:none}.grid.cz-sutun .nm b .adK{display:inline}
+  .grid.cz-sutun .nm{height:40px;display:flex;flex-direction:column;justify-content:center;overflow:hidden}
+  .grid.cz-sutun .nm b{font-size:10.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.15;letter-spacing:-.2px}
+  .grid.cz-sutun .nm>span{display:none}
+  .grid.cz-sutun .nm .nmfmK{display:block;font-style:normal;margin-top:3px;white-space:nowrap}
+  .fmp{display:inline-block;font-style:normal;font-size:9.5px;font-weight:800;padding:1px 6px;border-radius:999px;font-variant-numeric:tabular-nums;letter-spacing:-.1px}
+  .fmp.art{background:var(--ok-bg);color:var(--ok)}.fmp.eks{background:var(--bad-bg);color:var(--bad)}.fmp.sif{background:var(--soft);color:var(--mut)}.fmp.sa{background:var(--soft);color:var(--mut);font-weight:700}
+  .grid.cz-sutun .cell{padding:1px;border-radius:6px;height:40px}
+  .grid.cz-sutun .cell .t{font-size:10.5px;letter-spacing:-.45px;border-radius:4px}
+  .grid.cz-sutun .cell.code{font-size:7.5px}
+}
 }
 /* Tek personel tablosu */
 table.bl td.bi select{display:block;width:auto;min-width:110px;max-width:170px;border:0;background:transparent;padding:10px 6px;font:inherit;font-size:13px;color:var(--ink);outline:none;-webkit-appearance:menulist}
