@@ -160,7 +160,10 @@ let CZ_ES={};
 function rowPid(pid,i,wid=S.hafta){const L=CZ_ES[pid];if(!L)return pid;const d=weekDays(wid)[i];const q=L.find(x=>employed(x,d));return q?q.id:pid;}
 function gunKaydiP(p,d){const L=CZ_ES[p.id]||[p];return L.find(x=>employed(x,d))||null;}
 function haftaHesapS(p,wid,sb){const L=CZ_ES[p.id];if(!L)return haftaHesap(p,wid,sb);const o={h:0,fm:0};L.forEach(q=>{const x=haftaHesap(q,wid,sb);o.h+=x.h;o.fm+=x.fm;});return o;}
-function ayKadarS(p,wid,sb){const L=CZ_ES[p.id];if(!L)return ayKadar(p,wid,sb);const o={h:0,fm:0};L.forEach(q=>{const x=ayKadar(q,wid,sb);o.h+=x.h;o.fm+=x.fm;});return o;}
+function ayKadarS(p,wid,sb){let L=CZ_ES[p.id];
+  // O hafta kadroda sadece devam kaydı varsa (ör. SGK çıkıştan sonra SGK'sız devam), aynı kişinin o aydaki önceki kaydı da aya-kadar toplamına katılır.
+  if(!L){const ak=fmAyi(wid,sb);const es=subePersoneli().filter(x=>x.id===p.id||(ayniKisi(x,p)&&aktifAyda(x,ak)));if(es.length>1)L=es;}
+  if(!L)return ayKadar(p,wid,sb);const o={h:0,fm:0};L.forEach(q=>{const x=ayKadar(q,wid,sb);o.h+=x.h;o.fm+=x.fm;});return o;}
 function cizelgeKisileri(wid){const ids=kadroOf(wid).ids;let L=ids.map(id=>S.personel.find(p=>p.id===id)).filter(Boolean);
   if(wid===S.hafta)CZ_ES={};const son=weekDays(wid)[6];const gor=new Set();const out=[];
   L.forEach(p=>{if(gor.has(p.id))return;const es=L.filter(x=>x.id===p.id||(!gor.has(x.id)&&ayniKisi(x,p)));es.forEach(x=>gor.add(x.id));
