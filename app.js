@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=63";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=64";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -1156,20 +1156,25 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
       if(isShift(v)){const k=shiftKind(v,sb);const[a,b]=v.split('-');const hw=(w-4)/2;rr(X,Y,hw,hh,7,k.o?C.open:C.soft);rr(X+hw+4,Y,hw,hh,7,k.k?C.close:C.soft);x.font=F(700,18,1);x.fillStyle=k.o?C.openI:C.ink;x.fillText(a,X+hw/2,Y+hh/2+1);x.fillStyle=k.k?C.closeI:C.ink;x.fillText(b,X+hw+4+hw/2,Y+hh/2+1);}
       else if(v&&KOD[v]){const kr=KOD_RENK[v]||[C.code,C.codeI];rr(X,Y,w,hh,7,kr[0]);x.fillStyle=kr[1];x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
       else{rr(X,Y,w,hh,7,BOS_RENK);x.strokeStyle='#f0b4b4';x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
-    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,fmAyi(wid,sb),sb);const vals=isEsnaf(p)?['esnaf',fmt(ay.h)+' sa']:p.sekil==='Part'?['part',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{x.fillStyle=C.ink;x.font=F(700,17,1);x.fillText(t,pad+nameW+7*dayW+j*fmW+fmW/2,y+rowH/2+1);});}
+    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,fmAyi(wid,sb),sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{x.fillStyle=C.ink;x.font=F(700,17,1);x.fillText(t,pad+nameW+7*dayW+j*fmW+fmW/2,y+rowH/2+1);});}
     y+=rowH;});
   x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
-function paylas(){let fm=tryLS('pm.shareFm')!=='0';
-  openSheet(`<h2>Çizelgeyi paylaş</h2><div class="sub">${esc(sube().ad)} · ${rangeLabel(S.hafta)}. Görseli paylaşın ya da kaydedip WhatsApp grubuna gönderin.</div>
-   <label class="check"><input type="checkbox" id="shFm" ${fm?'checked':''}> Fazla mesai sütunlarını ekle</label><img class="share-prev" id="shImg" alt="Çizelge görseli">
-   <div class="row2"><button class="btn grow" id="shNo">Kapat</button><button class="btn grow" id="shSave">Kaydet</button><button class="btn primary grow" id="shShare">Paylaş</button></div>`,async()=>{let blob=null;
-   const yap=async()=>{const cv=await cizelgeGorseli(byId('shFm').checked);blob=await new Promise(r=>cv.toBlob(r,'image/png'));const img=byId('shImg');if(img.src)URL.revokeObjectURL(img.src);img.src=URL.createObjectURL(blob);};
-   byId('shFm').onchange=e=>{tryLS('pm.shareFm',e.target.checked?'1':'0');yap();};byId('shNo').onclick=closeSheet;
-   const ad=`${slug(sube().ad)}-cizelge-${S.hafta}.png`;
-   byId('shSave').onclick=()=>{if(!blob)return;const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=ad;a.click();};
-   const shb=byId('shShare');if(!navigator.canShare)shb.hidden=true;
-   shb.onclick=async()=>{if(!blob)return;const file=new File([blob],ad,{type:'image/png'});try{if(navigator.canShare({files:[file]}))await navigator.share({files:[file],title:'Haftalık çizelge'});else toast('Bu cihaz görsel paylaşmayı desteklemiyor, Kaydet\'i kullanın.');}catch(e){}};
+function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'png';const baslik=`${trBuyukBas(sube().ad)} Şube ${rangeLabel(S.hafta)} Haftalık Çizelge`;
+  openSheet(`<h2>Çizelgeyi paylaş</h2><div class="sub">${esc(baslik)}</div>
+   <div class="seg" id="shTur" style="margin-bottom:8px"><button data-v="png" class="${tur==='png'?'on':''}">Fotoğraf</button><button data-v="pdf" class="${tur==='pdf'?'on':''}">PDF</button></div>
+   <label class="check"><input type="checkbox" id="shFm" ${fm?'checked':''}> Fazla mesai sütunlarını ekle (hafta ve ay toplamı)</label><img class="share-prev" id="shImg" alt="Çizelge görseli">
+   <div class="row2"><button class="btn grow" id="shSave">İndir</button><button class="btn primary grow" id="shShare">WhatsApp / Paylaş</button></div>`,async()=>{let cv=null;
+   const yap=async()=>{cv=await cizelgeGorseli(byId('shFm').checked);byId('shImg').src=cv.toDataURL('image/png');};
+   byId('shFm').onchange=e=>{tryLS('pm.shareFm',e.target.checked?'1':'0');yap();};
+   byId('shTur').querySelectorAll('button').forEach(b=>b.onclick=()=>{tur=b.dataset.v;tryLS('pm.czTur',tur);byId('shTur').querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));});
+   const dosya=async()=>{if(!cv)await yap();if(tur==='png'){const b=await new Promise(r=>cv.toBlob(r,'image/png'));return new File([b],baslik+'.png',{type:'image/png'});}
+     const J=await jspdfLib();const w=cv.width/2*0.75,h=cv.height/2*0.75;const pdf=new J({orientation:w>h?'l':'p',unit:'pt',format:[w,h]});pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,w,h);pdf.setProperties({title:baslik});return new File([pdf.output('blob')],baslik+'.pdf',{type:'application/pdf'});};
+   const indir=f=>{const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);};
+   byId('shSave').onclick=async()=>{try{indir(await dosya());}catch(e){toast('Dosya hazırlanamadı.');}};
+   byId('shShare').onclick=async()=>{let f;try{f=await dosya();}catch(e){toast('Dosya hazırlanamadı.');return;}
+     try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:baslik,text:baslik});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+     indir(f);window.open('https://wa.me/?text='+encodeURIComponent(baslik),'_blank');};
    await yap();});}
 
 /* ================= Yönetim (işveren) ================= */
