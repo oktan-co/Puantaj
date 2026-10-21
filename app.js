@@ -1138,14 +1138,14 @@ function bordroPanel(V){const ids=Object.keys(V.sol);let satirlar=[];const okuna
       catch(e){yazmaHatasi(e);}};});}
 
 /* ================= Paylaş (görsel) ================= */
-async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds=weekDays(wid);const ak=gosterAy(wid);const kisiler=cizelgeKisileri(wid);
+async function cizelgeGorseli(withFm,gruplar){const sb=sube();const wid=S.hafta;const ds=weekDays(wid);const ak=gosterAy(wid);const kisiler=cizelgeKisileri(wid).filter(p=>!gruplar||gruplar.includes(p.grup||'K'));
   try{await document.fonts.ready;}catch(e){}
   const C={navy:'#1f3a6b',ink:'#152033',mut:'#667287',line:'#d9dee8',open:'#fbe58a',openI:'#4a3a00',close:'#f0b24d',closeI:'#3c2500',code:'#e9edf3',codeI:'#33415a',bg:'#ffffff',soft:'#f3f5f9'};
   const pad=28,nameW=240,dayW=150,fmW=withFm?96:0,rowH=42,groupH=34,headH=100,dayH=62;const groups=new Set(kisiler.map(p=>p.grup||'K'));
   const W=pad*2+nameW+dayW*7+fmW*2,H=headH+dayH+kisiler.length*rowH+groups.size*groupH+70;const cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;const x=cv.getContext('2d');x.scale(2,2);
   const F=(w,s,n)=>`${w} ${s}px ${n?'"Barlow Semi Condensed","Arial Narrow",sans-serif':'Figtree,system-ui,sans-serif'}`;
   const rr=(X,Y,w,h,r,fill)=>{x.beginPath();x.roundRect?x.roundRect(X,Y,w,h,r):x.rect(X,Y,w,h);x.fillStyle=fill;x.fill();};
-  x.fillStyle=C.bg;x.fillRect(0,0,W,H);x.fillStyle=C.navy;x.fillRect(0,0,W,78);x.fillStyle='#fff';x.textBaseline='middle';x.font=F(800,28);x.fillText(`${sb.ad} · Haftalık çizelge`,pad,30);
+  x.fillStyle=C.bg;x.fillRect(0,0,W,H);x.fillStyle=C.navy;x.fillRect(0,0,W,78);x.fillStyle='#fff';x.textBaseline='middle';x.font=F(800,28);x.fillText(`${sb.ad} · Haftalık çizelge${gruplar&&gruplar.length<3?' · '+gruplar.map(g=>GRUP[g]).join(' + '):''}`,pad,30);
   x.font=F(600,16);x.globalAlpha=.8;x.fillText(`${rangeLabel(wid)}  ·  Açılış ${sb.acilis}  ·  Kapanış ${sb.kapanis}`,pad,58);x.globalAlpha=1;let y=headH;x.textAlign='center';
   ds.forEach((d,i)=>{const X=pad+nameW+i*dayW;rr(X+3,y,dayW-6,dayH-6,9,C.soft);x.fillStyle=C.ink;x.font=F(800,18);x.fillText(GUNU[i].toLocaleUpperCase('tr-TR'),X+dayW/2,y+19);x.fillStyle=C.navy;x.font=F(700,15.5);x.fillText(`${d.getDate()} ${AY[d.getMonth()]}`,X+dayW/2,y+41);});
   const FMR=[{bg:'#dbeafe',yazi:'#1e3a8a',alt:'#3b5b9a',hb:'#c7dcfb'},{bg:'#1f3a6b',yazi:'#ffffff',alt:'#c9d6ee',hb:'#16305c'}];
@@ -1161,13 +1161,14 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
     y+=rowH;});
   x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
-function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'png';const baslik=`${trBuyukBas(sube().ad)} Şube ${rangeLabel(S.hafta)} Haftalık Çizelge`;
-  openSheet(`<h2>Çizelgeyi paylaş</h2><div class="sub">${esc(baslik)}</div>
+function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'png';let gr=GRUP_SIRA.slice();const baslikF=()=>`${trBuyukBas(sube().ad)} Şube ${rangeLabel(S.hafta)} Haftalık Çizelge${gr.length<3?' - '+gr.map(g=>GRUP[g]).join(' + '):''}`;let baslik=baslikF();
+  openSheet(`<h2>Çizelgeyi paylaş</h2><div class="sub" id="shBaslik">${esc(baslik)}</div>
    <div class="seg" id="shTur" style="margin-bottom:8px"><button data-v="png" class="${tur==='png'?'on':''}">Fotoğraf</button><button data-v="pdf" class="${tur==='pdf'?'on':''}">PDF</button></div>
-   <label class="check"><input type="checkbox" id="shFm" ${fm?'checked':''}> Fazla mesai sütunlarını ekle (hafta ve ay toplamı)</label><img class="share-prev" id="shImg" alt="Çizelge görseli">
+   <div class="seg" id="shGr" style="margin-bottom:8px">${GRUP_SIRA.map(g=>`<button data-g="${g}" class="on">${GRUP[g]}</button>`).join('')}</div><label class="check"><input type="checkbox" id="shFm" ${fm?'checked':''}> Fazla mesai sütunlarını ekle (hafta ve ay toplamı)</label><img class="share-prev" id="shImg" alt="Çizelge görseli">
    <div class="row2"><button class="btn grow" id="shSave">İndir</button><button class="btn primary grow" id="shShare">WhatsApp / Paylaş</button></div>`,async()=>{let cv=null;
-   const yap=async()=>{cv=await cizelgeGorseli(byId('shFm').checked);byId('shImg').src=cv.toDataURL('image/png');};
+   const yap=async()=>{cv=await cizelgeGorseli(byId('shFm').checked,gr);byId('shImg').src=cv.toDataURL('image/png');};
    byId('shFm').onchange=e=>{tryLS('pm.shareFm',e.target.checked?'1':'0');yap();};
+   byId('shGr').querySelectorAll('button').forEach(b=>b.onclick=()=>{const g=b.dataset.g;const n=gr.includes(g)?gr.filter(q=>q!==g):GRUP_SIRA.filter(q=>q===g||gr.includes(q));if(!n.length)return;gr=n;baslik=baslikF();byId('shGr').querySelectorAll('button').forEach(q=>q.classList.toggle('on',gr.includes(q.dataset.g)));byId('shBaslik').textContent=baslik;yap();});
    byId('shTur').querySelectorAll('button').forEach(b=>b.onclick=()=>{tur=b.dataset.v;tryLS('pm.czTur',tur);byId('shTur').querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));});
    const dosya=async()=>{if(!cv)await yap();if(tur==='png'){const b=await new Promise(r=>cv.toBlob(r,'image/png'));return new File([b],baslik+'.png',{type:'image/png'});}
      const J=await jspdfLib();const w=cv.width/2*0.75,h=cv.height/2*0.75;const pdf=new J({orientation:w>h?'l':'p',unit:'pt',format:[w,h]});pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,w,h);pdf.setProperties({title:baslik});return new File([pdf.output('blob')],baslik+'.pdf',{type:'application/pdf'});};
