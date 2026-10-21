@@ -296,3 +296,26 @@ table.vg2 td.vsel{background:var(--navy-soft)!important;box-shadow:inset 0 0 0 1
 button.kchip{cursor:pointer}button.kchip:hover{border-color:var(--accent-ink);color:var(--accent-ink)}
 .kt.kirmizi .kchip{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
 label.kchip{cursor:pointer}label.kchip.on{background:var(--ok-bg);color:var(--ok);border-color:transparent}label.kchip input{width:15px;height:15px}
+/* Personel · çalışma bilgileri: sade tablo (bilgisayar) + liste (telefon) */
+table.bl.cal td.bi>select{-webkit-appearance:none;appearance:none;border:0 none!important;box-shadow:none;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%23667287'/%3E%3C/svg%3E") no-repeat right 4px center;padding-right:16px;min-width:0}
+table.bl.cal td.bi>select{background-image:none}table.bl.cal td.bi>select:hover,table.bl.cal td.bi>select:focus{-webkit-appearance:none;appearance:none;background-color:var(--soft);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%23667287'/%3E%3C/svg%3E")}
+table.bl.cal td.sbh{padding:5px 8px}
+.sbz{display:flex;gap:5px;flex-wrap:wrap;min-width:250px;max-width:430px}
+.chs{position:relative;display:inline-flex;align-items:center;gap:2px;background:var(--soft);border-radius:999px;padding:0 4px 0 9px;font-size:12px;line-height:1}
+.chs b{color:var(--mut);font-weight:600}
+.chs::after{content:"";position:absolute;right:8px;top:50%;margin-top:-2px;border:4px solid transparent;border-top:5px solid var(--mut);border-bottom:0;pointer-events:none;opacity:.7}
+table.bl td.bi .chs select,table.bl.sade td.bi .chs select:hover,table.bl.sade td.bi .chs select:focus{display:inline-block;-webkit-appearance:none;appearance:none;border:0 none!important;background:transparent;box-shadow:none;min-width:0;max-width:none;width:auto;padding:5px 16px 5px 2px;font:inherit;font-size:12px;font-weight:700;color:var(--ink);cursor:pointer}
+.chs:hover{box-shadow:inset 0 0 0 1px var(--line)}.chs:focus-within{box-shadow:inset 0 0 0 2px var(--accent-ink)}
+.chs.f{background:var(--navy-soft)}table.bl td.bi .chs.f select{color:var(--accent-ink)}
+.chs.ayni{opacity:.55}.chs.ayni:hover,.chs.ayni:focus-within{opacity:1}
+.chs.bad{background:var(--warn-bg)}table.bl td.bi .chs.bad select{color:var(--warn)}
+.pkl{display:none;background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.pkg{background:var(--soft);font-size:11px;font-weight:800;color:var(--mut);letter-spacing:.5px;text-transform:uppercase;padding:7px 14px}
+.pkr{display:flex;flex-direction:column;gap:5px;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--soft);padding:11px 14px;font:inherit;color:var(--ink);cursor:pointer}
+.pkg+.pkr{border-top:0}.pkr:active{background:var(--navy-soft)}.pkr.cik{opacity:.6}
+.pkr .n{font-weight:800;font-size:13.5px}.pkr .n i{font-style:normal;font-weight:600;font-size:12px;color:var(--mut);margin-left:6px}
+.pkr .d{font-size:12px;color:var(--mut)}.pkr .c{display:flex;gap:5px;flex-wrap:wrap}
+.pch{font-size:11.5px;padding:3px 8px;border-radius:999px;background:var(--soft);font-weight:600}.pch b{color:var(--mut);font-weight:600;margin-right:3px}
+.pch.f{background:var(--navy-soft);color:var(--accent-ink)}.pch.bad{background:var(--warn-bg);color:var(--warn)}
+@media (max-width:700px){.pkl{display:block}.tbl-wrap.bl-cal{display:none}}
+table.bl.cal td.bi>select{padding-left:10px}

@@ -1,5 +1,5 @@
 // Puantaj Merkezi - basit service worker (ağ öncelikli, çevrimdışıyken önbellek)
-const CACHE = 'puantaj-v7';
+const CACHE = 'puantaj-v8';
 const SHELL = ['./', 'index.html', 'app.js', 'config.js', 'style.css', 'manifest.json', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', (e) => {
