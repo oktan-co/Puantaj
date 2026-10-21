@@ -155,8 +155,19 @@ function kadroDoc(wid,H=S.haftalar){const w=H[wid];if(!w)return null;if(Array.is
 function kadroOf(wid){const k=kadroDoc(wid);if(k)return{ids:k,oneri:false};const ds=weekDays(wid);
   for(let i=1;i<=8;i++){const kk=kadroDoc(ymd(addDays(parse(wid),-7*i)));if(kk)return{ids:kk.filter(id=>{const p=S.personel.find(x=>x.id===id);return p&&ds.some(d=>employed(p,d));}),oneri:true};}
   return{ids:[],oneri:true};}
-function cizelgeKisileri(wid){const ids=kadroOf(wid).ids;const L=ids.map(id=>S.personel.find(p=>p.id===id)).filter(Boolean);
-  return L.sort((a,b)=>GRUP_SIRA.indexOf(a.grup||'K')-GRUP_SIRA.indexOf(b.grup||'K')||ids.indexOf(a.id)-ids.indexOf(b.id));}
+// Çizelgede aynı kişinin birden fazla kaydı (SGK şube değişikliği) tek satırda: her gün o gün çalışan kayda yazılır.
+let CZ_ES={};
+function rowPid(pid,i,wid=S.hafta){const L=CZ_ES[pid];if(!L)return pid;const d=weekDays(wid)[i];const q=L.find(x=>employed(x,d));return q?q.id:pid;}
+function gunKaydiP(p,d){const L=CZ_ES[p.id]||[p];return L.find(x=>employed(x,d))||null;}
+function haftaHesapS(p,wid,sb){const L=CZ_ES[p.id];if(!L)return haftaHesap(p,wid,sb);const o={h:0,fm:0};L.forEach(q=>{const x=haftaHesap(q,wid,sb);o.h+=x.h;o.fm+=x.fm;});return o;}
+function ayKadarS(p,wid,sb){const L=CZ_ES[p.id];if(!L)return ayKadar(p,wid,sb);const o={h:0,fm:0};L.forEach(q=>{const x=ayKadar(q,wid,sb);o.h+=x.h;o.fm+=x.fm;});return o;}
+function cizelgeKisileri(wid){const ids=kadroOf(wid).ids;let L=ids.map(id=>S.personel.find(p=>p.id===id)).filter(Boolean);
+  if(wid===S.hafta)CZ_ES={};const son=weekDays(wid)[6];const gor=new Set();const out=[];
+  L.forEach(p=>{if(gor.has(p.id))return;const es=L.filter(x=>x.id===p.id||(!gor.has(x.id)&&ayniKisi(x,p)));es.forEach(x=>gor.add(x.id));
+    if(es.length<2){out.push(p);return;}es.sort((a,b)=>String(a.giris||ilkGun(a)||'').localeCompare(String(b.giris||ilkGun(b)||'')));
+    const rep=es.find(x=>employed(x,son))||es[es.length-1];if(wid===S.hafta)CZ_ES[rep.id]=es;out.push(rep);});
+  L=out;const sira=id=>{const L2=CZ_ES[id]||[{id}];return Math.min(...L2.map(x=>{const k=ids.indexOf(x.id);return k<0?999:k;}));};
+  return L.sort((a,b)=>GRUP_SIRA.indexOf(a.grup||'K')-GRUP_SIRA.indexOf(b.grup||'K')||sira(a.id)-sira(b.id));}
 function ayKadroIds(ak,H=S.haftalar){const[y,m]=ak.split('-').map(Number);const set=new Set();const last=new Date(y,m,0);
   for(let w=parse(mondayOf(new Date(y,m-1,1)));w<=last;w=addDays(w,7)){const k=kadroDoc(ymd(w),H);if(k)k.forEach(id=>set.add(id));}return set;}
 function ayKadrosu(ak){const ids=ayKadroIds(ak);return S.personel.filter(p=>ids.has(p.id)&&aktifAyda(p,ak));}
@@ -374,12 +385,12 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
   h+=`<div class="czmod"><span>Telefon görünümü</span><div class="seg" id="czMod"><button data-v="sutun" class="${czMod==='sutun'?'on':''}">İsim solda</button><button data-v="satir" class="${czMod==='satir'?'on':''}">İsim üstte</button></div></div>`;
   h+=`<div class="grid cz-${czMod}" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>bu haftaya kadar</span></div>`;
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
-    kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayKadar(p,wid,sb);
+    kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesapS(p,wid,sb);const ay=ayKadarS(p,wid,sb);
       const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
       const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.h)}<small>sa</small>`]:[sg(wk.fm),sg(ay.fm)];
       h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}"><span class="adU">${esc(adBuyuk(p.ad))}</span><span class="adK">${esc(adBuyuk(kisaAd(p.ad)))}</span></b><span>${alt}</span><em class="nmfm">${isEsnaf(p)||p.sekil==='Part'?`${ak3} ${fmH[1]}`:`hafta <i>${fmH[0]}</i> · ${ak3} <i>${fmH[1]}</i>`}</em><em class="nmfmK">${isEsnaf(p)||p.sekil==='Part'?`<i class="fmp sa" title="Bu hafta çalışılan saat">${fmt(wk.h)} sa</i>`:`<i class="fmp ${wk.fm>0.004?'art':wk.fm<-0.004?'eks':'sif'}" title="Bu haftanın fazla mesaisi">${sg(wk.fm)}</i>`}</em></button>`;
-      ds.forEach((d,i)=>{if(!employed(p,d)){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
-        const lk=!cizelgeYazabilir(d);const val=cellOf(p.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(p.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
+      ds.forEach((d,i)=>{const q=gunKaydiP(p,d);if(!q){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
+        const lk=!cizelgeYazabilir(d);const val=cellOf(q.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(q.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
         if(isShift(val)){const k=shiftKind(val,sb);const[a,b]=val.split('-');h+=`<${tag} class="cell" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} ${a}–${b}"><span class="t ${k.o?'o':''}">${a}</span><span class="t ${k.k?'k':''}">${b}</span></${tag}>`;}
         else if(val&&KOD[val])h+=`<${tag} class="cell code" ${kodStil(val)} ${at}>${KOD[val].kisa}</${tag}>`;
         else h+=`<${tag} class="cell empty" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} boş">${lk?'':'+'}</${tag}>`;});
@@ -416,7 +427,7 @@ function selCiz(){document.querySelectorAll('.cell.sel').forEach(x=>x.classList.
   document.querySelectorAll('.cell[data-r]').forEach(x=>{const r=+x.dataset.r,c=+x.dataset.c;if(r>=A.r0&&r<=A.r1&&c>=A.c0&&c<=A.c1)x.classList.add('sel');});}
 function secimAktif(){if(S.tab!=='cizelge'||!SEL||SEL.wid!==S.hafta||byId('sheetRoot').innerHTML)return false;const a=document.activeElement;return !(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName));}
 const KOD_EXCEL={HT:'HAF. İZİN',UI:'ÜCR. İZİN',YI:'YILLIK İZİN',R:'RAPOR',B:'BAYRAM',D:'DİĞER'};
-function secimTSV(){const A=selAralik();const out=[];for(let r=A.r0;r<=A.r1;r++){const row=[];for(let c=A.c0;c<=A.c1;c++){const v=cellOf(ROWS[r],S.hafta,c);
+function secimTSV(){const A=selAralik();const out=[];for(let r=A.r0;r<=A.r1;r++){const row=[];for(let c=A.c0;c<=A.c1;c++){const v=cellOf(rowPid(ROWS[r],c),S.hafta,c);
   if(isShift(v))row.push(...v.split('-'));else if(v&&KOD[v])row.push(KOD_EXCEL[v],'');else row.push('','');}out.push(row.join('\t'));}return out.join('\r\n');}
 function hucreCoz(a,b){a=String(a??'').trim();b=String(b??'').trim();if(!a&&!b)return null;const ust=a.toLocaleUpperCase('tr-TR').replace(/\s+/g,' ');
   if(XKOD[ust])return XKOD[ust];const kn=Object.keys(KOD).find(k=>KOD[k].ad.toLocaleUpperCase('tr-TR')===ust);if(kn)return kn;
@@ -428,7 +439,7 @@ function metinMatris(t){let L=String(t||'').replace(/\r/g,'').split('\n');while(
     const o=[];for(let j=0;j<c.length;j+=2)o.push(hucreCoz(c[j],c[j+1]));return o;});}
 function matrisUygula(M){const A=selAralik();if(!A||!M.length)return;const wid=S.hafta;const ds=weekDays(wid);
   const cells=JSON.parse(JSON.stringify((S.haftalar[wid]&&S.haftalar[wid].cells)||{}));let n=0;
-  const yaz=(r,c,v)=>{if(v===undefined||r<0||r>=ROWS.length||c<0||c>6)return;const pid=ROWS[r];const p=S.personel.find(x=>x.id===pid);if(!p||!employed(p,ds[c])||!cizelgeYazabilir(ds[c]))return;
+  const yaz=(r,c,v)=>{if(v===undefined||r<0||r>=ROWS.length||c<0||c>6)return;const pid=rowPid(ROWS[r],c);const p=S.personel.find(x=>x.id===pid);if(!p||!employed(p,ds[c])||!cizelgeYazabilir(ds[c]))return;
     cells[pid]=cells[pid]||{};cells[pid][String(c)]=v;n++;};
   if(M.length===1&&M[0].length===1&&(A.r1>A.r0||A.c1>A.c0)){for(let r=A.r0;r<=A.r1;r++)for(let c=A.c0;c<=A.c1;c++)yaz(r,c,M[0][0]);}
   else M.forEach((row,i)=>row.forEach((v,j)=>yaz(A.r0+i,A.c0+j,v)));
@@ -439,8 +450,8 @@ document.addEventListener('cut',e=>{if(!secimAktif())return;e.clipboardData.setD
 document.addEventListener('paste',e=>{if(!secimAktif())return;e.preventDefault();matrisUygula(metinMatris(e.clipboardData.getData('text/plain')));});
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&(MOD||SEL)&&!byId('sheetRoot').innerHTML){MOD=null;SEL=null;render();return;}if(!secimAktif())return;const A=selAralik();
   if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();secimTemizle();return;}
-  if((e.key==='Enter'||e.key==='F2')&&ROWS[SEL.r0]!=null){e.preventDefault();hucre(ROWS[SEL.r0],SEL.c0);return;}
-  if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&ROWS[SEL.r0]!=null){e.preventDefault();hucre(ROWS[SEL.r0],SEL.c0,{ilk:e.key});return;}
+  if((e.key==='Enter'||e.key==='F2')&&ROWS[SEL.r0]!=null){e.preventDefault();hucre(rowPid(ROWS[SEL.r0],SEL.c0),SEL.c0);return;}
+  if(/^[0-9]$/.test(e.key)&&!e.ctrlKey&&!e.metaKey&&ROWS[SEL.r0]!=null){e.preventDefault();hucre(rowPid(ROWS[SEL.r0],SEL.c0),SEL.c0,{ilk:e.key});return;}
   const yon={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[e.key];if(yon){e.preventDefault();const r=Math.max(0,Math.min(ROWS.length-1,SEL.r1+yon[0])),c=Math.max(0,Math.min(6,SEL.c1+yon[1]));
     if(e.shiftKey)Object.assign(SEL,{r1:r,c1:c});else SEL={wid:S.hafta,r0:r,c0:c,r1:r,c1:c};selCiz();}});
 function hucreKopyaMod(pid,i){const v=cellOf(pid,S.hafta,i);if(!v){toast('Boş hücre kopyalanamaz.');return;}MOD={tip:'hucre',val:v};render();}
@@ -1212,11 +1223,11 @@ async function cizelgeGorseli(withFm,gruplar){const sb=sube();const wid=S.hafta;
   y+=dayH;let son=null;
   kisiler.forEach(p=>{const g=p.grup||'K';if(g!==son){son=g;x.textAlign='left';x.fillStyle=C.navy;x.font=F(800,14);x.fillText(GRUP[g].toLocaleUpperCase('tr-TR'),pad+2,y+groupH/2+2);x.fillStyle=C.line;x.fillRect(pad+90,y+groupH/2+2,W-pad*2-90,1);y+=groupH;}
     x.textAlign='left';x.fillStyle=C.ink;x.font=F(700,16);x.fillText(p.ad.toLocaleUpperCase('tr-TR'),pad+2,y+rowH/2,nameW-10);x.textAlign='center';
-    ds.forEach((d,i)=>{const X=pad+nameW+i*dayW+3,Y=y+3,w=dayW-6,hh=rowH-6;if(!employed(p,d)){x.fillStyle=C.mut;x.font=F(600,15);x.fillText('—',X+w/2,Y+hh/2);return;}const v=cellOf(p.id,wid,i);
+    ds.forEach((d,i)=>{const X=pad+nameW+i*dayW+3,Y=y+3,w=dayW-6,hh=rowH-6;const q=gunKaydiP(p,d);if(!q){x.fillStyle=C.mut;x.font=F(600,15);x.fillText('—',X+w/2,Y+hh/2);return;}const v=cellOf(q.id,wid,i);
       if(isShift(v)){const k=shiftKind(v,sb);const[a,b]=v.split('-');const hw=(w-4)/2;rr(X,Y,hw,hh,7,k.o?C.open:C.soft);rr(X+hw+4,Y,hw,hh,7,k.k?C.close:C.soft);x.font=F(700,18,1);x.fillStyle=k.o?C.openI:C.ink;x.fillText(a,X+hw/2,Y+hh/2+1);x.fillStyle=k.k?C.closeI:C.ink;x.fillText(b,X+hw+4+hw/2,Y+hh/2+1);}
       else if(v&&KOD[v]){const kr=KOD_RENK[v]||[C.code,C.codeI];rr(X,Y,w,hh,7,kr[0]);x.fillStyle=kr[1];x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
       else{rr(X,Y,w,hh,7,BOS_RENK);x.strokeStyle='#f0b4b4';x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
-    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayKadar(p,wid,sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y+3,fmW-6,rowH-6,7,R.bg);x.fillStyle=R.yazi;x.font=F(j?800:700,17,1);x.fillText(t,X+fmW/2,y+rowH/2+1);});}
+    if(withFm){const wk=haftaHesapS(p,wid,sb),ay=ayKadarS(p,wid,sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y+3,fmW-6,rowH-6,7,R.bg);x.fillStyle=R.yazi;x.font=F(j?800:700,17,1);x.fillText(t,X+fmW/2,y+rowH/2+1);});}
     y+=rowH;});
   x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
