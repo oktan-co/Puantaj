@@ -1,8 +1,8 @@
 {
-  "id": "/Puantaj/",
+  "id": "./?uygulama=puantaj-merkezi",
   "name": "Puantaj Merkezi",
   "short_name": "Puantaj",
-  "start_url": "./",
+  "start_url": "./?kaynak=uygulama",
   "scope": "./",
   "display": "standalone",
   "background_color": "#f3f5f9",
