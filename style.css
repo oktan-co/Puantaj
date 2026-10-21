@@ -335,3 +335,5 @@ table.bl.cal td.bi>select{padding-left:10px}
 .ptay{display:flex;align-items:center;justify-content:center;gap:18px}
 .ptay .ttl{font-weight:800;font-size:18px;min-width:150px;text-align:center}
 @media (min-width:1200px){.app.wide{max-width:min(96vw,1560px)}}
+
+.ptsube.sbar{margin:4px auto 14px}

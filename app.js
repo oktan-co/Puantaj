@@ -335,8 +335,8 @@ function selectSube(id){subs.sube.forEach(u=>u());subs.sube=[];S.tcler={};S.sube
 /* ================= Çizim çerçevesi ================= */
 const byId=id=>document.getElementById(id);
 function subeBar(){if(S.subeIds.length<2||!['cizelge','personel','ay'].includes(S.tab))return'';
-  return `<label class="subebar"><span>Şube</span><select id="subeSecim" aria-label="Şube seç">${S.subeIds.map(id=>`<option value="${esc(id)}" ${id===S.subeId?'selected':''}>${esc(S.subeler[id].ad)}</option>`).join('')}</select></label>`;}
-function view(html,after){const ap=document.querySelector('.app');if(ap)ap.classList.toggle('wide',S.tab==='puantaj'&&!!S.pt.sube);byId('view').innerHTML=subeBar()+html;after&&after();}
+  return `<div class="ptsube sbar"><span class="ptcap">Şube</span><div class="ptsel"><select id="subeSecim" aria-label="Şube seç">${S.subeIds.map(id=>`<option value="${esc(id)}" ${id===S.subeId?'selected':''}>${esc(S.subeler[id].ad)}</option>`).join('')}</select></div></div>`;}
+function view(html,after){const ap=document.querySelector('.app');if(ap)ap.classList.toggle('wide',(S.tab==='puantaj'&&!!S.pt.sube)||['cizelge','personel','ay'].includes(S.tab));byId('view').innerHTML=subeBar()+html;after&&after();}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='subeSecim'){selectSube(e.target.value);window.scrollTo(0,0);}});
 function top(eyebrow,title,right=''){byId('top').innerHTML=`<div class="top-row"><div class="grow"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1></div>${right}</div>`;}
 function sekmeler(){if(!S.me)return[];const t=[['cizelge','Çizelge'],['personel','Personel']];
