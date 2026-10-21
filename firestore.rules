@@ -118,7 +118,7 @@ service cloud.firestore {
       // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödemeler ve veri girişi devam eder.
       allow create: if bolgede(s);
       allow update: if isveren()
-        || (bolgede(s) && (resource.data.kilitli != true
+        || (bolgede(s) && (resource.data.get('kilitli', false) != true
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veri', 'guncellendi'])));
       allow delete: if isveren();
     }

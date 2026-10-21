@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=60";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=61";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -731,8 +731,10 @@ function ptVerisi(){const ak=S.ay;const D=S.pt.doc||{};const kilitli=D.kilitli==
   const satir=ids.map(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;return{pid,sol:sol[pid],sag:sag[pid]||{},net:net[pid],hes:sagHesap(pid,sol[pid],sag[pid],net[pid],sb,dv,oz[pid],usOf(pid))};});
   return{ak,kilitli,sol,satir,sb,D,oz};}
 function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeElement;if(S.pt.gorunum==='veri'&&vg&&vg.contains(ae)&&/INPUT|SELECT/.test(ae.tagName)&&!S.pt.zorla)return;S.pt.zorla=false;const ak=S.ay;const sb=sube();const durum=(S.aylar[ak]||{durum:'taslak'}).durum;const D=DURUM[durum]||DURUM.taslak;
-  let h=`<div class="weeknav"><button class="nav-arrow" id="geriL" aria-label="Şube listesi">‹</button><div class="ttl">${esc(sb.ad)} · ${ayAdi(ak)}<small>${D.ad}</small></div><span style="width:40px"></span></div>`;
-  if(S.pt.doc===null||S.pt.maas===null||!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Puantaj yükleniyor</b></div>`,()=>byId('geriL').onclick=listeyeDon);
+  let h=`<div class="weeknav"><button class="btn small" id="geriL" aria-label="Şube listesi">‹ Şubeler</button><button class="nav-arrow" id="ptPrev" aria-label="Önceki ay" ${ayKaydir(ak,-1)<BASLANGIC_AY?'disabled':''}>‹</button><div class="ttl">${esc(sb.ad)} · ${ayAdi(ak)}<small>${D.ad}</small></div><button class="nav-arrow" id="ptNext" aria-label="Sonraki ay">›</button></div>`;
+  const ayDeg=n=>{const y=ayKaydir(ak,n);if(y<BASLANGIC_AY)return;veriBosTemizle();S.ay=y;S.ayElle=true;S.pt.vsel=null;puantajAc(S.pt.sube);};
+  const navBagla=()=>{byId('geriL').onclick=listeyeDon;byId('ptPrev').onclick=()=>ayDeg(-1);byId('ptNext').onclick=()=>ayDeg(1);};
+  if(S.pt.doc===null||S.pt.maas===null||!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Puantaj yükleniyor</b></div>`,navBagla);
   const V=ptVerisi();const ad=S.aylar[ak]||{};
   if(sb.fmDonem==='hafta')h+=`<div class="banner ok">Fazla mesai dönemi: ${fmDonemYazi(ak,sb)} (haftalık). Rapor, izin ve bordro günü takvim ayına göre.</div>`;
   if(durum==='taslak')h+=`<div class="banner">Şube müdürü bu ayı henüz kapatmadı. Rakamlar çizelge değiştikçe güncellenir.</div>`;
@@ -785,7 +787,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     <div class="kti">${BK.map(x=>`<label class="kchip ${bk[x.k]?'on':''}"><input type="checkbox" data-bk="${esc(x.k)}" ${bk[x.k]?'checked':''}> ${esc(x.t)}</label>`).join('')}</div></div></div>`;
   const pOnc=ayKaydir(ak,-1);const pOnceki=(pOnc>=BASLANGIC_AY&&(S.aylar[pOnc]||{}).durum!=='bolge_onay')||bkEksik>0;if(bolgeIs&&pOnceki)h+=`<p class="note" style="color:var(--bad);font-weight:600">${pOnc>=BASLANGIC_AY&&(S.aylar[pOnc]||{}).durum!=='bolge_onay'?`${ayAdi(pOnc)} puantajı onaylanmadan bu ay onaylanamaz.`:`Onay öncesi kontrolde ${bkEksik} madde işaretlenmedi.`}</p>`;
   h+=`<div class="row2">${bolgeIs?`<button class="btn danger grow" id="geriB">Şubeye geri gönder</button>${pOnceki?`<button class="btn primary grow" disabled title="Önce önceki ay onaylanmalı">Onayla ve kilitle</button>`:'<button class="btn primary grow" id="onayB">Onayla ve kilitle</button>'}`:''}${isIsveren()&&durum==='bolge_onay'?'<button class="btn grow" id="acB">Kilidi aç</button>':''}</div>`;
-  view(h,()=>{byId('geriL').onclick=listeyeDon;document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{if(S.pt.gorunum==='veri'&&b.dataset.v!=='veri')veriBosTemizle();S.pt.gorunum=b.dataset.v;S.pt.vsel=null;render();});
+  view(h,()=>{navBagla();document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{if(S.pt.gorunum==='veri'&&b.dataset.v!=='veri')veriBosTemizle();S.pt.gorunum=b.dataset.v;S.pt.vsel=null;render();});
     const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
     if(S.pt._kf&&S.pt.gorunum!=='veri'){kfBagla(S.pt._kf.t,S.pt._kf.cols,S.pt._kf.rows);const kh=byId('kfHepsi');if(kh)kh.onclick=()=>{kfDurum(S.pt._kf.t).f={};render();};}
     if(S.pt.gorunum==='veri')veriGirisiBagla(V);else document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
