@@ -119,9 +119,9 @@ function sirala(list){return list.slice().sort((a,b)=>GRUP_SIRA.indexOf(a.grup||
 function haftaHesap(p,wid,sb=sube(),H=S.haftalar){let h=0,wd=0,bos=0;const kayit=weekHasEntry(p.id,wid,H);
   weekDays(wid).forEach((d,i)=>{if(!employed(p,d))return;const v=cellOf(p.id,wid,i,H);if(isShift(v)){h+=shiftHours(v);wd++;}else if((v==null||v==='')&&kayit)bos++;});
   return{h,wd,bos,fm:!kayit?0:(wd===7?h-sb.haftalik:h-(wd+bos)*sb.gunluk),kayit};}
-function ayHesap(p,ak,sb=sube(),H=S.haftalar){const[y,m]=ak.split('-').map(Number);const last=new Date(y,m,0);
+function ayHesap(p,ak,sb=sube(),H=S.haftalar,bitis=null){const[y,m]=ak.split('-').map(Number);const last=new Date(y,m,0);
   let h=0,fm=0,bos=0,gun=0,istihdam=0;const kod={};
-  for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(!employed(p,d))continue;istihdam++;const wid=mondayOf(d);const i=(d.getDay()+6)%7;
+  for(let d=new Date(y,m-1,1);d<=last&&(!bitis||ymd(d)<=bitis);d=addDays(d,1)){if(!employed(p,d))continue;istihdam++;const wid=mondayOf(d);const i=(d.getDay()+6)%7;
     const v=cellOf(p.id,wid,i,H);const kayit=weekHasEntry(p.id,wid,H);
     if(isShift(v)){const x=shiftHours(v);h+=x;fm+=x-sb.gunluk;gun++;}else if(v&&KOD[v])kod[v]=(kod[v]||0)+1;else if(kayit){fm-=sb.gunluk;bos++;}
     if(i===6&&kayit&&weekDays(wid).every((dd,j)=>isShift(cellOf(p.id,wid,j,H))))fm+=7*sb.gunluk-sb.haftalik;}
@@ -131,6 +131,10 @@ function ayHesap(p,ak,sb=sube(),H=S.haftalar){const[y,m]=ak.split('-').map(Numbe
   const tamAy=istihdam===last.getDate();
   const bordroGun=Math.max(0,(tamAy?30:Math.min(30,istihdam))-(kod.R||0)-(kod.UI||0));
   return{h,fm:fmYok?0:fm,bos:esnaf?0:bos,gun,kod,part,esnaf,partGun:part?Math.round(h/(sb.partSaat||8)*100)/100:0,bordroGun,tamAy};}
+// Çizelgedeki ay sütunu: o haftaya kadar (o hafta dahil) birikmiş fazla mesai ve saat. Haftalık dönemde dönemin haftaları, takvim ayında haftanın son gününe kadar.
+function ayKadar(p,wid,sb=sube(),H=S.haftalar){const ak=fmAyi(wid,sb);const fmYok=p.sekil==='Part'||isEsnaf(p);
+  if(sb.fmDonem==='hafta'){let h=0,fm=0;fmHaftalari(ak).filter(w=>w<=wid).forEach(w=>{const x=haftaHesap(p,w,sb,H);h+=x.h;fm+=x.fm;});return{h,fm:fmYok?0:fm};}
+  return ayHesap(p,ak,sb,H,ymd(addDays(parse(wid),6)));}
 function fmHaftalari(ak){const[y,m]=ak.split('-').map(Number);const L=[];let d=new Date(y,m-1,1);while(d.getDay()!==1)d=addDays(d,1);for(;d.getMonth()===m-1;d=addDays(d,7))L.push(ymd(d));return L;}
 function fmDonemYazi(ak,sb=sube()){if(sb.fmDonem!=='hafta')return'';const L=fmHaftalari(ak);if(!L.length)return'';const a=parse(L[0]),b=addDays(parse(L[L.length-1]),6);return `${a.getDate()} ${AYK[a.getMonth()]} – ${b.getDate()} ${AYK[b.getMonth()]}`;}
 // Çizelgedeki "ay fazla mesai" sütununun ayı: haftalık dönemde haftanın pazartesisinin ayı
@@ -355,9 +359,9 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
   const akF=fmAyi(wid,sb);const ak3=AYK[+akF.slice(5)-1];
   const czMod=tryLS('pm.czMod')||'sutun';
   h+=`<div class="czmod"><span>Telefon görünümü</span><div class="seg" id="czMod"><button data-v="sutun" class="${czMod==='sutun'?'on':''}">İsim solda</button><button data-v="satir" class="${czMod==='satir'?'on':''}">İsim üstte</button></div></div>`;
-  h+=`<div class="grid cz-${czMod}" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>fazla mesai</span></div>`;
+  h+=`<div class="grid cz-${czMod}" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>bu haftaya kadar</span></div>`;
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
-    kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayHesap(p,akF,sb);
+    kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesap(p,wid,sb);const ay=ayKadar(p,wid,sb);
       const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
       const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.h)}<small>sa</small>`]:[sg(wk.fm),sg(ay.fm)];
       h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}"><span class="adU">${esc(adBuyuk(p.ad))}</span><span class="adK">${esc(adBuyuk(kisaAd(p.ad)))}</span></b><span>${alt}</span><em class="nmfm">${isEsnaf(p)||p.sekil==='Part'?`${ak3} ${fmH[1]}`:`hafta <i>${fmH[0]}</i> · ${ak3} <i>${fmH[1]}</i>`}</em><em class="nmfmK">${isEsnaf(p)||p.sekil==='Part'?`<i class="fmp sa" title="Bu hafta çalışılan saat">${fmt(wk.h)} sa</i>`:`<i class="fmp ${wk.fm>0.004?'art':wk.fm<-0.004?'eks':'sif'}" title="Bu haftanın fazla mesaisi">${sg(wk.fm)}</i>`}</em></button>`;
@@ -1188,7 +1192,7 @@ async function cizelgeGorseli(withFm,gruplar){const sb=sube();const wid=S.hafta;
   x.font=F(600,16);x.globalAlpha=.8;x.fillText(`${rangeLabel(wid)}  ·  Açılış ${sb.acilis}  ·  Kapanış ${sb.kapanis}`,pad,58);x.globalAlpha=1;let y=headH;x.textAlign='center';
   ds.forEach((d,i)=>{const X=pad+nameW+i*dayW;rr(X+3,y,dayW-6,dayH-6,9,C.soft);x.fillStyle=C.ink;x.font=F(800,18);x.fillText(GUNU[i].toLocaleUpperCase('tr-TR'),X+dayW/2,y+19);x.fillStyle=C.navy;x.font=F(700,15.5);x.fillText(`${d.getDate()} ${AY[d.getMonth()]}`,X+dayW/2,y+41);});
   const FMR=[{bg:'#dbeafe',yazi:'#1e3a8a',alt:'#3b5b9a',hb:'#c7dcfb'},{bg:'#1f3a6b',yazi:'#ffffff',alt:'#c9d6ee',hb:'#16305c'}];
-  if(withFm)[['Bu hafta','fazla mesai'],[`${AY[+fmAyi(wid,sb).slice(5)-1]}`,'toplam']].forEach(([t,a2],j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y,fmW-6,dayH-6,9,R.hb);x.fillStyle=R.yazi;x.font=F(800,14.5);x.fillText(t,X+fmW/2,y+20);x.fillStyle=R.alt;x.font=F(600,12);x.fillText(a2,X+fmW/2,y+40);});
+  if(withFm)[['Bu hafta','fazla mesai'],[`${AY[+fmAyi(wid,sb).slice(5)-1]}`,'bu haftaya kadar']].forEach(([t,a2],j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y,fmW-6,dayH-6,9,R.hb);x.fillStyle=R.yazi;x.font=F(800,14.5);x.fillText(t,X+fmW/2,y+20);x.fillStyle=R.alt;x.font=F(600,12);x.fillText(a2,X+fmW/2,y+40);});
   y+=dayH;let son=null;
   kisiler.forEach(p=>{const g=p.grup||'K';if(g!==son){son=g;x.textAlign='left';x.fillStyle=C.navy;x.font=F(800,14);x.fillText(GRUP[g].toLocaleUpperCase('tr-TR'),pad+2,y+groupH/2+2);x.fillStyle=C.line;x.fillRect(pad+90,y+groupH/2+2,W-pad*2-90,1);y+=groupH;}
     x.textAlign='left';x.fillStyle=C.ink;x.font=F(700,16);x.fillText(p.ad.toLocaleUpperCase('tr-TR'),pad+2,y+rowH/2,nameW-10);x.textAlign='center';
@@ -1196,7 +1200,7 @@ async function cizelgeGorseli(withFm,gruplar){const sb=sube();const wid=S.hafta;
       if(isShift(v)){const k=shiftKind(v,sb);const[a,b]=v.split('-');const hw=(w-4)/2;rr(X,Y,hw,hh,7,k.o?C.open:C.soft);rr(X+hw+4,Y,hw,hh,7,k.k?C.close:C.soft);x.font=F(700,18,1);x.fillStyle=k.o?C.openI:C.ink;x.fillText(a,X+hw/2,Y+hh/2+1);x.fillStyle=k.k?C.closeI:C.ink;x.fillText(b,X+hw+4+hw/2,Y+hh/2+1);}
       else if(v&&KOD[v]){const kr=KOD_RENK[v]||[C.code,C.codeI];rr(X,Y,w,hh,7,kr[0]);x.fillStyle=kr[1];x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
       else{rr(X,Y,w,hh,7,BOS_RENK);x.strokeStyle='#f0b4b4';x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
-    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,fmAyi(wid,sb),sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y+3,fmW-6,rowH-6,7,R.bg);x.fillStyle=R.yazi;x.font=F(j?800:700,17,1);x.fillText(t,X+fmW/2,y+rowH/2+1);});}
+    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayKadar(p,wid,sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y+3,fmW-6,rowH-6,7,R.bg);x.fillStyle=R.yazi;x.font=F(j?800:700,17,1);x.fillText(t,X+fmW/2,y+rowH/2+1);});}
     y+=rowH;});
   x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
