@@ -167,12 +167,18 @@ function subeOzeti(ak,sid=S.subeId){const sb=sube(sid);const out={};ayKadrosu(ak
 function gunHaritasi(p,ak,H=S.haftalar){const[y,m]=ak.split('-').map(Number);const g={};
   for(let d=new Date(y,m-1,1);d.getMonth()===m-1;d=addDays(d,1)){if(!employed(p,d))continue;const v=cellOf(p.id,mondayOf(d),(d.getDay()+6)%7,H);if(isShift(v)||(v&&KOD[v]))g[ymd(d)]=v;}return g;}
 const IZIN_KODLARI=['R','UI','YI'];
+// Aynı kişi mi: iki kayıtta da TC varsa TC, yoksa ad soyad.
+function ayniKisi(a,b){if(a.tc&&b.tc)return a.tc===b.tc;return isimAnahtar(a.ad)===isimAnahtar(b.ad);}
+const sgkVar=p=>!!(p.sgkSube&&p.sgkSube!==SGK_YOK);
+// SGK şube değişikliği: aynı kişinin bu ay farklı şubelerde (farklı tarihlerde) SGK kaydı. En son girişli kayıt başta.
+function sgkGecisGrubu(p,ak){if(!sgkVar(p))return[];const L=S.personel.filter(x=>sgkVar(x)&&aktifAyda(x,ak)&&(x.id===p.id||(ayniKisi(x,p)&&x.sgkSube!==p.sgkSube)));
+  if(L.length<2)return[];return L.sort((a,b)=>String(b.giris||'').localeCompare(String(a.giris||'')));}
 function vardiyaAralik(v){const[a,b]=v.split('-');const s=tnum(a);let e=tnum(b);if(e<=s)e+=24;return[s,e];}
 // Birden fazla şubenin gün haritasını birleştirir: aynı gün aynı kod bir kez sayılır; saat çakışması ve izinliyken çalışma bulunur.
 // kaynaklar: [{sube, g, sayac}] — g yoksa (eski özet) sayac olduğu gibi eklenir.
-function gunBirlestir(kaynaklar){const tarih={R:new Set(),UI:new Set(),YI:new Set(),B:new Set()};const ek={R:0,UI:0,YI:0,B:0};const gunler={};
+function gunBirlestir(kaynaklar,filtre=null){const tarih={R:new Set(),UI:new Set(),YI:new Set(),B:new Set()};const ek={R:0,UI:0,YI:0,B:0};const gunler={};
   kaynaklar.forEach(k=>{if(!k.g){Object.keys(ek).forEach(c=>ek[c]+=(k.sayac&&k.sayac[c])||0);return;}
-    Object.entries(k.g).forEach(([d,v])=>{if(tarih[v])tarih[v].add(d);(gunler[d]=gunler[d]||[]).push({sube:k.sube,v});});});
+    Object.entries(k.g).forEach(([d,v])=>{if(filtre&&!filtre(d))return;if(tarih[v])tarih[v].add(d);(gunler[d]=gunler[d]||[]).push({sube:k.sube,v});});});
   const cakisma=[];Object.keys(gunler).sort().forEach(d=>{const L=gunler[d];if(L.length<2)return;const vard=L.filter(x=>isShift(x.v)),izin=L.filter(x=>IZIN_KODLARI.includes(x.v));let sorun=false;
     for(let i=0;i<vard.length&&!sorun;i++)for(let j=i+1;j<vard.length;j++){const[a1,b1]=vardiyaAralik(vard[i].v),[a2,b2]=vardiyaAralik(vard[j].v);if(a1<b2&&a2<b1){sorun=true;break;}}
     if(!sorun&&vard.length&&izin.length)sorun=true;
@@ -182,20 +188,27 @@ function gunBirlestir(kaynaklar){const tarih={R:new Set(),UI:new Set(),YI:new Se
 function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube(sid);const out={};const burada=subeOzeti(ak,sid);
   const ids=new Set(Object.keys(burada));ekIds.forEach(x=>{if(S.personel.some(p=>p.id===x))ids.add(x);});S.personel.forEach(p=>{if((maasSubesi(p)===sid||odemeSubesi(p,ak)===sid)&&aktifAyda(p,ak))ids.add(p.id);});
   // Aynı kişi birden fazla şubenin listesinde ayrı kayıtla olabilir (SGK'sı burada): isimle tek satırda birleşir.
-  const esler={};const grp={};[...ids].forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(p&&maasSubesi(p)===sid)(grp[isimAnahtar(p.ad)]=grp[isimAnahtar(p.ad)]||[]).push(p);});
-  Object.values(grp).forEach(L=>{if(L.length<2)return;L.sort((a,b)=>(b.anaSube===sid)-(a.anaSube===sid));esler[L[0].id]=L.map(x=>x.id);L.slice(1).forEach(x=>ids.delete(x.id));});
+  const esler={};const grp={};[...ids].forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(p)(grp[isimAnahtar(p.ad)]=grp[isimAnahtar(p.ad)]||[]).push(p);});
+  // Satırın asıl kaydı: SGK'sı burada olan (birden fazlaysa bu ay SGK'lı olan), sonra çalıştığı şube burada olan.
+  Object.values(grp).forEach(L=>{if(L.length<2)return;const sg=x=>aktifAyda(x,ak)&&sgkVar(x)?1:0;
+    L.sort((a,b)=>(maasSubesi(b)===sid)-(maasSubesi(a)===sid)||sg(b)-sg(a)||String(b.giris||'').localeCompare(String(a.giris||''))||(b.anaSube===sid)-(a.anaSube===sid));esler[L[0].id]=L.map(x=>x.id);L.slice(1).forEach(x=>ids.delete(x.id));});
   const[y,m]=ak.split('-').map(Number);const last=new Date(y,m,0);
   ids.forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(!p)return;const pids=esler[pid]||[pid];const o={saat:0,fm:0,gun:0,bos:0,R:0,UI:0,YI:0,B:0};
-    pids.forEach(q=>{const b=burada[q];if(b)Object.keys(o).forEach(k=>o[k]+=b[k]||0);});const maasBurada=odemeSubesi(p,ak)===sid;const muhBurada=maasSubesi(p)===sid;const tumGun=maasBurada||muhBurada;
+    pids.forEach(q=>{const b=burada[q];if(b)Object.keys(o).forEach(k=>o[k]+=b[k]||0);});const tg=sgkGecisGrubu(p,ak);const maasKaydi=tg.length?tg[0]:p;// şube değişikliği olan ayda maaş tek kayıtta (son SGK girişi)
+    const maasBurada=maasKaydi.id!==p.id?false:odemeSubesi(p,ak)===sid;const muhBurada=maasSubesi(p)===sid;const tumGun=maasBurada||muhBurada;
     const t={R:o.R,UI:o.UI,YI:o.YI,B:o.B,saat:o.saat,baska:[],cakisma:[]};
-    const kaynak=[];pids.forEach(q=>{const b=burada[q];if(b)kaynak.push({sube:sid,g:b.g,sayac:b});});
-    if(tumGun)Object.entries(diger).forEach(([s2,k])=>{if(s2===sid||!k)return;let var_=false;pids.forEach(q=>{const x=k[q];if(!x)return;var_=true;kaynak.push({sube:s2,g:x.g,sayac:x});t.saat+=x.saat||0;});if(var_)t.baska.push(subeAdi(s2));});
+    const tumPid=[...new Set([...pids,...tg.map(x=>x.id)])];
+    const kaynak=[];tumPid.forEach(q=>{const b=burada[q];if(b)kaynak.push({sube:sid,g:b.g,sayac:b});});
+    if(tumGun)Object.entries(diger).forEach(([s2,k])=>{if(s2===sid||!k)return;let var_=false;tumPid.forEach(q=>{const x=k[q];if(!x)return;var_=true;kaynak.push({sube:s2,g:x.g,sayac:x});t.saat+=x.saat||0;});if(var_)t.baska.push(subeAdi(s2));});
     // İzin, rapor ve bayram: aynı gün iki şubede yazılsa da 1 gün sayılır.
-    if(kaynak.length){const bl=gunBirlestir(kaynak);t.R=bl.say.R;t.UI=bl.say.UI;t.YI=bl.say.YI;t.B=bl.say.B;t.cakisma=bl.cakisma;}
-    let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(sgkli(p,d))ist++;if(employed(p,d))istF++;}
-    const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const hakGun=Math.max(0,(istF===last.getDate()?30:Math.min(30,istF))-t.R-t.UI);const part=p.sekil==='Part';
+    // Muhasebe: sadece bu kaydın SGK'lı olduğu günler (şube değişikliğinde her gün o tarihteki SGK şubesine gider).
+    let tH={R:0,UI:0};
+    if(kaynak.length){const bl=gunBirlestir(kaynak,sgkVar(p)?(d=>sgkli(p,parse(d))):null);t.R=bl.say.R;t.UI=bl.say.UI;t.YI=bl.say.YI;t.B=bl.say.B;t.cakisma=gunBirlestir(kaynak).cakisma;
+      tH=tg.length?gunBirlestir(kaynak,d=>tg.some(x=>employed(x,parse(d)))).say:t;}
+    let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(sgkli(p,d))ist++;if(tg.length?tg.some(x=>employed(x,d)):employed(p,d))istF++;}
+    const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const hakGun=Math.max(0,(istF===last.getDate()?30:Math.min(30,istF))-tH.R-tH.UI);const part=p.sekil==='Part';
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
-      rapor:tumGun?t.R:0,ucretsiz:tumGun?t.UI:0,yillik:tumGun?t.YI:0,bayram:tumGun?t.B:0,muhBurada,odemeSube:subeAdi(odemeSubesi(p,ak)),partGun:0,// part gün elle, veri girişinden
+      rapor:tumGun?t.R:0,ucretsiz:tumGun?t.UI:0,yillik:tumGun?t.YI:0,bayram:tumGun?t.B:0,muhBurada,odemeSube:subeAdi(odemeSubesi(maasKaydi,ak)),partGun:0,// part gün elle, veri girişinden
       muhSekil:p.sekil||'Tam',
       fmSaat:o.fm,calisilanSaat:o.saat,gun:tumGun&&!part?gun:0,hakGun:tumGun?hakGun:0,// part: bordro günü = part gün (veri girişinden)
       baslama:p.baslama&&p.baslama<(p.giris||'9')?p.baslama:'',bosGun:o.bos,baska:t.baska,cakisma:t.cakisma,sgkYok:p.sgkSube===SGK_YOK};});
@@ -522,8 +535,11 @@ async function tcYukle(list){if(!puantajYetki())return;S.tcler=S.tcler||{};const
 function tcOf(p){if(p.tc)return p.tc;const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':'';}
 function bilgiKaydet(p,f,v){p[f.k]=v;return sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),{[f.k]:v},{merge:true}));}
 // Personel listesi: tek tablo, her şey satır içinde düzenlenir, değişiklik anında kaydedilir.
-function sgkCakisma(p,sgkV,ad){if(!sgkV||sgkV===SGK_YOK)return null;const td0=ymd(today());
-  return S.personel.find(x=>x.id!==p.id&&x.sgkSube&&x.sgkSube!==SGK_YOK&&x.sgkSube!==sgkV&&(isimAnahtar(x.ad)===isimAnahtar(ad||p.ad)||(p.tc&&x.tc===p.tc))&&(!x.cikis||x.cikis>=td0))||null;}
+// Aynı kişi farklı tarihlerde farklı şubelerde SGK'lı olabilir (şube değişikliği); aynı tarihlerde olamaz.
+function tarihCakisir(g1,c1,g2,c2){return (!c2||!g1||g1<=c2)&&(!c1||!g2||g2<=c1);}
+function sgkCakisma(p,sgkV,ad,gi=p.giris,ci=p.cikis){if(!sgkV||sgkV===SGK_YOK)return null;
+  return S.personel.find(x=>x.id!==p.id&&x.sgkSube&&x.sgkSube!==SGK_YOK&&x.sgkSube!==sgkV&&ayniKisi(x,{...p,ad:ad||p.ad})&&tarihCakisir(gi,ci,x.giris,x.cikis))||null;}
+function sgkCakismaMesaj(c){return `${adBuyuk(c.ad)} ${trTarih(c.giris)||'?'} – ${c.cikis?trTarih(c.cikis):'devam'} arası ${subeAdi(c.sgkSube)} şubesinde SGK'lı. Aynı tarihlerde iki şubede SGK olamaz; tarihleri ayırın (örneğin oradan çıkış 1 Eylül, buraya giriş 2 Eylül).`;}
 function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';const CAL=gor==='calisma';
   const list=sirala(subePersoneli());const td=ymd(today());const L=[...list.filter(p=>!p.cikis||p.cikis>=td),...list.filter(p=>p.cikis&&p.cikis<td)];
   const F=CAL?[]:BILGI;
@@ -566,15 +582,15 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
       // Tarih alanı yazılırken her rakamda değişiklik gelir; sadece alandan çıkınca ve yıl tamamsa kaydet.
       if(tarihMi){el.onchange=null;el.onkeydown=e=>{if(e.key==='Enter')el.blur();};}
       el[tarihMi?'onblur':'onchange']=()=>{const p=pOf(el);if(!p)return;const v=el.value;if(tarihMi){if(v===(p[x]||''))return;if(v&&(+v.slice(0,4)<1990||+v.slice(0,4)>2100))return geri(el,'Tarih hatalı, yılı 4 haneli yazın.',p[x]||'');}
-        if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı.`,adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
+        if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,sgkCakismaMesaj(c),adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
         if(x==='gorev'){const g=gorevBul(v);if(!g)return;const body={gorev:g.ad,grup:g.grup,sekil:g.sekil||(p.sekil==='Part'?'Part':'Tam')};yaz1(p,body,true);return;}
         if(x==='sekil'){yaz1(p,{sekil:v});return;}
         if(x==='maasYeri'){const ak=ayKey(today());const sgk0=p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:'';const my=v===sgk0&&v!==(p.anaSube||S.subeId)?'sgk':'calistigi';const ym=maasGecmisYama(p,v,ak);yaz1(p,{maasYeri:my,...(ym||{})},true);const hs=odemeSubesi(p,ak);toast(`${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren maaşı ${subeAdi(hs)} puantajında; önceki aylar değişmez.${hs!==p.sgkSube&&p.sgkSube&&p.sgkSube!==SGK_YOK?` Muhasebe ${subeAdi(p.sgkSube)}'de kalır.`:''}`);return;}
-        if(x==='sgkSube'){if(!v)return;const c=sgkCakisma(p,v);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı. Bir kişi sadece bir şubede SGK'lı olabilir.`,p.sgkSube||'');
+        if(x==='sgkSube'){if(!v)return;const c=sgkCakisma(p,v);if(c)return geri(el,sgkCakismaMesaj(c),p.sgkSube||'');
           const eski=p.sgkSube;const ymS=maasGecmisYama(p,{sgkSube:v},ayKey(today()));yaz1(p,{sgkSube:v,...(ymS||{})},true);if(v!==SGK_YOK&&v!==(p.anaSube||S.subeId)&&v!==eski){if(erisimVar(v)){cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} listesine ve çizelgesine de eklendi.`);}else toast(`${subeAdi(v)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir.`);}return;}
         if(x==='anaSube'){if(!v||v===p.anaSube)return;const ak=ayKey(today());const ym=maasGecmisYama(p,{anaSube:v},ak);yaz1(p,{anaSube:v,...(ym||{})},true);cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} çizelgesine eklendi.${ym?` Maaşı ${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren ${subeAdi(odemeSubesi(p,ak))} puantajında; önceki aylar değişmez.`:''}`);return;}
         if(x==='baslama'){if(v&&p.giris&&v>p.giris)return geri(el,'İşe başlama SGK girişinden sonra olamaz. Boş bırakılırsa SGK girişi kullanılır.',p.baslama||'');yaz1(p,{baslama:v},true);return;}
-        if(x==='giris'||x==='cikis'){const gi=x==='giris'?v:p.giris,ci=x==='cikis'?v:p.cikis;if(gi&&ci&&ci<gi)return geri(el,'Çıkış tarihi girişten önce olamaz.',p[x]||'');yaz1(p,{[x]:v},x==='cikis');return;}};});
+        if(x==='giris'||x==='cikis'){const gi=x==='giris'?v:p.giris,ci=x==='cikis'?v:p.cikis;if(gi&&ci&&ci<gi)return geri(el,'Çıkış tarihi girişten önce olamaz.',p[x]||'');{const c=sgkCakisma(p,p.sgkSube,p.ad,gi,ci);if(c)return geri(el,sgkCakismaMesaj(c),p[x]||'');}yaz1(p,{[x]:v},x==='cikis');return;}};});
     const inp=(r,c)=>tb.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
     const kaydet=(el,sessiz)=>{const p=L[+el.dataset.r];const f=F[+el.dataset.c];if(!p||!f)return true;const r=bilgiCoz(f,el.value);
       if(r.hata){el.classList.add('bad');el.title=r.hata;if(!sessiz)toast(`${kisaAd(p.ad)} · ${r.hata}`);return false;}
@@ -659,8 +675,8 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
      const g=gorevBul(G.value);if(!g){W.innerHTML='<div class="confirm">Görev seçin.</div>';return;}
      const sgkV=byId('pSgk').value;if(!sgkV){W.innerHTML='<div class="confirm">SGK şubesini seçin. SGK şubesi yoksa "Boş" seçeneğini seçin.</div>';return;}
      // Bir kişi sadece bir şubede SGK'lı olabilir: aynı isim ya da TC'li başka kayıt başka şubede SGK'lıysa kaydetme.
-     if(sgkV!==SGK_YOK){const tcK=p.tc||'';const cak=S.personel.find(x=>x.id!==id&&x.sgkSube&&x.sgkSube!==SGK_YOK&&x.sgkSube!==sgkV&&(isimAnahtar(x.ad)===isimAnahtar(ad)||(tcK&&x.tc===tcK))&&(!x.cikis||x.cikis>=ymd(today())));
-       if(cak){W.innerHTML=`<div class="confirm bad">${esc(adBuyuk(cak.ad))} zaten ${esc(subeAdi(cak.sgkSube))} şubesinde SGK'lı. Bir kişi sadece bir şubede SGK'lı olabilir. Başka şubede de çalışıyorsa SGK şubesini ${esc(subeAdi(cak.sgkSube))} bırakın, "Çalıştığı şube"yi değiştirin.</div>`;return;}}
+     if(sgkV!==SGK_YOK){const tcK=p.tc||'';const cak=sgkCakisma({...p,id,tc:tcK},sgkV,ad,byId('pGiris').value,byId('pCikis').value);
+       if(cak){W.innerHTML=`<div class="confirm bad">${esc(sgkCakismaMesaj(cak))} Aynı dönemde başka şubede de çalışıyorsa SGK şubesini ${esc(subeAdi(cak.sgkSube))} bırakın, "Çalıştığı şube"yi değiştirin.</div>`;return;}}
      const anaS=byId('pAna').value||S.subeId;const ayni=subePersoneli(anaS).find(x=>x.id!==id&&isimAnahtar(x.ad)===isimAnahtar(ad));if(ayni&&!W.dataset.ok){W.dataset.ok='1';W.innerHTML=`<div class="confirm">${esc(subeAdi(anaS))} listesinde bu isimde biri zaten var. Aynı kişiyse yeni kayıt açmayın. Farklı kişiyse tekrar Kaydet'e basın.</div>`;return;}
      const bilgi={};
      const giris=byId('pGiris').value,cikis=byId('pCikis').value;if(giris&&cikis&&cikis<giris){W.innerHTML='<div class="confirm">Çıkış tarihi girişten önce olamaz.</div>';return;}
