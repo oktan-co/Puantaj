@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=64";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=65";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -1148,7 +1148,8 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
   x.fillStyle=C.bg;x.fillRect(0,0,W,H);x.fillStyle=C.navy;x.fillRect(0,0,W,headH-14);x.fillStyle='#fff';x.textBaseline='middle';x.font=F(800,28);x.fillText(`${sb.ad} · Haftalık çizelge`,pad,30);
   x.font=F(600,16);x.globalAlpha=.8;x.fillText(`${rangeLabel(wid)}  ·  Açılış ${sb.acilis}  ·  Kapanış ${sb.kapanis}`,pad,58);x.globalAlpha=1;let y=headH;x.textAlign='center';
   ds.forEach((d,i)=>{const X=pad+nameW+i*dayW;rr(X+3,y,dayW-6,dayH-8,8,C.soft);x.fillStyle=C.ink;x.font=F(800,15);x.fillText(GUNU[i].toLocaleUpperCase('tr-TR'),X+dayW/2,y+15);x.fillStyle=C.mut;x.font=F(600,13);x.fillText(`${d.getDate()} ${AY[d.getMonth()]}`,X+dayW/2,y+32);});
-  if(withFm)['Hafta',`${AYK[+fmAyi(wid,sb).slice(5)-1]}`].forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;rr(X+3,y,fmW-6,dayH-8,8,C.soft);x.fillStyle=C.ink;x.font=F(800,14);x.fillText(t,X+fmW/2,y+14);x.fillStyle=C.mut;x.font=F(600,11);x.fillText('fazla mesai',X+fmW/2,y+31);});
+  const FMR=[{bg:'#dbeafe',yazi:'#1e3a8a',alt:'#3b5b9a',hb:'#c7dcfb'},{bg:'#1f3a6b',yazi:'#ffffff',alt:'#c9d6ee',hb:'#16305c'}];
+  if(withFm)[['Bu hafta','fazla mesai'],[`${AY[+fmAyi(wid,sb).slice(5)-1]}`,'toplam']].forEach(([t,a2],j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y,fmW-6,dayH-8,8,R.hb);x.fillStyle=R.yazi;x.font=F(800,13.5);x.fillText(t,X+fmW/2,y+14);x.fillStyle=R.alt;x.font=F(600,11);x.fillText(a2,X+fmW/2,y+31);});
   y+=dayH;let son=null;
   kisiler.forEach(p=>{const g=p.grup||'K';if(g!==son){son=g;x.textAlign='left';x.fillStyle=C.navy;x.font=F(800,14);x.fillText(GRUP[g].toLocaleUpperCase('tr-TR'),pad+2,y+groupH/2+2);x.fillStyle=C.line;x.fillRect(pad+90,y+groupH/2+2,W-pad*2-90,1);y+=groupH;}
     x.textAlign='left';x.fillStyle=C.ink;x.font=F(700,16);x.fillText(p.ad.toLocaleUpperCase('tr-TR'),pad+2,y+rowH/2,nameW-10);x.textAlign='center';
@@ -1156,7 +1157,7 @@ async function cizelgeGorseli(withFm){const sb=sube();const wid=S.hafta;const ds
       if(isShift(v)){const k=shiftKind(v,sb);const[a,b]=v.split('-');const hw=(w-4)/2;rr(X,Y,hw,hh,7,k.o?C.open:C.soft);rr(X+hw+4,Y,hw,hh,7,k.k?C.close:C.soft);x.font=F(700,18,1);x.fillStyle=k.o?C.openI:C.ink;x.fillText(a,X+hw/2,Y+hh/2+1);x.fillStyle=k.k?C.closeI:C.ink;x.fillText(b,X+hw+4+hw/2,Y+hh/2+1);}
       else if(v&&KOD[v]){const kr=KOD_RENK[v]||[C.code,C.codeI];rr(X,Y,w,hh,7,kr[0]);x.fillStyle=kr[1];x.font=F(800,13);x.fillText(KOD[v].ad.toLocaleUpperCase('tr-TR'),X+w/2,Y+hh/2+1);}
       else{rr(X,Y,w,hh,7,BOS_RENK);x.strokeStyle='#f0b4b4';x.setLineDash([4,4]);x.beginPath();x.roundRect?x.roundRect(X+.5,Y+.5,w-1,hh-1,7):x.rect(X,Y,w,hh);x.stroke();x.setLineDash([]);}});
-    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,fmAyi(wid,sb),sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{x.fillStyle=C.ink;x.font=F(700,17,1);x.fillText(t,pad+nameW+7*dayW+j*fmW+fmW/2,y+rowH/2+1);});}
+    if(withFm){const wk=haftaHesap(p,wid,sb),ay=ayHesap(p,fmAyi(wid,sb),sb);const vals=isEsnaf(p)||p.sekil==='Part'?[fmt(wk.h)+' sa',fmt(ay.h)+' sa']:[sg(wk.fm),sg(ay.fm)];vals.forEach((t,j)=>{const X=pad+nameW+7*dayW+j*fmW;const R=FMR[j];rr(X+3,y+3,fmW-6,rowH-6,7,R.bg);x.fillStyle=R.yazi;x.font=F(j?800:700,17,1);x.fillText(t,X+fmW/2,y+rowH/2+1);});}
     y+=rowH;});
   x.textAlign='left';x.font=F(600,12.5);let lx=pad;y+=22;[[C.open,'Açılış saati'],[C.close,'Kapanış saati'],...KOD_SIRA.filter(k=>k!=='B').map(k=>[KOD_RENK[k][0],KOD[k].ad])].forEach(([c,t])=>{rr(lx,y-7,14,14,3,c);x.fillStyle=C.mut;x.fillText(t,lx+20,y);lx+=x.measureText(t).width+44;});
   return cv;}
