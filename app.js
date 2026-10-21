@@ -2,7 +2,7 @@ import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/fireba
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=61";
+import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=62";
 
 /* ================= Sabitler ================= */
 const AY=['Ocak','Şubat','Mart','Nisan','Mayıs','Haziran','Temmuz','Ağustos','Eylül','Ekim','Kasım','Aralık'];
@@ -138,7 +138,7 @@ function fmAyi(wid,sb=sube()){return sb.fmDonem==='hafta'?ayKey(parse(wid)):gost
 // Haftanın listesi (kadro): o hafta çizelgede görünen kişiler. Kayıtlı değilse önceki haftanın listesi önerilir.
 function maasSubesi(p){return p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:(p.anaSube||'');}
 // Maaşın ödendiği şube: varsayılan SGK şubesi; "çalıştığı şubede" seçildiyse çalıştığı şube. Muhasebe (bordro) her zaman SGK şubesinde.
-function odemeSubesi(p){return p.maasYeri==='calistigi'&&p.anaSube?p.anaSube:maasSubesi(p);}
+function odemeSubesi(p){const sgk=p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:'';if(sgk&&p.anaSube&&sgk!==p.anaSube&&p.maasYeri!=='sgk')return p.anaSube;return maasSubesi(p);}
 function kadroDoc(wid,H=S.haftalar){const w=H[wid];if(!w)return null;if(Array.isArray(w.kadro))return w.kadro;const c=Object.keys(w.cells||{});return c.length?c:null;}
 function kadroOf(wid){const k=kadroDoc(wid);if(k)return{ids:k,oneri:false};const ds=weekDays(wid);
   for(let i=1;i<=8;i++){const kk=kadroDoc(ymd(addDays(parse(wid),-7*i)));if(kk)return{ids:kk.filter(id=>{const p=S.personel.find(x=>x.id===id);return p&&ds.some(d=>employed(p,d));}),oneri:true};}
@@ -507,7 +507,7 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
      <td class="bi">${`<select data-x="sekil" ${dis} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,'Esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select>`}</td>
      <td class="bi"><select data-x="sgkSube" class="${p.sgkSube?'':'bad'}" ${dis}>${p.sgkSube?'':opt('','Seçin',true)}${opt(SGK_YOK,'Boş',p.sgkSube===SGK_YOK)}${subeler.map(([sid,ad])=>opt(sid,ad,p.sgkSube===sid)).join('')}</select></td>
      <td class="bi"><select data-x="anaSube" ${dis}>${(anaSec.includes(ana)?anaSec:[ana,...anaSec]).map(x=>opt(x,subeAdi(x),ana===x)).join('')}</select></td>
-     <td class="bi">${p.sgkSube&&p.sgkSube!==SGK_YOK&&p.sgkSube!==ana?`<select data-x="maasYeri" ${dis} title="Muhasebe ve bordro SGK şubesinde kalır; sadece maaş ödemesi seçilen şubede hesaplanır">${opt('',subeAdi(p.sgkSube)+' (SGK)',p.maasYeri!=='calistigi')}${opt('calistigi',subeAdi(ana)+' (çalıştığı)',p.maasYeri==='calistigi')}</select>`:'<span style="color:var(--mut);padding:0 6px">—</span>'}</td>
+     <td class="bi">${p.sgkSube&&p.sgkSube!==SGK_YOK&&p.sgkSube!==ana?`<select data-x="maasYeri" ${dis} title="Muhasebe ve bordro SGK şubesinde kalır; sadece maaş ödemesi seçilen şubede hesaplanır">${opt('calistigi',subeAdi(ana)+' (çalıştığı)',p.maasYeri!=='sgk')}${opt('sgk',subeAdi(p.sgkSube)+' (SGK)',p.maasYeri==='sgk')}</select>`:'<span style="color:var(--mut);padding:0 6px">—</span>'}</td>
      <td class="bi"><input type="date" data-x="giris" class="${p.giris?'':'bos'}" value="${esc(p.giris||'')}" ${dis}></td>
      <td class="bi"><input type="date" data-x="baslama" class="${p.baslama?'':'bos'}" value="${esc(p.baslama||'')}" title="SGK'dan önce deneme için çalıştığı ilk gün. Boşsa SGK girişi." ${dis}></td>
      <td class="bi"><input type="date" data-x="cikis" class="${p.cikis?'':'bos'}" value="${esc(p.cikis||'')}" ${dis}></td>
@@ -535,7 +535,7 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
         if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı.`,adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
         if(x==='gorev'){const g=gorevBul(v);if(!g)return;const body={gorev:g.ad,grup:g.grup,sekil:g.sekil||(p.sekil==='Part'?'Part':'Tam')};yaz1(p,body,true);return;}
         if(x==='sekil'){yaz1(p,{sekil:v});return;}
-        if(x==='maasYeri'){yaz1(p,{maasYeri:v},true);toast(v==='calistigi'?`Maaşı ${subeAdi(p.anaSube)} puantajında hesaplanacak; muhasebe ${subeAdi(p.sgkSube)}'de kalır.`:`Maaşı ${subeAdi(p.sgkSube)} puantajında hesaplanacak.`);return;}
+        if(x==='maasYeri'){yaz1(p,{maasYeri:v},true);toast(v!=='sgk'?`Maaşı ${subeAdi(p.anaSube)} puantajında hesaplanacak; muhasebe ${subeAdi(p.sgkSube)}'de kalır.`:`Maaşı ${subeAdi(p.sgkSube)} puantajında hesaplanacak.`);return;}
         if(x==='sgkSube'){if(!v)return;const c=sgkCakisma(p,v);if(c)return geri(el,`${adBuyuk(c.ad)} zaten ${subeAdi(c.sgkSube)} şubesinde SGK'lı. Bir kişi sadece bir şubede SGK'lı olabilir.`,p.sgkSube||'');
           const eski=p.sgkSube;yaz1(p,{sgkSube:v},true);if(v!==SGK_YOK&&v!==(p.anaSube||S.subeId)&&v!==eski){if(erisimVar(v)){cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} listesine ve çizelgesine de eklendi.`);}else toast(`${subeAdi(v)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir.`);}return;}
         if(x==='anaSube'){if(!v||v===p.anaSube)return;yaz1(p,{anaSube:v},true);cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} çizelgesine eklendi.`);return;}
@@ -723,9 +723,14 @@ function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=nul
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
 function ucretSekli(pid){const m=S.pt.maas||{};const u=m.ucretSekli&&m.ucretSekli[pid];if(u)return u;return m.paketBasi&&m.paketBasi[pid]?'paket':'maas';}
 function paketBasiMi(pid){return ucretSekli(pid)==='paket';}
-function usOf(pid){const m=S.pt.maas||{};return{tip:ucretSekli(pid),saatUcret:sayi(m.saatUcret&&m.saatUcret[pid])};}
+// Ücretler aya göre: "x ayından itibaren" kaydı tutulur, geçmiş aylar değişmez.
+function ayDegeri(eski,gecmis,ak){const o={...(eski||{})};Object.entries(gecmis||{}).forEach(([pid,g])=>{const k=Object.keys(g||{}).filter(x=>x<=ak).sort().pop();if(k)o[pid]=g[k];});return o;}
+function netMap(ak=S.ay){const m=S.pt.maas||{};return ayDegeri(m.net,m.netGecmis,ak);}
+function saatMap(ak=S.ay){const m=S.pt.maas||{};return ayDegeri(m.saatUcret,m.saatGecmis,ak);}
+function ucretGecmisi(alan,pid){const m=S.pt.maas||{};const g=(m[alan]||{})[pid]||{};return Object.keys(g).sort().map(k=>`${ayAdi(k)}: ${tl0(g[k]||0)}`).join(' · ');}
+function usOf(pid){return{tip:ucretSekli(pid),saatUcret:sayi(saatMap()[pid])};}
 function ptSol(ak,D){const oz=veriOzet(D.veri);return veriUygula(solHesap(ak,S.subeId,S.pt.ozetler||{},Object.keys(oz)),oz);}
-function ptVerisi(){const ak=S.ay;const D=S.pt.doc||{};const kilitli=D.kilitli===true;const sol=kilitli&&D.sol?D.sol:ptSol(ak,D);const oz=veriOzet(D.veri);const sb=sube();const net=(S.pt.maas&&S.pt.maas.net)||{};
+function ptVerisi(){const ak=S.ay;const D=S.pt.doc||{};const kilitli=D.kilitli===true;const sol=kilitli&&D.sol?D.sol:ptSol(ak,D);const oz=veriOzet(D.veri);const sb=sube();const net=netMap(ak);
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const sag=D.sag||{};
   const ids=Object.keys(sol).sort((a,b)=>String(sol[a].ad).localeCompare(String(sol[b].ad),'tr'));
   const satir=ids.map(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;return{pid,sol:sol[pid],sag:sag[pid]||{},net:net[pid],hes:sagHesap(pid,sol[pid],sag[pid],net[pid],sb,dv,oz[pid],usOf(pid))};});
@@ -854,7 +859,7 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   const turlar=VERI_TUR.filter(t=>!t.gizli);
   // Çizelgeden ve devirden gelenler (salt okunur)
   const oto=[];const sol0=V.kilitli&&V.D.sol?null:solHesap(ak);const kaynak=sol0||V.sol;
-  const netM=(S.pt.maas&&S.pt.maas.net)||{};const fmOran=pid=>V.sb.fmYontem==='maas'?(sayi(netM[pid])?sayi(netM[pid])/30/9:null):sayi(V.sb.fmUcret);
+  const netM=netMap(ak);const fmOran=pid=>V.sb.fmYontem==='maas'?(sayi(netM[pid])?sayi(netM[pid])/30/9:null):sayi(V.sb.fmUcret);
   Object.entries(kaynak).forEach(([pid,r])=>{[['R','rapor'],['UI','ucretsiz'],['YI','yillik'],['B','bayram'],['PG','partGun'],['FM','fmSaat']].forEach(([k,f])=>{let v=r[f]||0;if(V.kilitli){const e=(V.oz[pid]||{})[k]||0;v-=e;}if(Math.abs(v)<=0.001)return;
     if(k==='FM'){if(ucretSekli(pid)!=='maas')return;const o=fmOran(pid);oto.push({pid,tur:'FMT',miktar:o==null?null:Math.round(v*o*100)/100,aciklama:`${sg(v)} saat ${v<0?'eksi mesai':'fazla mesai'}${o==null?' · net maaş girilmedi':''}`});return;}oto.push({pid,tur:k,miktar:v});});});
   const ayAralik=(()=>{const L=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));return `1–${+L.slice(8)} ${AYK[+ak.slice(5)-1]}`;})();
@@ -958,7 +963,7 @@ function veriBosTemizle(){const D=S.pt.doc;if(!D||!Array.isArray(D.veri)||!S.pt.
   const sid=S.pt.sube,ak=S.ay;S.pt.doc={...D,veri:yeni};sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{veri:yeni,guncellendi:new Date().toISOString()},{merge:true}));}
 function listeyeDon(){veriBosTemizle();S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
 function sagSonuclu(V,degisen){const sag=JSON.parse(JSON.stringify((V.D&&V.D.sag)||{}));if(degisen)Object.entries(degisen).forEach(([pid,v])=>sag[pid]={...(sag[pid]||{}),...v});
-  const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=(S.pt.maas&&S.pt.maas.net)||{};
+  const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=netMap(V.ak);
   Object.keys(V.sol).forEach(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;const r=sagHesap(pid,V.sol[pid],sag[pid],net[pid],V.sb,dv,veriOzet(V.D&&V.D.veri)[pid],usOf(pid));sag[pid]={...(sag[pid]||{}),kalan:Math.round(r.kalan*100)/100};});return sag;}
 function onayla(){const V=ptVerisi();const ak=S.ay,sid=S.subeId;const sol=ptSol(ak,V.D||{});const b=writeBatch(db);const V2={...V,sol};
   b.set(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,sol,sag:sagSonuclu(V2),kilitli:true,onaylayan:S.user.uid,onaylayanAd:S.me.adSoyad||'',onayTarihi:new Date().toISOString(),guncellendi:new Date().toISOString()},{merge:true});
@@ -974,10 +979,10 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
   const inp=(id,label,val,ph='')=>`<label class="field"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val??''}" placeholder="${ph}"></label>`;
   openSheet(`<h2>${esc(x.sol.ad)}</h2><div class="sub">${ayAdi(V.ak)} · ${esc(x.sol.sekil)} · ${esnaf?'paket başı':x.sol.gun+' bordro günü'+(x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun} çalışılan gün`:'')}${x.sol.fmSaat&&!esnaf?' · fazla mesai '+sg(x.sol.fmSaat)+' sa':''}${x.sol.sekil==='Part'?` · çizelgede ${fmt(x.sol.calisilanSaat||0)} sa`:''}</div>
    <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,String(V.sb.paketUcret||'')):`<div style="grid-column:1/-1"><span class="lbl">Ücret şekli</span><div class="seg" id="oSekil">${(maasDisi?[['maas','Maaşı başka şubede'],...(partMi||tip==='saat'?[['saat','Saatlik']]:[])]:[['maas','Maaşlı'],...(kuryeMi?[['paket','Paket başı']]:[]),...(partMi||tip==='saat'?[['saat','Saatlik']]:[])]).map(([k,a])=>`<button data-v="${k}" class="${tip===k?'on':''}">${a}</button>`).join('')}</div></div>
-     <div id="oNetW" style="grid-column:1/-1" ${tip==='maas'&&!maasDisi?'':'hidden'}>${inp('oNet','Anlaşılan aylık net (₺)',x.net,'örn. 50000')}</div>
+     <div id="oNetW" style="grid-column:1/-1" ${tip==='maas'&&!maasDisi?'':'hidden'}>${inp('oNet',`Anlaşılan aylık net (₺) · ${ayAdi(V.ak)} ayından itibaren`,x.net,'örn. 50000')}<p class="note" style="margin-top:0">Değiştirirseniz bu ay ve sonrası için geçerli olur; önceki aylar değişmez.${ucretGecmisi('netGecmis',pid)?' Geçmiş: '+esc(ucretGecmisi('netGecmis',pid)):''}</p></div>
      <p class="note" id="oMdNot" style="grid-column:1/-1" ${tip==='maas'&&maasDisi?'':'hidden'}>Maaşı ${esc(x.sol.odemeSube||'SGK şubesinin')} puantajında. Burada sadece bu şubede yaptığı fazla mesai ve buraya ait primler hesaplanır.</p>
      <p class="note" id="oPbNot" style="grid-column:1/-1" ${tip==='paket'?'':'hidden'}>Paket başı: kazanç paket primleridir. Paket primlerini Veri girişinden "Paket primi" olarak girin; bankaya yatan, ara ödeme ve avans düşülür, kalan elden ödenir. Fazla mesai hesaplanmaz.</p>
-     <div id="oSaatW" style="grid-column:1/-1" ${tip==='saat'?'':'hidden'}>${inp('oSaat','Saat ücreti (₺)',us0.saatUcret||'','örn. 120')}<p class="note" style="margin-top:0">Saatler mesai çizelgesinden ayın 1'i ile son günü arasında otomatik alınır (bu ay ${fmt(x.sol.calisilanSaat||0)} sa, sadece bu şubedeki saatler). Eksik ya da fazla varsa Veri girişine "Çalışılan saat" türüyle + ya da − saat girin. Hak ediş = saat × ücret; bankaya yatan, ara ödeme ve avans düşülür. Fazla mesai hesaplanmaz.</p></div>`}
+     <div id="oSaatW" style="grid-column:1/-1" ${tip==='saat'?'':'hidden'}>${inp('oSaat',`Saat ücreti (₺) · ${ayAdi(V.ak)} ayından itibaren`,us0.saatUcret||'','örn. 120')}<p class="note" style="margin-top:0">Saatler mesai çizelgesinden ayın 1'i ile son günü arasında otomatik alınır (bu ay ${fmt(x.sol.calisilanSaat||0)} sa, sadece bu şubedeki saatler). Eksik ya da fazla varsa Veri girişine "Çalışılan saat" türüyle + ya da − saat girin. Hak ediş = saat × ücret; bankaya yatan, ara ödeme ve avans düşülür. Fazla mesai hesaplanmaz.</p></div>`}
    ${inp('oPaket','Paket primi ekle (₺)','')}${inp('oCiro','Ciro primi ekle (₺)','')}
    <p class="note" style="grid-column:1/-1;margin-top:0">Buraya yazdığınız primler veri girişine ayın son günü tarihli satır olarak eklenir. Avans ve ara ödemeyi veri girişinden girin.${ekToplam('PP')||ekToplam('CP')?` Bu ay girilmiş: ${ekToplam('PP')?'paket primi '+ekToplam('PP'):''}${ekToplam('PP')&&ekToplam('CP')?', ':''}${ekToplam('CP')?'ciro primi '+ekToplam('CP'):''}.`:''}</p>
    <label class="field"><span>TC kimlik no (bordro eşleşmesi için)</span><input id="oTc" inputmode="numeric" maxlength="11" value="${esc(tc)}"></label></div>
@@ -994,10 +999,11 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
    byId('oOk').onclick=async()=>{const o=oku();const tcv=byId('oTc').value.replace(/\D/g,'');if(tcv&&tcv.length!==11){byId('oErr').innerHTML='<div class="confirm">TC kimlik no 11 haneli olmalı.</div>';return;}
      const sid=S.subeId,ak=V.ak;const sag=sagSonuclu(V,{[pid]:o});
      try{const netEl=byId('oNet');if(!esnaf){const u=usSimdi();if(u.tip!==us0.tip||(u.tip==='saat'&&u.saatUcret!==us0.saatUcret)){const m0=S.pt.maas||{};
-         S.pt.maas={...m0,ucretSekli:{...(m0.ucretSekli||{}),[pid]:u.tip},paketBasi:{...(m0.paketBasi||{}),[pid]:u.tip==='paket'},saatUcret:{...(m0.saatUcret||{}),[pid]:u.tip==='saat'?u.saatUcret:(m0.saatUcret||{})[pid]||null}};
-         await setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatUcret:{[pid]:u.saatUcret}}:{})},{merge:true});}}
-       if((!esnaf&&netEl&&!byId('oNetW').hidden)||tcv!==tc){const m={};if(!esnaf&&netEl&&!byId('oNetW').hidden)m.net={[pid]:sayi(netEl.value)||null};if(tcv!==tc)m.tc={[pid]:tcv||null};
-         if(m.net){S.pt.maas={...S.pt.maas,net:{...((S.pt.maas||{}).net||{}),[pid]:m.net[pid]}};}await setDoc(doc(db,'maaslar',sid),m,{merge:true});}
+         const sg0=(m0.saatGecmis||{})[pid]||{};S.pt.maas={...m0,ucretSekli:{...(m0.ucretSekli||{}),[pid]:u.tip},paketBasi:{...(m0.paketBasi||{}),[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{...(m0.saatGecmis||{}),[pid]:{...sg0,[ak]:u.saatUcret}}}:{})};
+         await setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{[pid]:{[ak]:u.saatUcret}}}:{})},{merge:true});}}
+       const netYeni=!esnaf&&netEl&&!byId('oNetW').hidden?(sayi(netEl.value)||null):undefined;const netDeg=netYeni!==undefined&&netYeni!==(sayi(x.net)||null);
+       if(netDeg||tcv!==tc){const m={};if(netDeg)m.netGecmis={[pid]:{[ak]:netYeni}};if(tcv!==tc)m.tc={[pid]:tcv||null};
+         if(netDeg){const m0=S.pt.maas||{};S.pt.maas={...m0,netGecmis:{...(m0.netGecmis||{}),[pid]:{...((m0.netGecmis||{})[pid]||{}),[ak]:netYeni}}};}await setDoc(doc(db,'maaslar',sid),m,{merge:true});}
        // Primler ve eski kayıtlı avans/prim tutarları veri girişine taşınır: veri tek yerde.
        const sonGun=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();const adP=adBuyuk(x.sol.ad);
        const satir=(tur,m,a)=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adP,pid,tur,miktar:m,aciklama:a,kim,zaman:z});const ek=[];
