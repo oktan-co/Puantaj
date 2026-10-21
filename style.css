@@ -319,3 +319,13 @@ table.bl td.bi .chs select,table.bl.sade td.bi .chs select:hover,table.bl.sade t
 .pch.f{background:var(--navy-soft);color:var(--accent-ink)}.pch.bad{background:var(--warn-bg);color:var(--warn)}
 @media (max-width:700px){.pkl{display:block}.tbl-wrap.bl-cal{display:none}}
 table.bl.cal td.bi>select{padding-left:10px}
+
+/* Puantaj detay: ortalı başlık (şube kutusu + ay okları) ve geniş ekranda geniş sayfa */
+.ptnav{max-width:520px;margin:0 auto 6px}
+.ptnav-top{display:flex;align-items:center;justify-content:space-between;padding:4px 6px 8px}
+.ptdurum{font-size:12px;font-weight:700;color:var(--mut)}
+.ptnav .subebar{margin:0 0 8px}
+.ptsube1{text-align:center;font-weight:800;font-size:19px;margin:0 0 8px}
+.ptay{display:flex;align-items:center;justify-content:center;gap:16px;padding-bottom:6px}
+.ptay .ttl{font-weight:800;font-size:17px;min-width:130px;text-align:center}
+@media (min-width:1200px){.app.wide{max-width:min(96vw,1560px)}}

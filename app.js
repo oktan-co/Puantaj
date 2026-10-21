@@ -336,7 +336,7 @@ function selectSube(id){subs.sube.forEach(u=>u());subs.sube=[];S.tcler={};S.sube
 const byId=id=>document.getElementById(id);
 function subeBar(){if(S.subeIds.length<2||!['cizelge','personel','ay'].includes(S.tab))return'';
   return `<label class="subebar"><span>Şube</span><select id="subeSecim" aria-label="Şube seç">${S.subeIds.map(id=>`<option value="${esc(id)}" ${id===S.subeId?'selected':''}>${esc(S.subeler[id].ad)}</option>`).join('')}</select></label>`;}
-function view(html,after){byId('view').innerHTML=subeBar()+html;after&&after();}
+function view(html,after){const ap=document.querySelector('.app');if(ap)ap.classList.toggle('wide',S.tab==='puantaj'&&!!S.pt.sube);byId('view').innerHTML=subeBar()+html;after&&after();}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='subeSecim'){selectSube(e.target.value);window.scrollTo(0,0);}});
 function top(eyebrow,title,right=''){byId('top').innerHTML=`<div class="top-row"><div class="grow"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1></div>${right}</div>`;}
 function sekmeler(){if(!S.me)return[];const t=[['cizelge','Çizelge'],['personel','Personel']];
@@ -821,9 +821,10 @@ function ptVerisi(){const ak=S.ay;const D=S.pt.doc||{};const kilitli=D.kilitli==
   const satir=ids.map(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;return{pid,sol:sol[pid],sag:sag[pid]||{},net:net[pid],hes:sagHesap(pid,sol[pid],sag[pid],net[pid],sb,dv,oz[pid],usOf(pid))};});
   return{ak,kilitli,sol,satir,sb,D,oz};}
 function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeElement;if(S.pt.gorunum==='veri'&&vg&&vg.contains(ae)&&/INPUT|SELECT/.test(ae.tagName)&&!S.pt.zorla)return;S.pt.zorla=false;const ak=S.ay;const sb=sube();const durum=(S.aylar[ak]||{durum:'taslak'}).durum;const D=DURUM[durum]||DURUM.taslak;
-  let h=`<div class="weeknav"><button class="btn small" id="geriL" aria-label="Şube listesi">‹ Şubeler</button><button class="nav-arrow" id="ptPrev" aria-label="Önceki ay" ${ayKaydir(ak,-1)<BASLANGIC_AY?'disabled':''}>‹</button><div class="ttl">${esc(sb.ad)} · ${ayAdi(ak)}<small>${D.ad}</small></div><button class="nav-arrow" id="ptNext" aria-label="Sonraki ay">›</button></div>`;
+  const subeSec=S.subeIds.length>1?`<label class="subebar"><span>Şube</span><select id="ptSube" aria-label="Şube seç">${S.subeIds.map(i=>`<option value="${esc(i)}" ${i===S.pt.sube?'selected':''}>${esc((S.subeler[i]||{}).ad||i)}</option>`).join('')}</select></label>`:`<div class="ptsube1">${esc(sb.ad)}</div>`;
+  let h=`<div class="ptnav"><div class="ptnav-top"><button class="btn small" id="geriL" aria-label="Şube listesi">‹ Şubeler</button><span class="ptdurum">${D.ad}</span></div>${subeSec}<div class="ptay"><button class="nav-arrow" id="ptPrev" aria-label="Önceki ay" ${ayKaydir(ak,-1)<BASLANGIC_AY?'disabled':''}>‹</button><div class="ttl">${ayAdi(ak)}</div><button class="nav-arrow" id="ptNext" aria-label="Sonraki ay">›</button></div></div>`;
   const ayDeg=n=>{const y=ayKaydir(ak,n);if(y<BASLANGIC_AY)return;veriBosTemizle();S.ay=y;S.ayElle=true;S.pt.vsel=null;puantajAc(S.pt.sube);};
-  const navBagla=()=>{byId('geriL').onclick=listeyeDon;byId('ptPrev').onclick=()=>ayDeg(-1);byId('ptNext').onclick=()=>ayDeg(1);};
+  const navBagla=()=>{byId('geriL').onclick=listeyeDon;const ps=byId('ptSube');if(ps)ps.onchange=e=>{const y=e.target.value;if(!y||y===S.pt.sube)return;veriBosTemizle();S.pt.vsel=null;puantajAc(y);window.scrollTo(0,0);};byId('ptPrev').onclick=()=>ayDeg(-1);byId('ptNext').onclick=()=>ayDeg(1);};
   if(S.pt.doc===null||S.pt.maas===null||!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Puantaj yükleniyor</b></div>`,navBagla);
   const V=ptVerisi();const ad=S.aylar[ak]||{};
   if(sb.fmDonem==='hafta')h+=`<div class="banner ok">Fazla mesai dönemi: ${fmDonemYazi(ak,sb)} (haftalık). Rapor, izin ve bordro günü takvim ayına göre.</div>`;
