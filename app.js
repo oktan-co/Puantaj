@@ -589,7 +589,7 @@ function hucre(pid,i,opt={}){const p=S.personel.find(x=>x.id===pid);if(!p)return
    <div class="times tsec"><label><small>Giriş</small><select id="tA" aria-label="Giriş saati">${secenek(a,'Seçin')}</select></label><span>–</span><label><small>Çıkış</small><select id="tB" aria-label="Çıkış saati">${secenek(b,'Seçin')}</select></label></div>
    <div class="meta" id="tMeta"></div><div class="row2"><button class="btn primary grow" id="tSave">Kaydet</button><button class="btn grow" id="tNext">Kaydet, sonraki gün</button></div>
    <p class="note" style="margin:6px 0 0">${pay?`Bugün ve geçmiş günlerde ${saatYaz(saatAraligi(sb).n0-1)} – ${saatYaz(saatAraligi(sb).n1+1)} arası seçilebilir; turuncu işaretli saatler erken çağrılma / geç çıkıştır.`:`Plan: ${saatYaz(saatAraligi(sb).n0)} – ${saatYaz(saatAraligi(sb).n1)} arası. Erken çağrılma ve geç çıkış, gün geldiğinde düzeltme olarak yazılır.`}</p>
-   <span class="lbl">Durum</span><div class="codes">${KOD_SIRA.map(k=>`<button data-k="${k}" class="${val===k?'sel':''}" ${kodStil(k)}>${KOD[k].ad}</button>`).join('')}</div>
+   <span class="lbl">Durum</span><div class="codes">${KOD_SIRA.filter(k=>k!=='B'||val==='B').map(k=>`<button data-k="${k}" class="${val===k?'sel':''}" ${kodStil(k)}>${KOD[k].ad}</button>`).join('')}</div>
    <div class="codes" style="margin-top:8px;grid-template-columns:1fr"><button class="clear" data-k="">Hücreyi temizle</button></div>`,sh=>{
    const A=byId('tA'),B=byId('tB'),M=byId('tMeta');
    const bitisSecenek=()=>{const x=A.value;if(!x)return;const ta=saatKonum(x,sb);[...B.options].forEach(op=>{if(!op.value)return;let tb=saatKonum(op.value,sb);if(tb<=ta)tb+=24;op.disabled=tb<=ta||tb-ta>16;});if(B.selectedOptions[0]&&B.selectedOptions[0].disabled)B.value='';};
