@@ -387,3 +387,9 @@ table.tk td.l b{display:block;max-width:110px;overflow:hidden;text-overflow:elli
 .accb{font:inherit;font-weight:800;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}
 .pasara{padding:8px 12px;background:var(--surface);border-top:1px solid var(--soft)}
 .pasara input,input.pasAra{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--bg);color:var(--ink)}
+
+/* Personel · çalışma bilgileri (bilgisayar): sütunlar içeriğe göre, birbirine yakın; tablo ekrana yayılmaz */
+table.bl.cal{min-width:0}
+.tbl-wrap.bl-cal{width:fit-content;max-width:100%}
+table.bl.cal td.bi input[type=date]{width:128px}
+table.bl.cal th{padding-left:10px;padding-right:10px}

@@ -816,7 +816,7 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
   const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
   const satir=(p,r)=>{const yaz=personelYazabilir(p);const dis=yaz?'':'disabled';const g=gorevBul(gorevTahmin(p));const cik=p.cikis&&p.cikis<td;const ana=p.anaSube||S.subeId;
     return `<tr data-pid="${esc(p.id)}" class="${cik?'mutr':''}">
-     <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${CAL?(p.baslama?'deneme '+trTarih(p.baslama):''):(ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):'')}${cik?(CAL&&p.baslama?' · ':'')+'çıktı':''}</span></td>
+     <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${CAL?'':(ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):'')}${cik?'çıktı':''}</span></td>
      ${CAL?`     <td class="bi"><select data-x="gorev" ${dis}>${g?'':opt('','Seçin',true)}${GOREVLER.map(x=>opt(x.ad,x.ad,g&&g.ad===x.ad)).join('')}</select></td>
      <td class="bi">${`<select data-x="sekil" ${dis} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,'Esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select>`}</td>
      <td class="bi sbh"><div class="sbz">${(()=>{const sgk=p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:'';const ms=odemeSubesi(p,ayKey(today()));
@@ -826,12 +826,13 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
        if((sgk&&sgk!==ana)||ms!==ana||ek.length){const sec=[[ana,subeAdi(ana)],...(sgk&&sgk!==ana?[[sgk,subeAdi(sgk)]]:[]),...ek.map(x=>[x,subeAdi(x)]),...(ms!==ana&&ms!==sgk&&!ek.includes(ms)?[[ms,subeAdi(ms)]]:[])];
          h+=`<label class="chs f" title="Bu aydan itibaren maaşın ödeneceği şube. Önceki aylar değişmez. Muhasebe SGK şubesinde kalır.${maasSubeGecmisYazi(p)?' Geçmiş: '+esc(maasSubeGecmisYazi(p)):''}"><b>Maaş</b><select data-x="maasYeri" ${dis}>${sec.map(([v,a])=>opt(v,a,ms===v)).join('')}</select></label>`;}
        return h;})()}</div></td>
+     <td class="bi"><input type="date" data-x="baslama" title="Deneme başlangıcı (SGK'dan önce çalıştığı ilk gün)" class="${p.baslama?'':'bos'}" value="${esc(p.baslama||'')}" ${dis}></td>
      <td class="bi"><input type="date" data-x="giris" class="${p.giris?'':'bos'}" value="${esc(p.giris||'')}" ${dis}></td>
      <td class="bi"><input type="date" data-x="cikis" class="${p.cikis?'':'bos'}" value="${esc(p.cikis||'')}" ${dis}></td>
 `:''}
      ${F.map((f,c)=>`<td class="bi"><input data-r="${r}" data-c="${c}" data-f="${f.k}" value="${esc(bilgiGoster(f,f.k==='tc'?tcOf(p):p[f.k]))}" placeholder="${esc(f.ph)}" inputmode="${f.im}" autocomplete="off" spellcheck="false" ${dis}></td>`).join('')}
      <td class="bi"><button class="mini" data-x="menu" title="Sil / çıkış ver" ${dis}>⋯</button></td></tr>`;};
-  let body='';let r=0;const CS=CAL?7:F.length+2;GRUP_SIRA.forEach(g=>{const l=A.filter(p=>(p.grup||'K')===g);if(!l.length)return;body+=`<tr class="grp"><td class="l nmc">${GRUP[g]} · ${l.length}</td><td colspan="${CS}"></td></tr>`;l.forEach(p=>{body+=satir(p,L.indexOf(p));});});
+  let body='';let r=0;const CS=CAL?8:F.length+2;GRUP_SIRA.forEach(g=>{const l=A.filter(p=>(p.grup||'K')===g);if(!l.length)return;body+=`<tr class="grp"><td class="l nmc">${GRUP[g]} · ${l.length}</td><td colspan="${CS}"></td></tr>`;l.forEach(p=>{body+=satir(p,L.indexOf(p));});});
   const accTr=(k,ad,n)=>`<tr class="grp"><td class="l nmc"><button class="accb" data-acc="${k}">${ad} · ${n} ${acc[k]?'▾':'▸'}</button></td><td colspan="${CS}"></td></tr>`;
   if(C.length){body+=accTr('cik','Çıkış yapanlar',C.length);if(acc.cik)C.forEach(p=>{body+=satir(p,L.indexOf(p));});}
   if(Pall.length){body+=accTr('pas','Pasifler',Pall.length);if(acc.pas){body+=`<tr><td class="l" colspan="${CS+1}"><input class="pasAra" placeholder="Ad ile ara" value="${esc(S.pasAra||'')}" autocomplete="off"></td></tr>`;Pf.forEach(p=>{body+=satir(p,L.indexOf(p));});}}
@@ -839,8 +840,8 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
    <p class="note" style="margin-top:0">${esc(sube().ad)} · ${(()=>{const dis=Lsay.filter(p=>p.anaSube!==S.subeId&&p.sgkSube!==S.subeId&&ekSubeleri(p).includes(S.subeId)).length;return dis?`${Lsay.length-dis} kişi + ${dis} diğer şubeden`:`${Lsay.length} kişi`;})()}${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi eksik</b>`:''} · ${CAL?'Hücreye tıklayıp değiştirin, anında kaydedilir.':'Excel\'den kopyalayıp yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.'}</p>
    <div class="seg" id="pGor" style="margin-bottom:10px"><button data-v="calisma" class="${CAL?'on':''}">Çalışma bilgileri</button><button data-v="iletisim" class="${CAL?'':'on'}">İletişim ve banka</button></div>
    ${CAL?mobilListe(A,C,Pall,Pf,td):''}
-   <div class="tbl-wrap ${CAL?'bl-cal':''}" style="scroll-padding-left:165px"><table class="pt bl sade ${CAL?'cal':''}" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${CAL?`<th>Görev</th><th>Şekil</th><th class="l">Şubeler</th><th>SGK giriş</th><th>Çıkış</th>`:''}${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
-   <tbody>${body||`<tr><td class="l" colspan="${CAL?7:F.length+2}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
+   <div class="tbl-wrap ${CAL?'bl-cal':''}" style="scroll-padding-left:165px"><table class="pt bl sade ${CAL?'cal':''}" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${CAL?`<th>Görev</th><th>Şekil</th><th class="l">Şubeler</th><th>Deneme</th><th>SGK giriş</th><th>Çıkış</th>`:''}${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
+   <tbody>${body||`<tr><td class="l" colspan="${CAL?8:F.length+2}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
   view(h,()=>{byId('addP').onclick=()=>personelPanel(null);byId('addX').onclick=personelYapistirPanel;document.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.pk));const tb=byId('blTbl');document.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{S.acc={...(S.acc||{}),[b.dataset.acc]:!(S.acc||{})[b.dataset.acc]};render();});document.querySelectorAll('.pasAra').forEach(i=>i.oninput=()=>{S.pasAra=i.value;const s0=i.selectionStart;render();const nI=[...document.querySelectorAll('.pasAra')].find(x=>x.offsetParent);if(nI){nI.focus();try{nI.setSelectionRange(s0,s0);}catch(_){}}});document.querySelectorAll('#pGor button').forEach(b=>b.onclick=()=>{S.pgor=b.dataset.v;render();});
     const pOf=el=>S.personel.find(x=>x.id===el.closest('tr').dataset.pid);
     const yaz1=(p,body,yenidenCiz)=>{Object.assign(p,body);sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),body,{merge:true}));if(yenidenCiz){document.activeElement&&document.activeElement.blur();render();}};
