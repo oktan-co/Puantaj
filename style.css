@@ -393,3 +393,17 @@ table.bl.cal{min-width:0}
 .tbl-wrap.bl-cal{width:fit-content;max-width:100%}
 table.bl.cal td.bi input[type=date]{width:128px}
 table.bl.cal th{padding-left:10px;padding-right:10px}
+
+/* İşverene IBAN listesi (Personel sekmesi) */
+.ibk{background:var(--surface);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 12px}
+.ibk-h{display:flex;align-items:center;gap:10px;width:100%;padding:12px 14px;text-align:left;font-size:13.5px}
+.ibk-h b{font-weight:800}.ibk-h .n{background:var(--soft);color:var(--mut);border-radius:20px;padding:2px 9px;font-size:12px;font-weight:700}.ibk-h .ar{margin-left:auto;color:var(--mut);font-size:16px}
+.ibk-t{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:8px 14px;border-top:1px solid var(--line);font-size:12px;color:var(--mut)}
+.ibk-t select{padding:7px 10px;border:1px solid var(--line);border-radius:10px;font:inherit;font-weight:700;background:var(--bg);color:var(--ink)}
+.ibk-s{display:flex;justify-content:space-between;padding:7px 14px;background:var(--soft);font-size:11px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.5px}
+.ibr{display:flex;justify-content:space-between;gap:12px;padding:10px 14px;border-top:1px solid var(--soft);flex-wrap:wrap}
+.ibr .n b{display:block;font-size:13.5px}.ibr .n i{font-style:normal;font-size:12px;color:var(--mut)}
+.ibr .v{text-align:right;display:flex;flex-direction:column;gap:2px;font-size:12px;color:var(--mut)}
+.ibr .mono{font-family:ui-monospace,Menlo,monospace;color:var(--ink);font-size:13px;font-weight:600;word-break:break-all}
+.ibr.eks{background:var(--bad-bg)}.ibr.eks .mono{color:var(--bad);font-family:var(--f-ui)}
+.ibk-f{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
