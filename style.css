@@ -380,3 +380,10 @@ table.tk td.l b{display:block;max-width:110px;overflow:hidden;text-overflow:elli
 
 .cell.empty.serbest,:root[data-theme="dark"] .cell.empty.serbest{background:transparent;border-color:var(--line);color:var(--mut)}
 @media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .cell.empty.serbest{background:transparent;border-color:var(--line);color:var(--mut)}}
+
+/* Çıkış yapanlar / Pasifler açılır bölümleri */
+.pkgt{display:flex;justify-content:space-between;align-items:center;width:100%;text-align:left;cursor:pointer;border-top:1px solid var(--line)}
+.pkgt .ar{font-size:13px}
+.accb{font:inherit;font-weight:800;color:inherit;letter-spacing:inherit;text-transform:inherit;cursor:pointer}
+.pasara{padding:8px 12px;background:var(--surface);border-top:1px solid var(--soft)}
+.pasara input,input.pasAra{width:100%;padding:9px 12px;border:1px solid var(--line);border-radius:10px;font:inherit;background:var(--bg);color:var(--ink)}

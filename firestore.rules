@@ -118,7 +118,11 @@ service cloud.firestore {
           || (subede(s) && !ayKilitli(s, w)
               && request.resource != null
               && (resource == null || resource.data.get('hd', 'acik') == 'acik')
-              && request.resource.data.get('hd', 'acik') in ['acik', 'kapali']);
+              && request.resource.data.get('hd', 'acik') in ['acik', 'kapali'])
+          // Onaylı ayın kilidi, haftayı sadece kapatmayı (acik → kapali) engellemez; çizelge hücreleri değişmez.
+          || (subede(s) && resource != null && resource.data.get('hd', 'acik') == 'acik'
+              && request.resource.data.get('hd', 'acik') == 'kapali'
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'kapatma', 'kapatan', 'kapatanAd', 'geriNot', 'kayit']));
       }
 
       // Kapatılan haftaların listesi ve kişi bazında toplamları (şube müdürü kapalı haftayı göremediği için "bu haftaya kadar" toplamı buradan).
@@ -145,7 +149,8 @@ service cloud.firestore {
         ? get(/databases/$(database)/documents/subeler/$(s)/aylar/$(ay)).data.durum : 'taslak';
     }
     function ilkAy(w) { return w.split('-')[0] + '-' + w.split('-')[1]; }
-    function kilitliDurum(d) { return d in ['sube_onay', 'bolge_onay']; }
+    // Aylık şube kapatması kaldırıldı: şube müdürleri haftayı kapatır. Ay sadece bölge onayında kilitlenir (eski 'sube_onay' kayıtları kilit sayılmaz).
+    function kilitliDurum(d) { return d == 'bolge_onay'; }
     function ayKilitli(s, w) {
       return kilitliDurum(ayDurum(s, ilkAy(w)))
         || (request.resource != null && request.resource.data.keys().hasAll(['ay2'])
