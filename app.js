@@ -213,7 +213,7 @@ function digerGunler(p,d,sid=S.subeId){if(!p||!cokSubeli(p))return null;const ds
 // Aynı gün kuralı: vardiya varken başka şubede vardiya ya da rapor/ücretsiz/yıllık izin olamaz.
 function gunCakisir(yeni,diger){if(!yeni||!diger)return null;const IZ=['R','UI','YI'];
   for(const[s,v]of Object.entries(diger)){if(isShift(yeni)&&(isShift(v)||IZ.includes(v)))return{s,v};if(IZ.includes(yeni)&&isShift(v))return{s,v};}return null;}
-function cakismaMesaj(p,ds,c){const d=parse(ds);return `${kisaAd(p.ad)} ${d.getDate()} ${AY[d.getMonth()]} günü ${isSube()?'başka bir':subeAdi(c.s)} şubesinde ${isSube()?'bu gün çalışma':isShift(c.v)?c.v.replace('-',' – '):KOD[c.v]?KOD[c.v].ad.toLocaleLowerCase('tr-TR'):c.v} yazılı. Bir kişi aynı gün tek şubede çalışır; o gün nerede başladıysa oraya yazın.`;}
+function cakismaMesaj(p,ds,c){const d=parse(ds);return `${kisaAd(p.ad)} ${d.getDate()} ${AY[d.getMonth()]} günü ${subeAdi(c.s)} şubesinde ${isShift(c.v)?c.v.replace('-',' – '):KOD[c.v]?KOD[c.v].ad.toLocaleLowerCase('tr-TR'):c.v} yazılı. Bir kişi aynı gün tek şubede çalışır; o gün nerede başladıysa oraya yazın.`;}
 // Gün kaydını şubeler arası ortak belgeye yazar. Çakışma varsa yazmaz, çakışmayı döner.
 async function gunYaz(p,ds,val,sid=S.subeId){const ak=ds.slice(0,7);const ref=doc(db,'gunler',p.id+'__'+ak);const subeler=[...new Set([...kisiSubeleri(p),sid])];
   return runTransaction(db,async tr=>{const s=await tr.get(ref);const g=(s.exists()&&s.data().g&&s.data().g[ds])||{};const o={};Object.entries(g).forEach(([x,v])=>{if(x!==sid&&v)o[x]=v;});
@@ -510,7 +510,7 @@ function renderCizelge(){const sb=sube();const wid=S.hafta;const ds=weekDays(wid
         if(isShift(val)){const k=shiftKind(val,sb);const vk=vardiyaKontrol(val,sb,d);const[a,b]=val.split('-');h+=`<${tag} class="cell ${!vk.ok?'yuvarla':vk.pay?'pay':''}" ${at} ${!vk.ok?`title="${esc(vk.neden)}"`:vk.pay?'title="Erken çağrılma / geç çıkış (düzeltme)"':''} aria-label="${esc(p.ad)} ${GUNU[i]} ${a}–${b}"><span class="t ${k.o?'o':''}">${a}</span><span class="t ${k.k?'k':''}">${b}</span></${tag}>`;}
         else if(val&&KOD[val])h+=`<${tag} class="cell code" ${kodStil(val)} ${at}>${KOD[val].kisa}</${tag}>`;
         else{const o=cokSubeli(q)?digerGunler(q,d):null;
-          if(o){const[s2,v2]=Object.entries(o)[0];h+=isSube()?`<div class="cell baska" data-r="${r}" data-c="${i}" title="Başka şubede çalıştığı gün"><b>Başka</b><small>şubede</small></div>`:`<div class="cell baska" data-r="${r}" data-c="${i}" title="${esc(subeAdi(s2))}: ${esc(degerYazi(v2))}"><b>${esc(kisaSubeAd(s2))}</b><small>${isShift(v2)?esc(v2.replace('-','–')):KOD[v2]?esc(KOD[v2].ad):''}</small></div>`;}
+          if(o){const[s2,v2]=Object.entries(o)[0];h+=`<div class="cell baska" data-r="${r}" data-c="${i}" title="${esc(subeAdi(s2))}: ${esc(degerYazi(v2))}"><b>${esc(kisaSubeAd(s2))}</b><small>${isShift(v2)?esc(v2.replace('-','–')):KOD[v2]?esc(KOD[v2].ad):''}</small></div>`;}
           else h+=`<${tag} class="cell empty ${bosSayilir(q,d)?'':'serbest'}" ${at} aria-label="${esc(p.ad)} ${GUNU[i]} boş">${lk?'':'+'}</${tag}>`;}});
       h+=`<div class="fmc">${fmH[0]}</div><div class="fmc ay">${fmH[1]}</div>`;});});
   h+=`</div>`;
@@ -584,7 +584,7 @@ function hucre(pid,i,opt={}){const p=S.personel.find(x=>x.id===pid);if(!p)return
     const disarda=sec&&!L.some(q=>q.s===sec)?`<option value="${esc(sec)}" selected>${esc(sec)} · listede yok, düzeltin</option>`:'';
     return `<option value="" ${sec?'':'selected'}>${yok}</option>${disarda}${pay?grup('Erken çağrılma',q=>q.pay==='erken'):''}${grup('Normal saatler',q=>!q.pay)}${pay?grup('Geç çıkış',q=>q.pay==='gec'):''}`;};
   openSheet(`<h2>${esc(p.ad)}</h2><div class="sub">${GUNU[i]}, ${d.getDate()} ${AY[d.getMonth()]}${pay?' · düzeltme yapılabilir':' · plan'}</div>
-   ${o?`<div class="confirm">${isSube()?'Başka bir':esc(subeAdi(Object.keys(o)[0]))} şubesinde bu gün ${isSube()?'çalışma':esc(degerYazi(Object.values(o)[0]))} yazılı. Bir kişi aynı gün tek şubede çalışır.</div>`:''}
+   ${o?`<div class="confirm">${esc(subeAdi(Object.keys(o)[0]))} şubesinde bu gün ${esc(degerYazi(Object.values(o)[0]))} yazılı. Bir kişi aynı gün tek şubede çalışır.</div>`:''}
    <span class="lbl">Vardiya saati</span>
    <div class="times tsec"><label><small>Giriş</small><select id="tA" aria-label="Giriş saati">${secenek(a,'Seçin')}</select></label><span>–</span><label><small>Çıkış</small><select id="tB" aria-label="Çıkış saati">${secenek(b,'Seçin')}</select></label></div>
    <div class="meta" id="tMeta"></div><div class="row2"><button class="btn primary grow" id="tSave">Kaydet</button><button class="btn grow" id="tNext">Kaydet, sonraki gün</button></div>
