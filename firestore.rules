@@ -123,10 +123,10 @@ service cloud.firestore {
           || (subede(s) && resource != null && resource.data.get('hd', 'acik') == 'acik'
               && request.resource.data.get('hd', 'acik') == 'kapali'
               && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'kapatma', 'kapatan', 'kapatanAd', 'geriNot', 'kayit']))
-          // Onaylı aya değen açık haftada şube müdürü, kapatmadan önce 7 gün çalışan teyidini (teyit7) işaretleyebilir; hücreler değişmez.
+          // Onaylı aya değen açık haftada şube müdürü, kapatmadan önce 7 gün çalışan teyidini (teyit7) ve rapor / izin / giriş / çıkış teyidini (teyitK) işaretleyebilir; hücreler değişmez.
           || (subede(s) && resource != null && resource.data.get('hd', 'acik') == 'acik'
               && request.resource.data.get('hd', 'acik') == 'acik'
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'teyit7']));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'teyit7', 'teyitK']));
       }
 
       // Kapatılan haftaların listesi ve kişi bazında toplamları (şube müdürü kapalı haftayı göremediği için "bu haftaya kadar" toplamı buradan).
