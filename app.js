@@ -680,7 +680,7 @@ function haftaKayitPanel(wid,H=S.haftalar){const kay=((H[wid]||{}).kayit||[]).sl
 // Haftanın kontrolü: boş günler ve 7 gün teyidi kapatmayı engeller; eksi fazla mesai ve izinler bilgi için.
 function haftaKontrol(wid){const sb=sube();const ds=weekDays(wid);const t7=(S.haftalar[wid]||{}).teyit7||{};const K={bos:[],yedi:[],eksi:[],izin:[]};
   cizelgeKisileri(wid).forEach(p=>{const L=CZ_ES[p.id]||[p];
-    ds.forEach((d,i)=>{const q=gunKaydiP(p,d);if(!q)return;const v=cellOf(q.id,wid,i);if((v==null||v==='')&&weekHasEntry(q.id,wid)&&bosSayilir(q,d))K.bos.push({p,d});
+    ds.forEach((d,i)=>{const q=gunKaydiP(p,d);if(!q)return;const v=cellOf(q.id,wid,i);if((v==null||v==='')&&weekHasEntry(q.id,wid)&&bosSayilir(q,d)&&cizelgeYazabilir(d))K.bos.push({p,d});
       if(v&&['R','UI','YI'].includes(v))K.izin.push({p,d,v});});
     L.forEach(q=>{const y=weekHasEntry(q.id,wid)?haftaYedi(q,wid):{yedi:false};if(y.yedi&&y.sube===S.subeId)K.yedi.push({p:q,ok:!!t7[q.id]});});
     if(!isEsnaf(p)&&p.sekil!=='Part'){const x=haftaHesapS(p,wid,sb);if(x.fm<-0.004)K.eksi.push({p,fm:x.fm});}});return K;}
