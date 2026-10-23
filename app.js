@@ -144,9 +144,13 @@ function haftaHesap(p,wid,sb=sube(),H=S.haftalar){let h=0,wd=0,bos=0;const kayit
   const y=kayit?haftaYedi(p,wid,H):{yedi:false};const bonus=y.yedi&&y.sube===S.subeId?7*sb.gunluk-sb.haftalik:0;
   return{h,wd,bos,fm:!kayit?0:h-(wd+bos)*sb.gunluk+bonus,kayit};}
 // Haftanın 7 günü de (bu şube + kişinin diğer şubeleri) vardiyalı mı? İzin günü mesaisini ödeyen şube: maaş şubesi dışında çalışılan son günün şubesi, yoksa maaş şubesi.
-function haftaYedi(p,wid,H=S.haftalar,sid=S.subeId){const ds=weekDays(wid);const cs=cokSubeli(p);const ms=odemeSubesi(p,ayKey(ds[6]));let son=null,burada=0;
-  for(let i=0;i<7;i++){const d=ds[i];if(!employed(p,d))return{yedi:false};const L=[];if(isShift(cellOf(p.id,wid,i,H))){L.push(sid);burada++;}
-    if(cs){const o=digerGunler(p,d,sid);if(o)Object.entries(o).forEach(([s,x])=>{if(isShift(x))L.push(s);});}
+// Aynı kişinin birden fazla kaydı varsa (SGK şube devri, SGK'sız devam) hafta kişi bazında birleşik bakılır: her gün o gün çalışan kaydın hücresine bakılır.
+// Sonuç yalnızca pazar günü çalışan kayıt için döner; böylece fazla mesai bonusu kayıtlar toplanırken bir kez sayılır.
+function haftaYedi(p,wid,H=S.haftalar,sid=S.subeId){const ds=weekDays(wid);const ms=odemeSubesi(p,ayKey(ds[6]));let son=null,burada=0;
+  if(!employed(p,ds[6]))return{yedi:false};
+  const grup=S.personel.filter(x=>x.id===p.id||ayniKisi(x,p));
+  for(let i=0;i<7;i++){const d=ds[i];const E=grup.filter(x=>employed(x,d));if(!E.length)return{yedi:false};const L=[];if(E.some(x=>isShift(cellOf(x.id,wid,i,H)))){L.push(sid);burada++;}
+    E.forEach(x=>{if(!cokSubeli(x))return;const o=digerGunler(x,d,sid);if(o)Object.entries(o).forEach(([s,v])=>{if(isShift(v))L.push(s);});});
     if(!L.length)return{yedi:false};L.forEach(s=>{if(s!==ms)son=s;});}
   return{yedi:true,sube:burada===7?sid:(son||ms)};}
 // Bir haftanın kişi bazında ay ay dökümü (takvim ayı hesabıyla aynı kural): kapatılan haftanın özeti için.
@@ -155,6 +159,10 @@ function haftaAyParca(p,wid,sb=sube(),H=S.haftalar){const o={};if(!weekHasEntry(
     if(isShift(v)){const s=shiftHours(v);x.h+=s;x.fm+=s-sb.gunluk;}else if(!(v&&KOD[v])&&bosSayilir(p,d))x.fm-=sb.gunluk;
     if(i===6){const y=haftaYedi(p,wid,H);if(y.yedi&&y.sube===S.subeId)x.fm+=7*sb.gunluk-sb.haftalik;}});
   Object.values(o).forEach(x=>{x.h=Math.round(x.h*100)/100;x.fm=Math.round(x.fm*100)/100;});return o;}
+// SGK / bordro gün sayısı. Tam ayda eksik gün yoksa her ay 30. Eksik gün varsa takvim günü − eksik gün, en çok 30:
+// 31 çeken ayda 1 gün rapor 30 kalır; Şubat 28 çekerse 27, 29 çekerse 28 olur.
+// Ay ortasında giriş/çıkışta: çalışılan takvim günü (en çok 30) − eksik gün. eksik = rapor + ücretsiz izin.
+function sgkGunSayisi(calisilan,takvim,eksik){const tam=calisilan===takvim;const taban=tam?(eksik>0?takvim:30):Math.min(30,calisilan);return Math.max(0,Math.min(30,taban-eksik));}
 function ayHesap(p,ak,sb=sube(),H=S.haftalar,bitis=null){const[y,m]=ak.split('-').map(Number);const last=new Date(y,m,0);
   let h=0,fm=0,bos=0,gun=0,istihdam=0;const kod={};const cs=cokSubeli(p);
   for(let d=new Date(y,m-1,1);d<=last&&(!bitis||ymd(d)<=bitis);d=addDays(d,1)){if(!employed(p,d))continue;istihdam++;const wid=mondayOf(d);const i=(d.getDay()+6)%7;
@@ -166,7 +174,7 @@ function ayHesap(p,ak,sb=sube(),H=S.haftalar,bitis=null){const[y,m]=ak.split('-'
   if(sb.fmDonem==='hafta'){fm=0;fmHaftalari(ak).forEach(wid=>{fm+=haftaHesap(p,wid,sb,H).fm;});}
   const part=p.sekil==='Part',esnaf=isEsnaf(p),fmYok=part||esnaf;
   const tamAy=istihdam===last.getDate();
-  const bordroGun=Math.max(0,(tamAy?30:Math.min(30,istihdam))-(kod.R||0)-(kod.UI||0));
+  const bordroGun=sgkGunSayisi(istihdam,last.getDate(),(kod.R||0)+(kod.UI||0));
   return{h,fm:fmYok?0:fm,fmHam:esnaf?0:fm,bos:esnaf?0:bos,gun,kod,part,esnaf,partGun:part?Math.round(h/(sb.partSaat||8)*100)/100:0,bordroGun,tamAy};}
 // Çizelgedeki ay sütunu: o haftaya kadar (o hafta dahil) birikmiş fazla mesai ve saat. Haftalık dönemde dönemin haftaları, takvim ayında haftanın son gününe kadar.
 function ayKadar(p,wid,sb=sube(),H=S.haftalar){const ak=fmAyi(wid,sb);const fmYok=p.sekil==='Part'||isEsnaf(p);
@@ -293,7 +301,7 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
     if(kaynak.length){const bl=gunBirlestir(kaynak,sgkVar(p)?(d=>sgkli(p,parse(d))):null);t.R=bl.say.R;t.UI=bl.say.UI;t.YI=bl.say.YI;t.B=bl.say.B;t.cakisma=gunBirlestir(kaynak).cakisma;
       tH=fiiliGrup.length?gunBirlestir(kaynak,d=>fiiliGrup.some(x=>employed(x,parse(d)))).say:t;}
     let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(sgkli(p,d))ist++;if(fiiliGrup.length?fiiliGrup.some(x=>employed(x,d)):employed(p,d))istF++;}
-    const gun=Math.max(0,(ist===last.getDate()?30:Math.min(30,ist))-t.R-t.UI);const hakGun=Math.max(0,(istF===last.getDate()?30:Math.min(30,istF))-tH.R-tH.UI);const part=p.sekil==='Part';
+    const gun=sgkGunSayisi(ist,last.getDate(),t.R+t.UI);const hakGun=sgkGunSayisi(istF,last.getDate(),tH.R+tH.UI);const part=p.sekil==='Part';
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
       rapor:tumGun?t.R:0,ucretsiz:tumGun?t.UI:0,yillik:tumGun?t.YI:0,bayram:tumGun?t.B:0,muhBurada,odemeSube:subeAdi(odemeSubesi(maasKaydi,ak)),partGun:0,// part gün elle, veri girişinden
       muhSekil:p.sekil||'Tam',
@@ -1180,7 +1188,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     h+=`<div class="tbl-wrap"><table class="pt"><thead><tr>${KS.map(c=>kfBaslik('sol',c,c.l?'l':'')).join('')}</tr></thead><tbody>`;
     const gizli=V.satir.filter(({sol})=>!muhasebedeMi(sol));
     LS.forEach(({sol})=>{const fo=sol.maasBurada===false&&!sol.muhBurada;h+=`<tr class="${cikisMi(sol)?'cikis':''}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.muhBurada&&sol.maasBurada===false?` <span class="tag">ödemesi ${esc(sol.odemeSube)}</span>`:''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.cakisma&&sol.cakisma.length?` <span class="tag warn">${sol.cakisma.length} gün çakışma</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}${sol.sekil==='Part'&&!sol.partGun?' <span class="tag warn">part gün girilmedi</span>':''}</td><td>${esc(muhGorev(sol))}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${fo?'—':sol.gun}</td></tr>`;});
-    h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Gün sayısı = 30 − rapor − ücretsiz izin (ay ortasında giriş/çıkışta çalışılan takvim günü); part çalışanlarda gün sayısı = part gün</span></div>
+    h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Gün sayısı = tam ay 30; rapor/ücretsiz izin varsa ayın takvim günü − rapor − ücretsiz izin, en çok 30 (ay ortasında giriş/çıkışta çalışılan takvim günü); part çalışanlarda gün sayısı = part gün</span></div>
     ${gizli.length?`<p class="note"><b>Muhasebede gösterilmeyen ${gizli.length} kişi</b> (SGK'sı başka şubede ya da SGK'sı yok): ${gizli.map(x=>esc(x.sol.ad)).join(', ')}. Bu kişiler sadece Ödemeler tarafında.</p>`:''}
     <p class="note">Maaş, rapor ve izinler kişinin SGK şubesinde. Fazla mesai muhasebeye gitmez; Ödemeler tarafında, çalıştığı her şubede ayrı hesaplanır. Diğer şubelerdeki izin günleri o şubeler ayı kapattıkça eklenir. "+ şube adı" etiketi o şubeden gelen günlerin eklendiğini gösterir.</p>`;
     h+=`<div class="actions" style="margin-top:12px"><button class="btn grow" id="pdfB">Muhasebe çıktısı · PDF / fotoğraf / WhatsApp</button></div>`;}
