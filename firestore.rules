@@ -182,14 +182,19 @@ service cloud.firestore {
     }
 
     // DÜZENLEME KİLİDİ — aynı anda tek kişi düzenler. Çizelgede şube + hafta (tur 'cz'), puantajda şube + ay (tur 'pt').
-    // Kilit son işlemden 2 dakika sonra düşer; o zamana kadar sadece sahibi tazeler. İşveren her zaman devralabilir.
+    // Kilit son işlemden 2 dakika sonra düşer; o zamana kadar sadece sahibi tazeler.
+    // İşveren her kilidi, bölge müdürü (kendi şubesinde) şube müdürünün kilidini devralabilir.
     function kilitYetki(d) {
       return d.tur == 'pt' ? bolgede(d.sube) : subede(d.sube);
+    }
+    function kilitSahibiRol(d) {
+      return exists(/databases/$(database)/documents/kullanicilar/$(d.uid))
+        ? get(/databases/$(database)/documents/kullanicilar/$(d.uid)).data.rol : '';
     }
     match /kilitler/{k} {
       allow read: if aktif() && (resource == null || kilitYetki(resource.data));
       allow create, update: if aktif()
-        && request.resource.data.keys().hasOnly(['tur', 'sube', 'donem', 'uid', 'ad', 't'])
+        && request.resource.data.keys().hasOnly(['tur', 'sube', 'donem', 'uid', 'ad', 'rol', 't'])
         && request.resource.data.tur in ['cz', 'pt']
         && request.resource.data.sube is string && request.resource.data.donem is string
         && k == request.resource.data.tur + '__' + request.resource.data.sube + '__' + request.resource.data.donem
@@ -199,7 +204,8 @@ service cloud.firestore {
         && (resource == null
             || resource.data.uid == request.auth.uid
             || request.time > resource.data.t + duration.value(120, 's')
-            || isveren());
+            || isveren()
+            || (bolgede(resource.data.sube) && kilitSahibiRol(resource.data) == 'sube'));
       allow delete: if aktif() && (resource.data.uid == request.auth.uid || isveren());
     }
 

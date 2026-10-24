@@ -338,7 +338,7 @@ function yazmaHatasi(e){console.error(e);const c=e&&e.code||'';
 const weekRef=(wid,sid=S.subeId)=>doc(db,'subeler',sid,'haftalar',wid);
 /* ================= Düzenleme kilidi ================= */
 // Aynı anda tek kişi düzenler: çizelgede şube + hafta, puantajda şube + ay. Bakmak serbesttir.
-// Kilit ilk değişiklikte alınır; son işlemden 2 dakika sonra (ya da sayfadan çıkınca, uygulama arka plana geçince) kendiliğinden düşer. İşveren devralabilir.
+// Kilit ilk değişiklikte alınır; son işlemden 2 dakika sonra (ya da sayfadan çıkınca, uygulama arka plana geçince) kendiliğinden düşer. İşveren her kilidi, bölge müdürü şube müdürününkini devralabilir.
 const KILIT_SN=120,KILIT_TAZE=30000;
 const KL={key:null,k:null,d:null,unsub:null,zT:null,benim:{}};
 const czK=(wid,sid=S.subeId)=>({tur:'cz',sube:sid,donem:wid});
@@ -366,7 +366,7 @@ async function kilitAl(k,zorla=false){if(!k||!S.user)return true;const id=kilitI
   if(!zorla&&id===KL.key&&kilitBaskasi())return false;
   try{const ok=await runTransaction(db,async tr=>{const s=await tr.get(ref);const x=s.exists()?s.data():null;
       if(x&&x.uid!==S.user.uid&&!zorla&&isIsveren()&&Date.now()-kilitMs(x)<KILIT_SN*1000)return false;
-      tr.set(ref,{tur:k.tur,sube:k.sube,donem:k.donem,uid:S.user.uid,ad:benAd()||S.user.email||'',t:serverTimestamp()});return true;});
+      tr.set(ref,{tur:k.tur,sube:k.sube,donem:k.donem,uid:S.user.uid,ad:benAd()||S.user.email||'',rol:rol(),t:serverTimestamp()});return true;});
     if(ok)KL.benim[id]=Date.now();else delete KL.benim[id];return ok;}
   catch(e){const c=(e&&e.code)||'';console.error(e);if(!c.includes('permission'))return true;
     // Yetki hatası: kilit başkasındaysa engelle; kilit okunamıyorsa (kurallar henüz yayınlanmamış) düzenlemeyi durdurma.
@@ -379,8 +379,10 @@ function kilitBirak(){const ids=Object.keys(KL.benim);KL.benim={};if(!S.user)ret
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')kilitBirak();});
 window.addEventListener('pagehide',()=>kilitBirak());
 async function kilitDevral(){if(!KL.k)return;if(await kilitAl(KL.k,true)){toast('Düzenleme size geçti.');render();}else toast('Devralınamadı, tekrar deneyin.');}
+// İşveren her kilidi, bölge müdürü şube müdürünün kilidini devralabilir.
+function kilitDevralabilir(d){return isIsveren()||(isBolge()&&d&&d.rol==='sube');}
 function kilitBandi(){const d=kilitBaskasi();if(!d)return'';const ne=KL.k.tur==='pt'?'bu ayın puantajını':'bu haftanın çizelgesini';
-  return `<div class="banner kilit"><b>🔒 ${esc(d.ad||'Başka bir kullanıcı')} şu an ${ne} düzenliyor.</b> Siz sadece bakabilirsiniz. O sayfadan çıkınca ya da 2 dakika işlem yapmayınca düzenleme açılır.${isIsveren()?`<div style="margin-top:8px"><button class="btn" id="kilitDevral">Kilidi devral</button></div>`:''}</div>`;}
+  return `<div class="banner kilit"><b>🔒 ${esc(d.ad||'Başka bir kullanıcı')} şu an ${ne} düzenliyor.</b> Siz sadece bakabilirsiniz. O sayfadan çıkınca ya da 2 dakika işlem yapmayınca düzenleme açılır.${kilitDevralabilir(d)?`<div style="margin-top:8px"><button class="btn" id="kilitDevral">Kilidi devral</button></div>`:''}</div>`;}
 function kilitUygula(){const d=kilitBaskasi();if(!d)return;const v=byId('view');if(!v)return;
   v.querySelectorAll(KL.k.tur==='pt'?'#vGrid input,#vGrid select,#vGrid textarea,[data-bk],#vSatir,#vSatir10,[data-sil]':'button.cell').forEach(x=>{x.disabled=true;});
   const b=byId('kilitDevral');if(b)b.onclick=kilitDevral;}
