@@ -1528,7 +1528,6 @@ async function pdfSatirlari(file){const lib=await pdfjs();const pdf=await lib.ge
     rows.sort((a,b)=>b.y-a.y).forEach(r=>lines.push(r.items.sort((a,b)=>a.x-b.x).map(i=>i.s).join('  ')));}
   return lines;}
 // ---- Tekli "Ücret Hesap Pusulası" (tek kişilik bordro) ----
-function tcGecerli(t){if(!/^[1-9]\d{10}$/.test(t||''))return false;const d=t.split('').map(Number);const a=(((d[0]+d[2]+d[4]+d[6]+d[8])*7-(d[1]+d[3]+d[5]+d[7]))%10+10)%10;return a===d[9]&&d.slice(0,10).reduce((s,x)=>s+x,0)%10===d[10];}
 const PARA_RE=/-?\d{1,3}(?:\.\d{3})*,\d{2}/;
 // Alanlardan bordro satırı üretir. Net tutar, "Kazanç toplam − Kesintiler toplamı" ile çapraz kontrol edilir; tutmazsa net boş bırakılır (yanlış tutar işlenmesin).
 function pusulaKayit(a){const uyari=[];let net=a.net,tc=a.tc||'';
