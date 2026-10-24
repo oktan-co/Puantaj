@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where, runTransaction, arrayUnion, deleteField } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where, runTransaction, arrayUnion, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=67";
 
 /* ================= Sabitler ================= */
@@ -336,6 +336,54 @@ const kuyruk={};function sirayla(key,fn){kuyruk[key]=(kuyruk[key]||Promise.resol
 function yazmaHatasi(e){console.error(e);const c=e&&e.code||'';
   if(c.includes('permission'))toast('Bu işlem için yetkiniz yok.');else if(c.includes('unavailable'))toast('Bağlantı yok. İnternet gelince tekrar deneyin.');else toast('Kaydedilemedi: '+(e.message||c));}
 const weekRef=(wid,sid=S.subeId)=>doc(db,'subeler',sid,'haftalar',wid);
+/* ================= Düzenleme kilidi ================= */
+// Aynı anda tek kişi düzenler: çizelgede şube + hafta, puantajda şube + ay. Bakmak serbesttir.
+// Kilit ilk değişiklikte alınır; son işlemden 2 dakika sonra (ya da sayfadan çıkınca, uygulama arka plana geçince) kendiliğinden düşer. İşveren devralabilir.
+const KILIT_SN=120,KILIT_TAZE=30000;
+const KL={key:null,k:null,d:null,unsub:null,zT:null,benim:{}};
+const czK=(wid,sid=S.subeId)=>({tur:'cz',sube:sid,donem:wid});
+const ptK=(sid=S.subeId,ak=S.ay)=>({tur:'pt',sube:sid,donem:ak});
+const kilitId=k=>k.tur+'__'+k.sube+'__'+k.donem;
+function kilitAnahtar(){if(!S.user||!S.me||!S.subeId)return null;
+  if(S.tab==='cizelge'&&S.hafta)return czK(S.hafta);
+  if(S.tab==='puantaj'&&S.pt.sube&&S.pt.sube===S.subeId&&S.ay)return ptK();
+  return null;}
+function kilitMs(d){const t=d&&d.t;return t&&t.toMillis?t.toMillis():0;}
+// Bu sayfanın kilidi başkasındaysa kilit kaydı, değilse null.
+function kilitBaskasi(){const d=KL.d;if(!d||!S.user||d.uid===S.user.uid)return null;return Date.now()-kilitMs(d)<KILIT_SN*1000?d:null;}
+function kilitMesaj(d=KL.d){const ad=(d&&d.ad)||'Başka bir kullanıcı';return `${ad} şu an burada düzenleme yapıyor. Değişiklik kaydedilmedi; o bitirince ya da 2 dakika işlem yapmayınca düzenleyebilirsiniz.`;}
+// Sayfadaki düzenleme başkasındaysa uyarır ve true döner.
+function kilitEngel(){const d=kilitBaskasi();if(!d)return false;toast(kilitMesaj(d));return true;}
+function kilitTakip(){const k=kilitAnahtar();const id=k?kilitId(k):null;if(id===KL.key)return;
+  if(KL.unsub){KL.unsub();KL.unsub=null;}clearTimeout(KL.zT);kilitBirak();KL.key=id;KL.k=k;KL.d=null;if(!id)return;
+  KL.unsub=onSnapshot(doc(db,'kilitler',id),s=>{const b0=kilitBaskasi(),once=b0?b0.uid:'';KL.d=s.exists()?s.data({serverTimestamps:'estimate'}):null;
+    if(KL.d&&S.user&&KL.d.uid!==S.user.uid)delete KL.benim[id];
+    clearTimeout(KL.zT);const b=kilitBaskasi();if(b)KL.zT=setTimeout(()=>render(),Math.max(1000,kilitMs(b)+KILIT_SN*1000-Date.now()+1500));
+    if(once!==(b?b.uid:''))render();},()=>{KL.d=null;});}
+// Kilidi alır ya da tazeler. Başkasındaysa false. Bağlantı hatasında düzenlemeyi engellemez (kayıt zaten birleştirerek yazılır).
+async function kilitAl(k,zorla=false){if(!k||!S.user)return true;const id=kilitId(k);const ref=doc(db,'kilitler',id);
+  if(!zorla&&KL.benim[id]&&Date.now()-KL.benim[id]<KILIT_TAZE)return true;
+  if(!zorla&&id===KL.key&&kilitBaskasi())return false;
+  try{const ok=await runTransaction(db,async tr=>{const s=await tr.get(ref);const x=s.exists()?s.data():null;
+      if(x&&x.uid!==S.user.uid&&!zorla&&isIsveren()&&Date.now()-kilitMs(x)<KILIT_SN*1000)return false;
+      tr.set(ref,{tur:k.tur,sube:k.sube,donem:k.donem,uid:S.user.uid,ad:benAd()||S.user.email||'',t:serverTimestamp()});return true;});
+    if(ok)KL.benim[id]=Date.now();else delete KL.benim[id];return ok;}
+  catch(e){const c=(e&&e.code)||'';console.error(e);if(!c.includes('permission'))return true;
+    // Yetki hatası: kilit başkasındaysa engelle; kilit okunamıyorsa (kurallar henüz yayınlanmamış) düzenlemeyi durdurma.
+    try{const s=await getDoc(ref);const x=s.exists()?s.data():null;if(x&&x.uid!==S.user.uid){delete KL.benim[id];if(id===KL.key)KL.d=x;return false;}}catch(_){}
+    return true;}}
+async function kilitliMi(k){if(await kilitAl(k))return false;toast(kilitMesaj());return true;}
+// Bende olan kilitleri bırakır (başkası devraldıysa dokunmaz).
+function kilitBirak(){const ids=Object.keys(KL.benim);KL.benim={};if(!S.user)return;const uid=S.user.uid;
+  ids.forEach(id=>{const ref=doc(db,'kilitler',id);runTransaction(db,async tr=>{const s=await tr.get(ref);if(s.exists()&&s.data().uid===uid)tr.delete(ref);}).catch(()=>{});});}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')kilitBirak();});
+window.addEventListener('pagehide',()=>kilitBirak());
+async function kilitDevral(){if(!KL.k)return;if(await kilitAl(KL.k,true)){toast('Düzenleme size geçti.');render();}else toast('Devralınamadı, tekrar deneyin.');}
+function kilitBandi(){const d=kilitBaskasi();if(!d)return'';const ne=KL.k.tur==='pt'?'bu ayın puantajını':'bu haftanın çizelgesini';
+  return `<div class="banner kilit"><b>🔒 ${esc(d.ad||'Başka bir kullanıcı')} şu an ${ne} düzenliyor.</b> Siz sadece bakabilirsiniz. O sayfadan çıkınca ya da 2 dakika işlem yapmayınca düzenleme açılır.${isIsveren()?`<div style="margin-top:8px"><button class="btn" id="kilitDevral">Kilidi devral</button></div>`:''}</div>`;}
+function kilitUygula(){const d=kilitBaskasi();if(!d)return;const v=byId('view');if(!v)return;
+  v.querySelectorAll(KL.k.tur==='pt'?'#vGrid input,#vGrid select,#vGrid textarea,[data-bk],#vSatir,#vSatir10,[data-sil]':'button.cell').forEach(x=>{x.disabled=true;});
+  const b=byId('kilitDevral');if(b)b.onclick=kilitDevral;}
 function undoKaydet(wid){const w0=S.haftalar[wid]||{};undo.push({wid,cells:JSON.parse(JSON.stringify(w0.cells||{})),kadro:Array.isArray(w0.kadro)?w0.kadro.slice():null});if(undo.length>40)undo.shift();}
 // Haftanın durumu: acik (şube düzenler) · kapali (şube kapattı, bölge onayı bekliyor) · onay (bölge onayladı). Şube müdürü kapalı haftayı göremez.
 function haftaDurumu(wid,H=S.haftalar){const w=H[wid];if(w&&w.hd)return w.hd;const d=(S.haftaDurum.w||{})[wid];return H===S.haftalar&&d&&d.d?d.d:'acik';}
@@ -343,19 +391,26 @@ const hdYaz=wid=>isSube()?'acik':((S.haftalar[wid]&&S.haftalar[wid].hd)||'acik')
 // Tek hücreye yazmadan önce kontrol: saat kuralı ve aynı gün başka şube.
 function hucreKontrol(p,wid,i,val,sessiz){const d=weekDays(wid)[i];if(isShift(val)){const k=vardiyaKontrol(val,sube(),d);if(!k.ok){if(!sessiz)toast(k.neden);return false;}}
   if(val&&p&&cokSubeli(p)){const c=gunCakisir(val,digerGunler(p,d));if(c){if(!sessiz)toast(cakismaMesaj(p,ymd(d),c));return false;}}return true;}
-function setCell(pid,wid,i,val){const p=S.personel.find(x=>x.id===pid);if(!hucreKontrol(p,wid,i,val))return Promise.resolve(false);
+function setCell(pid,wid,i,val){if(wid===S.hafta&&kilitEngel())return Promise.resolve(false);const p=S.personel.find(x=>x.id===pid);if(!hucreKontrol(p,wid,i,val))return Promise.resolve(false);
   const w0=S.haftalar[wid]||{};const kad=kadroOf(wid).ids.slice();if(!kad.includes(pid))kad.push(pid);undoKaydet(wid);const eski=cellOf(pid,wid,i);
   const w=S.haftalar[wid]={...w0,kadro:kad,cells:{...(w0.cells||{})}};w.cells[pid]={...(w.cells[pid]||{}),[String(i)]:val};render();const ds=ymd(weekDays(wid)[i]);
-  return sirayla(wid,async()=>{if(p&&cokSubeli(p)&&(val||eski)){let c=null;try{c=await gunYaz(p,ds,val);}catch(e){console.error(e);}
+  return sirayla(wid,async()=>{if(!(await kilitAl(czK(wid)))){S.haftalar[wid]=w0;undo.pop();render();toast(kilitMesaj());return false;}
+    if(p&&cokSubeli(p)&&(val||eski)){let c=null;try{c=await gunYaz(p,ds,val);}catch(e){console.error(e);}
       if(c){const w1=S.haftalar[wid];if(w1&&w1.cells&&w1.cells[pid])w1.cells[pid][String(i)]=eski;undo.pop();render();toast(cakismaMesaj(p,ds,c));return false;}}
     await setDoc(weekRef(wid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad,cells:{[pid]:{[String(i)]:val}}},{merge:true});kapaliHaftaGuncelle(wid);return true;});}
 // Birden çok hücre: saat kuralına ya da aynı gün kuralına uymayan hücreler eski değerinde kalır, sayısı döner.
-function setWeek(wid,cells,kadro,pushUndo=true){const w0=S.haftalar[wid]||{};const eskiC=w0.cells||{};const ds=weekDays(wid);let red=0;const degisen=[];
+function setWeek(wid,cells,kadro,pushUndo=true){if(wid===S.hafta&&kilitBaskasi()){setTimeout(()=>toast(kilitMesaj()),60);return 0;}
+  const w0=S.haftalar[wid]||{};const eskiC=w0.cells||{};const ds=weekDays(wid);let red=0;const degisen=[];
   Object.keys({...eskiC,...cells}).forEach(pid=>{const p=S.personel.find(x=>x.id===pid);for(let i=0;i<7;i++){const a=(eskiC[pid]||{})[String(i)]??null,b=(cells[pid]||{})[String(i)]??null;if(a===b)continue;
     if(b&&!hucreKontrol(p,wid,i,b,true)){red++;if(cells[pid])cells[pid][String(i)]=a;continue;}if(p&&cokSubeli(p))degisen.push([p,ymd(ds[i]),b]);}});
-  if(pushUndo)undoKaydet(wid);const kad=kadro===undefined?kadroOf(wid).ids:kadro;const{cells:_c,kadro:_k,...dig}=w0;
-  S.haftalar[wid]={...dig,hafta:wid,kadro:kad,cells};render();
-  sirayla(wid,async()=>{await setDoc(weekRef(wid),{...dig,hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad,cells});
+  if(pushUndo)undoKaydet(wid);const kad=kadro===undefined?kadroOf(wid).ids:kadro;
+  // Sadece değişen hücreler yazılır: aynı anda başka birinin girdiği hücreler silinmez.
+  const fark={};Object.keys({...eskiC,...cells}).forEach(pid=>{if(!(pid in cells)){if(pid in eskiC)fark[pid]=deleteField();return;}
+    for(let i=0;i<7;i++){const a=(eskiC[pid]||{})[String(i)]??null,b=(cells[pid]||{})[String(i)]??null;if(a!==b)(fark[pid]=fark[pid]||{})[String(i)]=b;}});
+  const kadDeg=!Array.isArray(w0.kadro)||JSON.stringify(w0.kadro)!==JSON.stringify(kad);
+  S.haftalar[wid]={...w0,hafta:wid,kadro:kad,cells};render();
+  sirayla(wid,async()=>{if(!(await kilitAl(czK(wid)))){S.haftalar[wid]=w0;if(pushUndo)undo.pop();render();toast(kilitMesaj());return;}
+    await setDoc(weekRef(wid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),...(kadDeg?{kadro:kad}:{}),...(Object.keys(fark).length?{cells:fark}:{})},{merge:true});
     for(const[p,d,v]of degisen){try{const c=await gunYaz(p,d,v);if(c)toast(cakismaMesaj(p,d,c));}catch(e){console.error(e);}}kapaliHaftaGuncelle(wid);});
   return red;}
 
@@ -372,7 +427,7 @@ function bootstrap(){
       if(!S.me){try{const k=await getDoc(doc(db,'sistem','kurulum'));S.kurulumVar=k.exists();}catch(e){S.kurulumVar=true;}return hesapYok();}
       if(S.me.aktif!==true){return view(`<div class="login"><div class="card"><h2>Hesabınız kapalı</h2><p class="note">İşvereninizle görüşün.</p><button class="btn" id="outB">Çıkış yap</button></div></div>`,()=>byId('outB').onclick=()=>signOut(auth));}
       subeleriDinle();},e=>{view(`<div class="banner bad">Hesap bilgisi okunamadı: ${esc(e.message)}</div>`);});});}
-function temizle(){[...subs.sube,...subs.detay,...subs.liste,...subs.subeDocs,...subs.gun,...subs.tk].forEach(u=>u());subs.sube=[];subs.detay=[];subs.liste=[];subs.subeDocs=[];subs.gun=[];subs.tk=[];S.gunler={};S.tk={};S.tkKey=null;S.haftaDurum={w:{}};
+function temizle(){if(KL.unsub){KL.unsub();KL.unsub=null;}clearTimeout(KL.zT);kilitBirak();KL.key=null;KL.k=null;KL.d=null;[...subs.sube,...subs.detay,...subs.liste,...subs.subeDocs,...subs.gun,...subs.tk].forEach(u=>u());subs.sube=[];subs.detay=[];subs.liste=[];subs.subeDocs=[];subs.gun=[];subs.tk=[];S.gunler={};S.tk={};S.tkKey=null;S.haftaDurum={w:{}};
   if(subs.me){subs.me();subs.me=null;}if(subs.users){subs.users();subs.users=null;}S.subeler={};S.subeIds=[];S.subeId=null;S.personel=[];S.haftalar={};S.aylar={};S.loaded={personel:false,haftalar:false};S.gocBakildi=false;}
 function loginEkrani(){top('Puantaj Merkezi','Giriş');byId('tabs').hidden=true;
   view(`<div class="login"><form class="card" id="lf"><h2>Giriş yap</h2><p class="note" style="margin:2px 0 6px">Kullanıcı adınız ve şifrenizle girin.</p>
@@ -449,7 +504,7 @@ function selectSube(id){subs.sube.forEach(u=>u());subs.sube=[];S.tcler={};S.sube
 const byId=id=>document.getElementById(id);
 function subeBar(){if(S.subeIds.length<2||!['cizelge','personel','ay'].includes(S.tab))return'';
   return `<div class="ptsube sbar"><span class="ptcap">Şube</span><div class="ptsel"><select id="subeSecim" aria-label="Şube seç">${S.subeIds.map(id=>`<option value="${esc(id)}" ${id===S.subeId?'selected':''}>${esc(S.subeler[id].ad)}</option>`).join('')}</select></div></div>`;}
-function view(html,after){const ap=document.querySelector('.app');if(ap)ap.classList.toggle('wide',(S.tab==='puantaj'&&!!S.pt.sube)||['cizelge','personel','ay'].includes(S.tab));byId('view').innerHTML=subeBar()+html;after&&after();}
+function view(html,after){const ap=document.querySelector('.app');if(ap)ap.classList.toggle('wide',(S.tab==='puantaj'&&!!S.pt.sube)||['cizelge','personel','ay'].includes(S.tab));kilitTakip();byId('view').innerHTML=subeBar()+kilitBandi()+html;after&&after();kilitUygula();}
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='subeSecim'){selectSube(e.target.value);window.scrollTo(0,0);}});
 function top(eyebrow,title,right=''){byId('top').innerHTML=`<div class="top-row"><div class="grow"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1></div>${right}</div>`;}
 function sekmeler(){if(!S.me)return[];const t=[['cizelge','Çizelge'],['personel','Personel']];
@@ -587,7 +642,7 @@ function hucreKopyaMod(pid,i){const v=cellOf(pid,S.hafta,i);if(!v){toast('Boş h
 function satirKopyaMod(pid){const c=(S.haftalar[S.hafta]&&S.haftalar[S.hafta].cells&&S.haftalar[S.hafta].cells[pid])||{};if(!Object.values(c).some(v=>v)){toast('Bu kişinin haftası boş.');return;}MOD={tip:'satir',pid,gun:{...c}};render();}
 function satirYapistir(pid){if(pid===MOD.pid)return;const wid=S.hafta;const ds=weekDays(wid);const p=S.personel.find(x=>x.id===pid);const cells=JSON.parse(JSON.stringify((S.haftalar[wid]&&S.haftalar[wid].cells)||{}));
   cells[pid]=cells[pid]||{};ds.forEach((d,i)=>{if(employed(p,d)&&cizelgeYazabilir(d))cells[pid][String(i)]=MOD.gun[String(i)]??null;});const red=setWeek(wid,cells,kadroOf(wid).ids);toast(`${kisaAd(p.ad)} için yapıştırıldı.${red?` ${red} gün yazılmadı: ${RED_NEDEN}.`:''}`);}
-function hucre(pid,i,opt={}){const p=S.personel.find(x=>x.id===pid);if(!p)return;const wid=S.hafta;const d=weekDays(wid)[i];const val=cellOf(pid,wid,i);const sb=sube();let[a,b]=isShift(val)?val.split('-'):['',''];
+function hucre(pid,i,opt={}){if(kilitEngel())return;const p=S.personel.find(x=>x.id===pid);if(!p)return;const wid=S.hafta;const d=weekDays(wid)[i];const val=cellOf(pid,wid,i);const sb=sube();let[a,b]=isShift(val)?val.split('-'):['',''];
   const pay=duzeltmeGunu(d);const L=saatListesi(sb,pay);const o=cokSubeli(p)?digerGunler(p,d):null;
   // Listede olmayan eski bir saat (ör. 11:15) seçili kalsın ama düzeltilmesi istensin.
   const secenek=(sec,yok)=>{const grup=(t,f)=>{const x=L.filter(f);return x.length?`<optgroup label="${t}">${x.map(q=>`<option value="${q.s}" ${q.s===sec?'selected':''}>${q.s}${q.pay==='erken'?' · erken':q.pay==='gec'?' · geç':''}</option>`).join('')}</optgroup>`:'';};
@@ -1143,7 +1198,7 @@ function renderPuantaj(){if(!puantajYetki())return;S.ay=aktifAy('puantaj');
 let listeAy=null;function listeDinle(ak){if(listeAy===ak+S.subeIds.join())return;listeAy=ak+S.subeIds.join();subs.liste.forEach(u=>u());subs.liste=[];
   S.subeIds.forEach(id=>subs.liste.push(onSnapshot(doc(db,'subeler',id,'aylar',ak),s=>{S.pt.listeAylar[id+'|'+ak]=s.exists()?s.data():{durum:'taslak'};if(S.tab==='puantaj'&&!S.pt.sube)render();},()=>{})));}
 function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=null;S.pt.maas=null;S.pt.prev=null;S.pt.ozetler={};subs.detay.forEach(u=>u());subs.detay=[];const ak=S.ay;
-  S.pt.temiz=false;subs.detay.push(onSnapshot(doc(db,'puantaj',id,'aylar',ak),s=>{S.pt.doc=s.exists()?s.data():{};if(!S.pt.temiz){S.pt.temiz=true;veriBosTemizle();}render();},e=>{S.pt.doc={};yazmaHatasi(e);}));
+  S.pt.temiz=false;subs.detay.push(onSnapshot(doc(db,'puantaj',id,'aylar',ak),s=>{S.pt.doc=s.exists()?s.data():{};S.pt.veriTaban=(S.pt.doc.veri||[]).slice();if(!S.pt.temiz){S.pt.temiz=true;veriBosTemizle();}render();},e=>{S.pt.doc={};yazmaHatasi(e);}));
   subs.detay.push(onSnapshot(doc(db,'maaslar',id),s=>{S.pt.maas=s.exists()?s.data():{};render();},()=>{S.pt.maas={};}));
   getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{const m={};q.docs.forEach(d=>{const x=d.data();if(x.sube)m[x.sube]=x.kisiler||{};});S.pt.ozetler=m;render();}).catch(e=>console.error(e));
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
@@ -1227,7 +1282,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
     if(S.pt._kf&&S.pt.gorunum!=='veri'){kfBagla(S.pt._kf.t,S.pt._kf.cols,S.pt._kf.rows);const kh=byId('kfHepsi');if(kh)kh.onclick=()=>{kfDurum(S.pt._kf.t).f={};render();};}
     if(S.pt.gorunum==='veri')veriGirisiBagla(V);else document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
-    document.querySelectorAll('[data-bk]').forEach(c=>c.onchange=()=>{const k=c.dataset.bk;const sid=S.subeId;S.pt.doc={...(S.pt.doc||{}),bkontrol:{...((S.pt.doc||{}).bkontrol||{}),[k]:c.checked}};
+    document.querySelectorAll('[data-bk]').forEach(c=>c.onchange=()=>{if(kilitEngel()){c.checked=!c.checked;return;}const k=c.dataset.bk;const sid=S.subeId;S.pt.doc={...(S.pt.doc||{}),bkontrol:{...((S.pt.doc||{}).bkontrol||{}),[k]:c.checked}};
       sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,bkontrol:{[k]:c.checked}},{merge:true}));render();});
     const ob=byId('onayB');if(ob)ob.onclick=()=>{const T2=V.satir.reduce((t,x)=>t+Math.max(x.hes.kalan,0),0);openSheet(`<h2>Puantajı onayla</h2><div class="sub">${esc(trBuyukBas(sb.ad))} şubesi · ${ayAdi(ak)}</div>
       <div class="confirm">Onaylayınca muhasebe tarafı kilitlenir ve puantajın son hali işverene iletilir. Raporlar, yıllık izinler ve SGK giriş-çıkışları muhasebe grubundan kontrol ettiğinizden emin olun.</div>
@@ -1322,10 +1377,26 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
     if(ac)h+=`<div class="tbl-wrap" style="margin-top:8px"><table class="pt"><thead><tr><th>Kaynak</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th></tr></thead><tbody>${oto.map(v=>{const t=veriTur(v.tur);const mk=v.miktar==null?'—':t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'');
       return`<tr class="oto"><td><span class="tag">${v.tur==='AV'?'devir':'çizelge'}</span></td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${mk}</td><td class="l">${esc(v.aciklama||'Mesai çizelgesinden')}</td></tr>`;}).join('')}</tbody></table></div>`;}
   return h;}
+// Veri girişi satırları sunucudaki son hal ile satır satır (id ile) birleştirilir: aynı anda başka biri satır ekleyip sildiyse kaybolmaz.
+function veriBirlestir(taban,yeni,srv){const idli=a=>(a||[]).every(v=>v&&v.id);if(!taban||!idli(taban)||!idli(yeni)||!idli(srv))return yeni;
+  const tb=new Map(taban.map(v=>[v.id,v]));const yb=new Set(yeni.map(v=>v.id));const sil=new Set([...tb.keys()].filter(id=>!yb.has(id)));
+  const deg=new Map();yeni.forEach(v=>{const t=tb.get(v.id);if(!t||JSON.stringify(t)!==JSON.stringify(v))deg.set(v.id,v);});
+  const out=[],var_=new Set();(srv||[]).forEach(v=>{if(sil.has(v.id))return;var_.add(v.id);out.push(deg.has(v.id)?deg.get(v.id):v);});
+  yeni.forEach(v=>{if(!var_.has(v.id)&&deg.has(v.id))out.push(v);});return out;}
+// Puantaj belgesine yazar; "veri" varsa sunucudaki son hal ile birleştirerek (taban: ekrandaki listenin dayandığı sunucu hali).
+async function ptYazHemen(sid,ak,alanlar,taban){const ref=doc(db,'puantaj',sid,'aylar',ak);
+  if(!('veri' in alanlar))return setDoc(ref,alanlar,{merge:true});
+  const son=await runTransaction(db,async tr=>{const s=await tr.get(ref);const srv=(s.exists()&&s.data().veri)||[];const veri=veriBirlestir(taban,alanlar.veri,srv);
+    tr.set(ref,{...alanlar,veri},{merge:true});return veri;});
+  if(sid===S.pt.sube&&ak===S.ay)S.pt.veriTaban=son;return son;}
+const ptTaban=(sid,ak)=>sid===S.pt.sube&&ak===S.ay?S.pt.veriTaban:null;
+// Sağ taraf (ödemeler): sadece değişen kişilerin alanları; diğerlerinin yalnız hesaplanan kalanı yazılır.
+function sagYama(sag,kisiler){const o={};Object.entries(sag||{}).forEach(([pid,v])=>{o[pid]=kisiler.includes(pid)?v:{kalan:(v||{}).kalan??0};});return o;}
 function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
   const veri0=()=>((S.pt.doc&&S.pt.doc.veri)||[]);let kT=null;
-  const kaydetSimdi=yeni=>sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,veri:yeni,guncellendi:new Date().toISOString()},{merge:true}));
-  const ayarla=(yeni,ciz)=>{S.pt.doc={...(S.pt.doc||{}),veri:yeni};clearTimeout(kT);if(ciz){kaydetSimdi(yeni);S.pt.zorla=true;render();}else kT=setTimeout(()=>kaydetSimdi(veri0()),500);};
+  const kaydetSimdi=yeni=>{const taban=ptTaban(sid,ak);return sirayla('pt'+sid+ak,async()=>{if(!(await kilitAl(ptK(sid,ak)))){if(sid===S.pt.sube&&ak===S.ay){S.pt.doc={...(S.pt.doc||{}),veri:S.pt.veriTaban||[]};S.pt.zorla=true;render();}toast(kilitMesaj());return;}
+    await ptYazHemen(sid,ak,{sube:sid,ay:ak,veri:yeni,guncellendi:new Date().toISOString()},taban);});};
+  const ayarla=(yeni,ciz)=>{if(kilitBaskasi()){toast(kilitMesaj());S.pt.zorla=true;render();return;}S.pt.doc={...(S.pt.doc||{}),veri:yeni};clearTimeout(kT);if(ciz){kaydetSimdi(yeni);S.pt.zorla=true;render();}else kT=setTimeout(()=>kaydetSimdi(veri0()),500);};
   const coz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli);return{...v,pid:k.gecersiz&&k.hata!=='Veri türü seçin'&&k.hata!=='Muhasebe kilitli'&&k.hata!=='Başka ay'&&k.hata!=='Miktar yok'?'':k.pid,_k:k};};
   const temiz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli);const o={...v,pid:k.gecersiz?'':k.pid,tur:v.tur||''};return o;};
   const yeniSatir=(o={})=>{const son=veri0()[veri0().length-1]||{};const bugun=ymd(today()).slice(0,7)===ak?ymd(today()):ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));
@@ -1390,23 +1461,25 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
 
 // Boş satırlar: sekme değişince, şubeden çıkınca ve sayfa açılınca silinir.
 function bosSatirMi(v){return !String(v.ad||'').trim()&&!v.pid&&!v.tur&&(v.miktar===''||v.miktar==null)&&!String(v.aciklama||'').trim();}
-function veriBosTemizle(){const D=S.pt.doc;if(!D||!Array.isArray(D.veri)||!S.pt.sube)return;const yeni=D.veri.filter(v=>!bosSatirMi(v));if(yeni.length===D.veri.length)return;
-  const sid=S.pt.sube,ak=S.ay;S.pt.doc={...D,veri:yeni};sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{veri:yeni,guncellendi:new Date().toISOString()},{merge:true}));}
+// Sadece kendi açtığım ya da 1 saatten eski boş satırlar silinir (başkasının o an doldurduğu yeni satıra dokunulmaz).
+function veriBosTemizle(){const D=S.pt.doc;if(!D||!Array.isArray(D.veri)||!S.pt.sube)return;const ben=(S.me&&(S.me.adSoyad||S.me.kullaniciAdi))||'';
+  const silinir=v=>bosSatirMi(v)&&(v.kim===ben||!v.zaman||Date.now()-Date.parse(v.zaman)>3600000);const yeni=D.veri.filter(v=>!silinir(v));if(yeni.length===D.veri.length)return;
+  const sid=S.pt.sube,ak=S.ay;if(kilitBaskasi())return;const taban=ptTaban(sid,ak);S.pt.doc={...D,veri:yeni};sirayla('pt'+sid+ak,()=>ptYazHemen(sid,ak,{veri:yeni,guncellendi:new Date().toISOString()},taban));}
 function listeyeDon(){veriBosTemizle();S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
 function sagSonuclu(V,degisen){const sag=JSON.parse(JSON.stringify((V.D&&V.D.sag)||{}));if(degisen)Object.entries(degisen).forEach(([pid,v])=>sag[pid]={...(sag[pid]||{}),...v});
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=netMap(V.ak);
   Object.keys(V.sol).forEach(pid=>{const dv=prevSag[pid]&&prevSag[pid].kalan<0?prevSag[pid].kalan:0;const r=sagHesap(pid,V.sol[pid],sag[pid],net[pid],V.sb,dv,veriOzet(V.D&&V.D.veri)[pid],usOf(pid));sag[pid]={...(sag[pid]||{}),kalan:Math.round(r.kalan*100)/100};});return sag;}
-async function onayla(){const ak=S.ay,sid=S.subeId;await gunleriYukle(ayKadrosu(ak),[ayKaydir(ak,-1),ak,ayKaydir(ak,1)]);const V=ptVerisi();const sol=ptSol(ak,V.D||{});const b=writeBatch(db);const V2={...V,sol};
-  b.set(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,sol,sag:sagSonuclu(V2),kilitli:true,onaylayan:S.user.uid,onaylayanAd:S.me.adSoyad||'',onayTarihi:new Date().toISOString(),guncellendi:new Date().toISOString()},{merge:true});
+async function onayla(){const ak=S.ay,sid=S.subeId;if(await kilitliMi(ptK(sid,ak)))return;await gunleriYukle(ayKadrosu(ak),[ayKaydir(ak,-1),ak,ayKaydir(ak,1)]);const V=ptVerisi();const sol=ptSol(ak,V.D||{});const b=writeBatch(db);const V2={...V,sol};
+  b.set(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,sol,sag:sagYama(sagSonuclu(V2),[]),kilitli:true,onaylayan:S.user.uid,onaylayanAd:S.me.adSoyad||'',onayTarihi:new Date().toISOString(),guncellendi:new Date().toISOString()},{merge:true});
   b.set(doc(db,'subeler',sid,'aylar',ak),{durum:'bolge_onay',onaylayan:S.user.uid,onayTarihi:new Date().toISOString()},{merge:true});
   b.set(doc(db,'ozetler',ak+'__'+sid),{sube:sid,ay:ak,kisiler:subeOzeti(ak,sid),guncellendi:new Date().toISOString()});
   b.commit().then(()=>toast(`${sube().ad} · ${ayAdi(ak)} onaylandı.`)).catch(yazmaHatasi);}
-function kilidiAc(){const ak=S.ay,sid=S.subeId;const b=writeBatch(db);b.set(doc(db,'puantaj',sid,'aylar',ak),{kilitli:false,guncellendi:new Date().toISOString()},{merge:true});
+async function kilidiAc(){const ak=S.ay,sid=S.subeId;if(await kilitliMi(ptK(sid,ak)))return;const b=writeBatch(db);b.set(doc(db,'puantaj',sid,'aylar',ak),{kilitli:false,guncellendi:new Date().toISOString()},{merge:true});
   b.set(doc(db,'subeler',sid,'aylar',ak),{durum:'taslak'},{merge:true});b.commit().then(()=>toast('Kilit açıldı, ay yeniden düzenlenebilir.')).catch(yazmaHatasi);}
-function geriGonderPanel(){openSheet(`<h2>Şubeye geri gönder</h2><div class="sub">Şube müdürü notu görür, düzeltip ayı yeniden kapatır.</div><label class="field"><span>Not</span><textarea id="gNot" rows="3" placeholder="Örn: Ali'nin 14 Ekim raporu eksik"></textarea></label>
+function geriGonderPanel(){if(kilitEngel())return;openSheet(`<h2>Şubeye geri gönder</h2><div class="sub">Şube müdürü notu görür, düzeltip ayı yeniden kapatır.</div><label class="field"><span>Not</span><textarea id="gNot" rows="3" placeholder="Örn: Ali'nin 14 Ekim raporu eksik"></textarea></label>
   <div class="row2"><button class="btn grow" id="gNo">Vazgeç</button><button class="btn danger grow" id="gOk">Geri gönder</button></div>`,()=>{byId('gNo').onclick=closeSheet;
   byId('gOk').onclick=()=>{const not=byId('gNot').value.trim();sirayla('ay'+S.ay,()=>setDoc(doc(db,'subeler',S.subeId,'aylar',S.ay),{durum:'geri',not,geriGonderen:S.user.uid,geriTarih:new Date().toISOString()},{merge:true}));closeSheet();toast('Şubeye geri gönderildi.');};});}
-function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const ekToplam=k=>{const v=(V.oz[pid]||{})[k]||0;return v?tl(v):'';};const us0=usOf(pid);let tip=us0.tip;const maasDisi=x.sol.maasBurada===false;const kuryeMi=(x.sol.grup||'')==='S';const partMi=x.sol.sekil==='Part';if((maasDisi||!kuryeMi)&&tip==='paket')tip='maas';if(!partMi&&tip==='saat'&&!maasDisi)tip=us0.tip==='saat'?'saat':tip;const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
+function odemePanel(pid){if(kilitEngel())return;const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const ekToplam=k=>{const v=(V.oz[pid]||{})[k]||0;return v?tl(v):'';};const us0=usOf(pid);let tip=us0.tip;const maasDisi=x.sol.maasBurada===false;const kuryeMi=(x.sol.grup||'')==='S';const partMi=x.sol.sekil==='Part';if((maasDisi||!kuryeMi)&&tip==='paket')tip='maas';if(!partMi&&tip==='saat'&&!maasDisi)tip=us0.tip==='saat'?'saat':tip;const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
   const inp=(id,label,val,ph='')=>`<label class="field"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val??''}" placeholder="${ph}"></label>`;
   const pK=S.personel.find(q=>q.id===pid);const ms0=pK?odemeSubesi(pK,V.ak):'';let msSecHtml='';
   if(pK&&!esnaf){const sgk=pK.sgkSube&&pK.sgkSube!==SGK_YOK?pK.sgkSube:'';const ana=pK.anaSube||'';
@@ -1440,7 +1513,8 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
        ${Math.abs(r.kalan-r.kalanHam)>0.004?`<div><span>Yuvarlama (5 ₺)</span><b>${tl(r.kalan-r.kalanHam)}</b></div>`:''}<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Kalan ödeme</span><b class="${r.kalan<0?'neg':'pos'}">${tl(r.kalan)}</b></div>${r.kalan<0?'<div><span class="note" style="margin:0">Eksi tutar sonraki ayın ödemesinden düşülür.</span></div>':''}`;};
    sh.querySelectorAll('input').forEach(i=>i.oninput=calc);calc();byId('oNo').onclick=closeSheet;
    byId('oOk').onclick=async()=>{const o=oku();const tcv=byId('oTc').value.replace(/\D/g,'');if(tcv&&tcv.length!==11){byId('oErr').innerHTML='<div class="confirm">TC kimlik no 11 haneli olmalı.</div>';return;}
-     const sid=S.subeId,ak=V.ak;const sag=sagSonuclu(V,{[pid]:o});
+     const sid=S.subeId,ak=V.ak;const sag=sagSonuclu(V,{[pid]:o});const taban=ptTaban(sid,ak);
+     if(await kilitliMi(ptK(sid,ak)))return;
      try{const netEl=byId('oNet');if(!esnaf){const u=usSimdi();if(u.tip!==us0.tip||(u.tip==='saat'&&u.saatUcret!==us0.saatUcret)){const m0=S.pt.maas||{};
          const sg0=(m0.saatGecmis||{})[pid]||{};S.pt.maas={...m0,ucretSekli:{...(m0.ucretSekli||{}),[pid]:u.tip},paketBasi:{...(m0.paketBasi||{}),[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{...(m0.saatGecmis||{}),[pid]:{...sg0,[ak]:u.saatUcret}}}:{})};
          await setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{[pid]:{[ak]:u.saatUcret}}}:{})},{merge:true});}}
@@ -1456,7 +1530,7 @@ function odemePanel(pid){const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid)
        const eskiS=sag[pid]||{};[['paketPrimi','PP'],['ciroPrimi','CP'],['avans','AV']].forEach(([f,t])=>{if(sayi(eskiS[f])){ek.push(satir(t,sayi(eskiS[f]),'Önceki kayıttan taşındı'));sag[pid]={...sag[pid],[f]:''};}});
        const veriY=[...((S.pt.doc&&S.pt.doc.veri)||[]),...ek];S.pt.doc={...(S.pt.doc||{}),veri:veriY};
        const sag2=sagSonuclu({...V,D:{...V.D,sag,veri:veriY}});
-       await setDoc(doc(db,'puantaj',sid,'aylar',ak),{...(V.kilitli?{}:{sube:sid,ay:ak}),sag:sag2,...(ek.length?{veri:veriY}:{}),guncellendi:z},{merge:true});
+       await ptYazHemen(sid,ak,{...(V.kilitli?{}:{sube:sid,ay:ak}),sag:sagYama(sag2,[pid]),...(ek.length?{veri:veriY}:{}),guncellendi:z},taban);
        const msEl=byId('oMs');let msMesaj='';if(pK&&msEl&&!msEl.disabled&&msEl.value&&msEl.value!==ms0){const ym=maasGecmisYama(pK,msEl.value,ak);if(ym){Object.assign(pK,ym);await setDoc(doc(db,'personel',pK.id),ym,{merge:true});msMesaj=` Maaşı ${ayAdi(ak)} ayından itibaren ${subeAdi(msEl.value)} puantajında.`;}}
        closeSheet();toast((ek.length?'Kaydedildi, primler veri girişine eklendi.':'Ödeme bilgileri kaydedildi.')+msMesaj);if(msMesaj)render();}
      catch(e){yazmaHatasi(e);}};});}
@@ -1573,7 +1647,7 @@ function bordroCoz(lines){const para=/-?\d{1,3}(?:\.\d{3})*,\d{2}/g;const out={i
       out.kisiler.push({ad:m[2].replace(/\s+/g,' ').trim(),tc:m[3],giris:m[4],sgkGun:g?+g[3]:null,eksikGun:eksik?+eksik[1]:0,neden,net:nums.length?sayi(nums[nums.length-1]):null});}
     if((m=l.match(/Toplamlar:/))){const nums=l.match(para)||[];if(nums.length)out.toplam=sayi(nums[nums.length-1]);}});
   return out;}
-function bordroPanel(V){const ids=Object.keys(V.sol);let satirlar=[];const okunan=[];
+function bordroPanel(V){if(kilitEngel())return;const ids=Object.keys(V.sol);let satirlar=[];const okunan=[];
   openSheet(`<h2>Bordro PDF yükle</h2><div class="sub">${esc(V.sb.ad)} · ${ayAdi(V.ak)}. Birden çok şubenin bordrosunu birlikte bırakabilirsiniz; sadece bu puantajdaki kişiler eşleşir, diğerleri atlanır. Net ödenen tutarlar veri girişine "Bankaya yatan" olarak eklenir.</div>
    <label class="drop" id="bDrop"><input id="bF" type="file" accept="application/pdf" multiple hidden><b>PDF'leri buraya sürükleyip bırakın</b><span>ya da tıklayıp seçin (birden fazla seçebilirsiniz)</span></label><div id="bDosya"></div><div id="bOut"></div>`,sh=>{
    const tcMap={...((S.pt.maas&&S.pt.maas.tc)||{})};S.personel.forEach(q=>{if(q.tc&&!tcMap[q.id])tcMap[q.id]=q.tc;});
@@ -1605,7 +1679,7 @@ function bordroPanel(V){const ids=Object.keys(V.sol);let satirlar=[];const okuna
      byId('bOut').querySelectorAll('select[data-j]').forEach(s=>s.onchange=()=>{const k=satirlar[+s.dataset.j];k.pid=s.value||null;k.yol=s.value?'elle':null;ciz();});
      byId('bOut').querySelectorAll('input[data-n]').forEach(i=>i.onchange=()=>{const bos=i.value.trim()==='';satirlar[+i.dataset.n].netYazi=bos?null:sayi(i.value);i.value=bos?'':fmt(sayi(i.value));});
      const ok=byId('bOk');if(ok)ok.onclick=()=>{const tutarli=es.filter(k=>k.netYazi!=null);if(tutarli.length<es.length)toast(`${es.length-tutarli.length} kişinin net tutarı boş, atlandı.`);isle(tutarli);};};
-   const isle=async es=>{const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
+   const isle=async es=>{if(await kilitliMi(ptK()))return;const taban=ptTaban(S.subeId,V.ak);const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
       const n=Object.keys(deg).length;if(!n){toast('Eşleşen personel yok.');return;}
       try{if(Object.keys(tcYeni).length)await setDoc(doc(db,'maaslar',S.subeId),{tc:tcYeni},{merge:true});
         const sonGun=ymd(new Date(+V.ak.slice(0,4),+V.ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
@@ -1614,10 +1688,10 @@ function bordroPanel(V){const ids=Object.keys(V.sol);let satirlar=[];const okuna
         const eski=((S.pt.doc&&S.pt.doc.veri)||[]).filter(v=>!(v.kaynak==='bordro'&&deg[v.pid]));const yeni=[...eski,...burada.map(satirOf)];
         const degS={};Object.keys(deg).forEach(pid=>degS[pid]={bankaya:''});
         S.pt.doc={...(S.pt.doc||{}),veri:yeni};const V2={...V,D:{...V.D,veri:yeni}};const sag=sagSonuclu(V2,degS);
-        await setDoc(doc(db,'puantaj',S.subeId,'aylar',V.ak),{...(V.kilitli?{}:{sube:S.subeId,ay:V.ak}),sag,veri:yeni,guncellendi:z},{merge:true});
+        await ptYazHemen(S.subeId,V.ak,{...(V.kilitli?{}:{sube:S.subeId,ay:V.ak}),sag:sagYama(sag,Object.keys(deg)),veri:yeni,guncellendi:z},taban);
         const giden=[],yetkiYok=[];for(const[h,L] of Object.entries(disari)){if(!(isIsveren()||(S.me.subeler||[]).includes(h))){yetkiYok.push(subeAdi(h)+': '+L.map(pid=>adBuyuk(V.sol[pid].ad)).join(', '));continue;}
-          const ref=doc(db,'puantaj',h,'aylar',V.ak);const d0=await getDoc(ref);const v0=((d0.exists()&&d0.data().veri)||[]).filter(v=>!(v.kaynak==='bordro'&&L.includes(v.pid)));
-          await setDoc(ref,{sube:h,ay:V.ak,veri:[...v0,...L.map(satirOf)],guncellendi:z},{merge:true});giden.push(`${L.length} kişi → ${subeAdi(h)}`);}
+          const ref=doc(db,'puantaj',h,'aylar',V.ak);
+          await runTransaction(db,async tr=>{const d0=await tr.get(ref);const v0=((d0.exists()&&d0.data().veri)||[]).filter(v=>!(v.kaynak==='bordro'&&L.includes(v.pid)));tr.set(ref,{sube:h,ay:V.ak,veri:[...v0,...L.map(satirOf)],guncellendi:z},{merge:true});});giden.push(`${L.length} kişi → ${subeAdi(h)}`);}
         closeSheet();toast(`${burada.length} kişi bu şubeye işlendi${giden.length?', '+giden.join(', '):''}.`);render();
         if(yetkiYok.length)openSheet(`<h2>Bazı tutarlar işlenemedi</h2><div class="sub">Bu kişilerin maaşı yetkiniz olmayan şubede ödeniyor. Tutarları o şubenin bölge müdürü veri girişine "Bankaya yatan" olarak girmeli.</div><div class="card" style="padding:12px">${yetkiYok.map(esc).join('<br>')}</div><div class="row2"><button class="btn primary grow" onclick="document.getElementById('sheetRoot').innerHTML=''">Tamam</button></div>`);}
       catch(e){yazmaHatasi(e);}};});}

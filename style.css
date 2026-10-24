@@ -407,3 +407,5 @@ table.bl.cal th{padding-left:10px;padding-right:10px}
 .ibr .mono{font-family:ui-monospace,Menlo,monospace;color:var(--ink);font-size:13px;font-weight:600;word-break:break-all}
 .ibr.eks{background:var(--bad-bg)}.ibr.eks .mono{color:var(--bad);font-family:var(--f-ui)}
 .ibk-f{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
+.banner.kilit{background:var(--soft,#eef2f8);color:var(--ink,#152033);border:1px solid var(--line,#d9dee8);font-weight:500}
+.banner.kilit b{font-weight:700}
