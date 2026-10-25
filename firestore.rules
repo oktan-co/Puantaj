@@ -51,7 +51,8 @@ service cloud.firestore {
       let yeni = request.resource.data.get('ekSubeler', []);
       let gorEski = resource.data.get('gorunurSubeler', []);
       let gorYeni = request.resource.data.get('gorunurSubeler', []);
-      return (eski == yeni && gorEski == gorYeni)
+      // Diğer çalıştığı şubeler değişmiyorsa görünür şubeler sadece büyüyebilir (çalıştığı / SGK şubesi değişince eski şube eklenir).
+      return (eski == yeni && gorYeni.hasAll(gorEski))
         || isveren()
         || (aktif() && ben().rol == 'bolge'
             && ben().subeler.hasAll(yeni.removeAll(eski))
@@ -70,13 +71,18 @@ service cloud.firestore {
           && (subede(request.resource.data.anaSube) || subede(request.resource.data.get('sgkSube', ''))))
         || (aktif() && ben().rol == 'bolge'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ekSubeler', 'gorunurSubeler'])));
-      allow delete: if subede(resource.data.anaSube) || subede(resource.data.get('sgkSube', ''));
+      // Silme sadece işveren: silinen kişinin geçmiş haftaları ve puantajı hesaplardan düşer (uygulama kaydı olanı zaten sildirmez).
+      allow delete: if isveren();
     }
 
     // Şubenin "diğer şubeden çalışanlar" listesi (kişi kimlikleri). Şube okur, bölge müdürü / işveren yazar.
+    // Bölge müdürü / işveren yönetir; diğer aktif kullanıcılar sadece kişi ekleyebilir (şube değişikliğinde eski şube kişiyi görmeye devam etsin), çıkaramaz.
     match /ekPersonel/{s} {
       allow read: if subede(s);
-      allow write: if bolgede(s);
+      allow create, update: if bolgede(s)
+        || (aktif() && request.resource.data.keys().hasOnly(['ids'])
+            && (resource == null || request.resource.data.ids.keys().hasAll(resource.data.get('ids', {}).keys())));
+      allow delete: if bolgede(s);
     }
 
     // Kişinin gün gün hangi şubede ne yazıldığı (aynı gün tek şube kuralı ve başka şubede çalıştığı günler için).
@@ -91,7 +97,7 @@ service cloud.firestore {
     // Şubelerin aylık saat/izin özeti (maaşın ödendiği şubenin puantajı diğer şubelerdeki izinleri buradan toplar).
     match /ozetler/{d} {
       allow read: if aktif() && (ben().rol in ['bolge', 'isveren'] || subede(resource.data.sube));
-      allow write: if request.resource != null && subede(request.resource.data.sube)
+      allow write: if request.resource != null && bolgede(request.resource.data.sube)
         && d == request.resource.data.ay + '__' + request.resource.data.sube;
     }
 
@@ -130,8 +136,12 @@ service cloud.firestore {
       }
 
       // Kapatılan haftaların listesi ve kişi bazında toplamları (şube müdürü kapalı haftayı göremediği için "bu haftaya kadar" toplamı buradan).
+      // Şube müdürü sadece hafta ekler / günceller (haftayı kapatırken); kayıt silemez, belgeyi silemez.
       match /durum/{d} {
-        allow read, write: if subede(s);
+        allow read: if subede(s);
+        allow create, update: if bolgede(s)
+          || (subede(s) && request.resource.data.get('w', {}).keys().hasAll(resource == null ? [] : resource.data.get('w', {}).keys()));
+        allow delete: if bolgede(s);
       }
 
       // Ay durumu: taslak → sube_onay → bolge_onay; bölge müdürü 'geri' ile iade edebilir.
