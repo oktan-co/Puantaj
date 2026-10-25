@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=102;
+const APP_SURUM=103;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -772,7 +772,9 @@ const KAPATMA_GUN=2;
 const durumRef=sid=>doc(db,'subeler',gerekliSube(sid),'durum','haftalar');
 const benAd=()=>(S.me&&(S.me.adSoyad||S.me.kullaniciAdi))||'';
 function haftaPazar(wid){return addDays(parse(wid),6);}
-function haftaBitti(wid){return ymd(today())>ymd(haftaPazar(wid));}
+// Hafta pazar gününden itibaren kapatılabilir (pazar günü diğer haftanın eksikleri düzeltilir); son gün KAPATMA_GUN ile aynı kalır.
+function haftaBitti(wid){return ymd(today())>=ymd(haftaPazar(wid));}
+function haftaPazarBugun(wid){return ymd(today())===ymd(haftaPazar(wid));}
 function haftaSonGun(wid){return addDays(haftaPazar(wid),KAPATMA_GUN);}
 function haftaGecikti(wid){return ymd(today())>ymd(haftaSonGun(wid));}
 function haftaAylari(wid){return[...new Set(weekDays(wid).map(ayKey))];}
@@ -785,7 +787,7 @@ function acikBitenHaftalar(){const L=[];let w=parse(mondayOf(today()));for(let i
 function haftaBandi(wid){const hd=haftaDurumu(wid);const w=S.haftalar[wid]||{};const dw=(S.haftaDurum.w||{})[wid]||{};let h='';
   if(isSube()){const L=acikBitenHaftalar().filter(x=>x!==wid);if(L.length)h+=`<div class="banner ${L.some(haftaGecikti)?'bad':''}">Kapatılmamış ${L.length>1?L.length+' hafta':'hafta'}: ${L.map(x=>`<button class="hgit" data-gitw="${x}">${rangeLabel(x)}${haftaGecikti(x)?' · gecikti':''}</button>`).join(' ')}</div>`;}
   if(hd==='acik'){if(w.geriNot)h+=`<div class="banner bad">Bölge müdürü bu haftayı geri gönderdi: "${esc(w.geriNot)}". Düzeltip yeniden kapatın.</div>`;
-    if(haftaBitti(wid)&&haftaDolu(wid)){const son=haftaSonGun(wid);h+=haftaGecikti(wid)?`<div class="banner bad">Bu hafta ${gunAdi(son)} gününe kadar kapatılmalıydı, gecikti.</div>`:`<div class="banner">Hafta bitti. Kontrol edip en geç ${gunAdi(son)} günü kapatın.</div>`;}}
+    if(haftaBitti(wid)&&haftaDolu(wid)){const son=haftaSonGun(wid);h+=haftaGecikti(wid)?`<div class="banner bad">Bu hafta ${gunAdi(son)} gününe kadar kapatılmalıydı, gecikti.</div>`:haftaPazarBugun(wid)?`<div class="banner">Bugün haftanın son günü. Pazar vardiyasının çıkış saatleri henüz bitmemiş olabilir; kapatmadan önce pazar saatlerini kontrol edin. Kapattıktan sonra düzeltme için bölge müdürünün kilidi açması gerekir. En geç ${gunAdi(son)} günü kapatın.</div>`:`<div class="banner">Hafta bitti. Kontrol edip en geç ${gunAdi(son)} günü kapatın.</div>`;}}
   else if(!isSube()){const ad=w.kapatanAd||dw.ad||'';const t=w.kapatma||dw.t;
     h+=hd==='kapali'?`<div class="banner">Hafta kapatıldı${ad?' · '+esc(ad):''}${t?' · '+tarihSaat(t):''}. Onayınızı bekliyor.</div>`:`<div class="banner ok">Hafta onaylandı${w.onaylayanAd?' · '+esc(w.onaylayanAd):''}${w.onayTarihi?' · '+tarihSaat(w.onayTarihi):''}. Değişiklik yaparsanız özet yeniden hesaplanır.</div>`;}
   return h;}
