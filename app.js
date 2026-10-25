@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=98;
+const APP_SURUM=99;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -113,7 +113,9 @@ function normTime(raw){let s=String(raw||'').trim().replace(/[.,\s]/g,':');if(!s
   if(!(h>=0&&h<=24&&m>=0&&m<=59))return null;if(h===24)h=0;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 /* ---- Saat seçimi: yarım saatlik, şubenin saatlerine göre ----
    Normal aralık: açılış – kapanış + 30 dk (örn. 11:00 – 02:30). Bugün ve geçmiş günlerde düzeltme için iki uçta birer saat pay (10:00 – 03:30). */
-function saatAraligi(sb){const op=Math.round(tnum(sb.acilis||'11:00')*2)/2;let cl=Math.round(tnum(sb.kapanis||'00:30')*2)/2;if(cl<=op)cl+=24;return{n0:op,n1:cl+0.5};}
+function saatAraligi(sb){const op=Math.round(tnum(sb.acilis||'11:00')*2)/2;let cl=Math.round(tnum(sb.kapanis||'00:30')*2)/2;if(cl<=op)cl+=24;let n1=cl+0.5;
+  // İsteğe bağlı "saat listesi son saati" (örn. destek için 02:30): kapanış değişmez, sadece seçilebilir saatler uzar.
+  if(sb.sonSaat&&/^\d{1,2}:\d{2}$/.test(sb.sonSaat)){let t=Math.round(tnum(sb.sonSaat)*2)/2;while(t<=op)t+=24;if(t>n1)n1=t;}return{n0:op,n1};}
 function saatYaz(t){const tt=((t%24)+24)%24;const h=Math.floor(tt+1e-9);return String(h).padStart(2,'0')+':'+(tt-h>0.25?'30':'00');}
 function duzeltmeGunu(d){return ymd(d)<=ymd(today());}
 function saatListesi(sb,pay){const{n0,n1}=saatAraligi(sb);const L=[];for(let t=n0-(pay?1:0);t<=n1+(pay?1:0)+1e-9;t+=0.5)L.push({s:saatYaz(t),t,pay:t<n0-1e-9?'erken':t>n1+1e-9?'gec':''});return L;}
@@ -1895,7 +1897,7 @@ function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
 function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
   openSheet(`<h2>${id?'Şube ayarları':'Yeni şube'}</h2><div class="sub">Vardiya renkleri ve fazla mesai bu ayarlara göre hesaplanır.${id?` Mesai ve ücret ayarlarındaki değişiklik ${ayAdi(ayKey(today())<BASLANGIC_AY?BASLANGIC_AY:ayKey(today()))} ayından itibaren geçerli olur; önceki aylar eski ayarla kalır.`:''}</div>
    <label class="field"><span>Şube adı</span><input id="sAd" value="${esc(s.ad)}" placeholder="Altınkale"></label>
-   <div class="fgrid"><label class="field"><span>Açılış</span><input id="sAc" inputmode="numeric" value="${esc(s.acilis)}"></label><label class="field"><span>Kapanış</span><input id="sKa" inputmode="numeric" value="${esc(s.kapanis)}"></label>
+   <div class="fgrid"><label class="field"><span>Açılış</span><input id="sAc" inputmode="numeric" value="${esc(s.acilis)}"></label><label class="field"><span>Kapanış</span><input id="sKa" inputmode="numeric" value="${esc(s.kapanis)}"></label><label class="field"><span>Saat listesi son saati (isteğe bağlı)</span><input id="sSon" inputmode="numeric" placeholder="örn. 02:30" value="${esc(s.sonSaat||'')}"></label>
    <label class="field"><span>Günlük mesai (sa)</span><input id="sGu" inputmode="decimal" value="${s.gunluk}"></label><label class="field"><span>Haftalık mesai (sa)</span><input id="sHa" inputmode="decimal" value="${s.haftalik}"></label>
    <label class="field"><span>Part günü (sa)</span><input id="sPa" inputmode="decimal" value="${s.partSaat}"></label><label class="field"><span>Kurye paket başı ücret (₺)</span><input id="sPk" inputmode="decimal" value="${s.paketUcret||''}"></label></div>
    <span class="lbl">Fazla mesai ücreti</span><div class="seg" id="sYon"><button data-v="sabit" class="${s.fmYontem!=='maas'?'on':''}">Sabit saat ücreti</button><button data-v="maas" class="${s.fmYontem==='maas'?'on':''}">Maaşına göre</button></div>
@@ -1912,7 +1914,8 @@ function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
      if(!ad||!ac||!ka){byId('sErr').innerHTML='<div class="confirm">Şube adı, açılış ve kapanış saati gerekli (örn. 11:00 ve 00:30).</div>';return;}
      const gu=sayi(byId('sGu').value),ha=sayi(byId('sHa').value);if(!(gu>0&&gu<=16)||!(ha>0&&ha<=100)){byId('sErr').innerHTML='<div class="confirm">Günlük mesai 1–16 saat, haftalık mesai 1–100 saat arasında olmalı (örn. 8,5 ve 51).</div>';return;}
      const sid=id||slug(ad);if(!id&&S.subeler[sid]){byId('sErr').innerHTML='<div class="confirm">Bu isimde bir şube var.</div>';return;}
-     const body={ad,acilis:ac,kapanis:ka,gunluk:sayi(byId('sGu').value)||8.5,haftalik:sayi(byId('sHa').value)||51,partSaat:sayi(byId('sPa').value)||8,paketUcret:sayi(byId('sPk').value),fmYontem:sh.querySelector('#sYon .on').dataset.v,fmUcret:sayi(byId('sUc').value),fmDonem:sh.querySelector('#sDon .on').dataset.v};
+     const sonRaw=byId('sSon').value.trim();const son=sonRaw?normTime(sonRaw):'';if(sonRaw&&!son){byId('sErr').innerHTML='<div class="confirm">Saat listesi son saati geçersiz (örn. 02:30) ya da boş bırakın.</div>';return;}
+     const body={ad,acilis:ac,kapanis:ka,sonSaat:son,gunluk:sayi(byId('sGu').value)||8.5,haftalik:sayi(byId('sHa').value)||51,partSaat:sayi(byId('sPa').value)||8,paketUcret:sayi(byId('sPk').value),fmYontem:sh.querySelector('#sYon .on').dataset.v,fmUcret:sayi(byId('sUc').value),fmDonem:sh.querySelector('#sDon .on').dataset.v};
      if(id)Object.assign(body,ayarGecmisYama(id,body));
      sirayla('s'+sid,()=>{arka(setDoc(doc(db,'subeler',sid),body,{merge:true}));});closeSheet();toast(id?'Şube ayarları kaydedildi.':`${ad} şubesi eklendi.`);};});}
 /* ================= Excel'den çizelge aktarma (işveren) ================= */
