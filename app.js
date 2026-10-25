@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=108;
+const APP_SURUM=109;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -487,7 +487,7 @@ function bootstrap(){
       subeleriDinle();},e=>{view(`<div class="banner bad">Hesap bilgisi okunamadı: ${esc(e.message)}</div>`);});});}
 function eskiSurumEkrani(){byId('tabs').hidden=true;view(`<div class="login"><div class="card"><h2>Uygulama güncellendi</h2><p class="note">Bu ekrandaki sürüm eski; kayıtların doğru tutulması için yeni sürümü açın. Bekleyen değişiklikleriniz kaybolmaz.</p><div class="row2"><button class="btn primary grow" id="yenileB">Yenile</button></div></div></div>`,()=>byId('yenileB').onclick=()=>{location.replace(location.pathname+'?v='+Date.now());});}
 function temizle(){if(KL.unsub){KL.unsub();KL.unsub=null;}clearTimeout(KL.zT);kilitBirak();KL.key=null;KL.k=null;KL.d=null;[...subs.sube,...subs.detay,...subs.liste,...subs.subeDocs,...subs.gun,...subs.tk].forEach(u=>u());subs.sube=[];subs.detay=[];subs.liste=[];subs.subeDocs=[];subs.gun=[];subs.tk=[];S.gunler={};S.tk={};S.tkKey=null;S.haftaDurum={w:{}};
-  if(subs.me){subs.me();subs.me=null;}if(subs.users){subs.users();subs.users=null;}if(subs.surum){subs.surum();subs.surum=null;}S.subeler={};S.subeIds=[];S.subeId=null;S.personel=[];S.haftalar={};S.aylar={};S.loaded={personel:false,haftalar:false};S.gocBakildi=false;}
+  if(subs.me){subs.me();subs.me=null;}if(subs.users){subs.users();subs.users=null;}if(S.iscUnsub){S.iscUnsub();S.iscUnsub=null;S.iscKey=null;}if(subs.surum){subs.surum();subs.surum=null;}S.subeler={};S.subeIds=[];S.subeId=null;S.personel=[];S.haftalar={};S.aylar={};S.loaded={personel:false,haftalar:false};S.gocBakildi=false;}
 function loginEkrani(){top('Puantaj Merkezi','Giriş');byId('tabs').hidden=true;
   view(`<div class="login"><form class="card" id="lf"><h2>Giriş yap</h2><p class="note" style="margin:2px 0 6px">Kullanıcı adınız ve şifrenizle girin.</p>
    <label class="field"><span>Kullanıcı adı</span><input id="lk" autocomplete="username" autocapitalize="none" autocorrect="off" required></label>
@@ -1890,8 +1890,9 @@ function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'p
 
 /* ================= Yönetim (işveren) ================= */
 function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
-  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button></div>`;
+  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="iscilik" class="${bolum==='iscilik'?'on':''}">İşçilik</button><button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button></div>`;
   if(bolum==='yedek')return renderYedek(h);
+  if(bolum==='iscilik')return renderIscilik(h);
   if(bolum==='subeler'){const hf=S.subeIds.filter(id=>sube(id).fmDonem==='hafta').length;
     h+=`<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>
      <div class="card" style="padding:12px;margin-bottom:10px"><span class="lbl" style="margin-top:0">Tüm şubelerde fazla mesai dönemi</span><div class="seg" id="yDon"><button data-v="hafta" class="${hf===S.subeIds.length?'on':''}">Haftalık (örn. Eylül: 7 Eyl – 4 Eki)</button><button data-v="ay" class="${hf===0?'on':''}">Takvim ayı</button></div>
@@ -2023,7 +2024,7 @@ function yedekJson(v){if(v&&typeof v.toDate==='function'&&typeof v.toMillis==='f
 async function yedekAl(durum){const B={};let n=0;const ekle=(yol,data)=>{B[yol]=yedekJson(data);n++;};
   const kol=async yol=>{const q=await getDocs(collection(db,...yol));q.docs.forEach(d=>ekle([...yol,d.id].join('/'),d.data()));durum(`${n} kayıt okundu…`);return q.docs.map(d=>d.id);};
   const tek=async yol=>{const s=await getDoc(doc(db,...yol));if(s.exists())ekle(yol.join('/'),s.data());};
-  for(const k of ['kullanicilar','personel','ekPersonel','gunler','ozetler'])await kol([k]);
+  for(const k of ['kullanicilar','personel','ekPersonel','gunler','ozetler','iscilik'])await kol([k]);
   for(const d of ['kurulum','subeAdlari','goc','surum'])await tek(['sistem',d]);
   const subeIds=await kol(['subeler']);const tum=[...new Set([...subeIds,...Object.keys(S.subeAdlari||{})])].filter(x=>x&&x!==SGK_YOK);
   for(const s of tum){for(const alt of ['haftalar','durum','aylar','personel'])await kol(['subeler',s,alt]);await kol(['puantaj',s,'aylar']);await tek(['maaslar',s]);}
@@ -2034,6 +2035,93 @@ async function veriKontrolu(){const P=new Map(S.personel.map(p=>[p.id,p]));const
     ids.forEach(pid=>{const dolu=Object.values((x.cells||{})[pid]||{}).filter(v=>v).length;const p=P.get(pid);
       if(!p){if(dolu)out.push({sid,wid:d.id,ad:pid,neden:'silinmiş kişi',dolu});return;}if(!kisiSubeleri(p).includes(sid))out.push({sid,wid:d.id,ad:adBuyuk(p.ad),neden:'bu şubeyle bağı yok',dolu});});});}
   return out.sort((a,b)=>String(a.sid).localeCompare(String(b.sid))||a.wid.localeCompare(b.wid));}
+/* ================= İşçilik (sadece işveren): şube başına aylık işçilik maliyeti ve ciroya oranı =================
+   Kişi maliyeti = resmi maliyet + elden ödenen.
+   Resmi maliyet: SGK'lı gün × (asgari brüt × (1 + işveren SGK payı + işsizlik)) ÷ 30. Bankaya yatan net maaş bunun içindedir.
+   Elden ödenen: maaş farkı + fazla mesai + paket primi + ciro primi + ek ödeme − kesinti (avans ve ara ödemeler bunun ödenmiş kısmıdır, ayrıca eklenmez;
+   geçen aydan gelen eksi devir bu ayın maliyeti değildir). SGK'sı olmayan / esnaf kuryede bankaya yatan da elden ödemeye eklenir.
+   Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. Lojman şube başına elle girilir. Ciro KDV dahil girilir.
+   Hesap her şubenin puantajından (onaylı ayda kilitli rakamlar, kesin ayda saklanan rakamlar, açık ayda tahmini) yapılır ve iscilik/{ay} belgesine saklanır. */
+const ISC_VARS={asgari:33030,sgk:21.75,issizlik:2};
+const iscAyar=D=>({...ISC_VARS,...((D&&D.ayar)||{})});
+const iscGunluk=a=>sayi(a.asgari)*(1+sayi(a.sgk)/100+sayi(a.issizlik)/100)/30;
+const r2=x=>Math.round((x||0)*100)/100;
+function iscAyi(){if(S.iscAy)return S.iscAy;const bu=ayKey(today());return today().getDate()<=15?ayKaydir(bu,-1):bu;}
+function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=sol.maasBurada!==false;
+  const gun=burada&&!esnaf&&!sol.sgkYok?sayi(sol.gun):0;const resmi=r2(gun*iscGunluk(ayar));
+  const elden=r2(sayi(h.maasFarki)+sayi(h.fmTl)+sayi(h.paketPrimi)+sayi(h.ciroPrimi)+sayi(h.ekOd)-(h.pb?sayi(h.bankaya):0));
+  const banka=burada&&resmi<=0?r2(sayi(h.bankaya)):0;
+  return{pid:x.pid,ad:sol.ad||'',grup:sol.grup||'K',gun,resmi,banka,elden,toplam:r2(resmi+banka+elden),burada};}
+const iscBekle=ms=>new Promise(r=>setTimeout(r,ms));
+async function iscilikHesapla(ak){if(!isIsveren()||S.iscCalisiyor)return;S.iscCalisiyor=true;const D0=S.iscDoc||{};const ayar=iscAyar(D0);
+  const eskiSube=S.subeId,eskiAy=S.ay,eskiAyElle=S.ayElle;const sonuc={},hata=[],tasi=[];const L=S.subeIds.slice();
+  try{for(let i=0;i<L.length;i++){const sid=L[i];S.iscDurum=`Hesaplanıyor ${i+1} / ${L.length}: ${subeAdi(sid)}`;render();
+      S.ay=ak;puantajAc(sid);const t0=Date.now();let hazir=false;
+      while(Date.now()-t0<30000){if(S.pt.sube===sid&&S.ay===ak&&S.pt.doc&&S.pt.maas!==null&&S.pt.prev!==null&&S.pt.ozetler!==null&&sunucuHazir(sid)){hazir=true;break;}await iscBekle(150);}
+      if(!hazir){hata.push(subeAdi(sid));continue;}
+      try{await gunleriYukle(ayKadrosu(ak),[ayKaydir(ak,-1),ak,ayKaydir(ak,1)]);}catch(e){}
+      if(S.pt.sube!==sid||S.ay!==ak){hata.push(subeAdi(sid));continue;}
+      const V=ptVerisi();const durum=V.kesin?'kesin':V.kilitli?'onayli':'tahmini';const kisi=[];
+      V.satir.forEach(x=>{const k=iscKisi(x,ayar);if(!k.toplam&&!k.gun)return;
+        if(!k.burada){const p=S.personel.find(q=>q.id===x.pid);const hedef=p?odemeSubesi(p,ak):'';if(hedef&&hedef!==sid&&L.includes(hedef)){tasi.push({...k,hedef,kaynak:sid});return;}}
+        kisi.push(k);});
+      sonuc[sid]={durum,kisi,ozetHata:!!S.pt.ozetHata};}
+    // Başka şubede yapılan fazla mesai: kişinin maaş şubesine
+    tasi.forEach(k=>{const h=sonuc[k.hedef];if(!h)return;h.kisi.push({...k,ad:k.ad+' · '+subeAdi(k.kaynak)+' FM',burada:true});});
+    const t=new Date().toISOString();const hesap={};
+    Object.entries(sonuc).forEach(([sid,x])=>{const top=k=>r2(x.kisi.reduce((a,y)=>a+(y[k]||0),0));const gr={};x.kisi.forEach(y=>{gr[y.grup]=r2((gr[y.grup]||0)+y.toplam);});
+      hesap[sid]={durum:x.durum,ozetHata:x.ozetHata,resmi:top('resmi'),banka:top('banka'),elden:top('elden'),toplam:top('toplam'),kisiSay:x.kisi.filter(y=>!/ FM$/.test(y.ad)).length,gruplar:gr,kisi:x.kisi.map(y=>({ad:y.ad,grup:y.grup,gun:y.gun,resmi:y.resmi,banka:y.banka,elden:y.elden,toplam:y.toplam})),tarih:t};});
+    await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar,hesap,hesapTarihi:t,hesaplayan:benAd()},{merge:true});
+    toast(hata.length?`Hesaplandı; ${hata.length} şube yüklenemedi: ${hata.join(', ')}. Tekrar deneyin.`:'İşçilik hesaplandı.');}
+  catch(e){console.error(e);yazmaHatasi(e);}
+  finally{subs.detay.forEach(u=>u());subs.detay=[];S.pt.sube=null;S.pt.doc=null;S.ay=eskiAy;S.ayElle=eskiAyElle;if(eskiSube&&S.subeId!==eskiSube)selectSube(eskiSube);
+    S.iscCalisiyor=false;S.iscDurum='';render();}}
+function iscDinle(ak){if(S.iscKey===ak)return;if(S.iscUnsub)S.iscUnsub();S.iscKey=ak;S.iscDoc=null;S.iscOnce=null;
+  S.iscUnsub=onSnapshot(doc(db,'iscilik',ak),s=>{S.iscDoc=s.exists()?s.data():{};S.iscHata=false;if(S.tab==='yonetim'&&S.ynt==='iscilik')render();},e=>{console.error(e);S.iscDoc={};S.iscHata=true;render();});
+  getDoc(doc(db,'iscilik',ayKaydir(ak,-1))).then(s=>{if(S.iscKey!==ak)return;S.iscOnce=s.exists()?s.data():{};render();}).catch(()=>{S.iscOnce={};});}
+const iscOran=(t,c)=>c>0?t/c*100:null;
+const iscYuzde=x=>x==null?'—':'%'+(Math.round(x*10)/10).toLocaleString('tr-TR');
+function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activeElement;if(ae&&ae.closest&&ae.closest('#iscT,#iscAyarK')&&ae.tagName==='INPUT')return;
+  const D=S.iscDoc;const ayar=iscAyar(D&&D.ayar?D:(S.iscOnce&&S.iscOnce.ayar?S.iscOnce:{}));const gir=(D&&D.subeler)||{};const hes=(D&&D.hesap)||{};const once=S.iscOnce||{};
+  h+=`<div class="ptnav" style="justify-content:center"><div class="ptay"><button class="nav-arrow" id="iPrev" aria-label="Önceki ay">‹</button><div class="ttl">${ayAdi(ak)}</div><button class="nav-arrow" id="iNext" aria-label="Sonraki ay">›</button></div></div>`;
+  if(S.iscHata)h+=`<div class="banner bad">İşçilik verisi okunamıyor. Firebase kurallarını güncelleyin (firestore.rules).</div>`;
+  if(D===null){return view(h+`<div class="empty-state"><b>Yükleniyor</b></div>`,()=>iscBagla(ak));}
+  h+=`<div class="card" style="padding:12px;margin-bottom:10px" id="iscAyarK"><span class="lbl" style="margin-top:0">Sigorta maliyeti (${ayAdi(ak)})</span>
+    <div class="fgrid"><label class="field"><span>Asgari ücret (brüt)</span><input id="iaA" inputmode="decimal" value="${esc(tl(ayar.asgari))}"></label><label class="field"><span>İşveren SGK payı %</span><input id="iaS" inputmode="decimal" value="${esc(String(ayar.sgk).replace('.',','))}"></label><label class="field"><span>İşsizlik %</span><input id="iaI" inputmode="decimal" value="${esc(String(ayar.issizlik).replace('.',','))}"></label></div>
+    <p class="note" style="margin:4px 0 0">30 günlük SGK'lı çalışanın resmi maliyeti: <b>${tl(iscGunluk(ayar)*30)} ₺</b> (bankaya yatan net maaş dahil). ${D&&D.ayar?'':'Bu ay için henüz kaydedilmedi; önceki ayın ya da varsayılan değerler gösteriliyor.'}</p>
+    <div class="row2" style="margin-top:8px"><button class="btn grow" id="iaK">Ayarı kaydet</button></div></div>`;
+  h+=`<div class="actions"><button class="btn primary grow" id="iHes" ${S.iscCalisiyor?'disabled':''}>${S.iscCalisiyor?esc(S.iscDurum||'Hesaplanıyor…'):(D&&D.hesapTarihi?'Yeniden hesapla':'Hesapla')}</button></div>`;
+  if(D&&D.hesapTarihi)h+=`<p class="note" style="margin-top:0">Son hesap: ${tarihSaat(D.hesapTarihi)}${D.hesaplayan?' · '+esc(D.hesaplayan):''}. Puantajda değişiklik olduysa yeniden hesaplayın.</p>`;
+  let tc=0,tl_=0,tt=0;const satir=S.subeIds.map(sid=>{const g=gir[sid]||{};const x=hes[sid];const c=sayi(g.ciro),lj=sayi(g.lojman);const top=x?r2(x.toplam+lj):null;if(top!=null){tc+=c;tl_+=lj;tt+=top;}
+    const o=top!=null?iscOran(top,c):null;const og=((once.hesap||{})[sid]);const oc=sayi(((once.subeler||{})[sid]||{}).ciro);const oo=og?iscOran(og.toplam+sayi(((once.subeler||{})[sid]||{}).lojman),oc):null;
+    const dz=x?{kesin:'<span class="chip ok">Kesin</span>',onayli:'<span class="chip ok">Onaylı</span>',tahmini:'<span class="chip warn">Tahmini</span>'}[x.durum]||'':'';
+    return `<tr><td class="l"><button class="mini" data-isd="${esc(sid)}" ${x?'':'disabled'}>${esc(subeAdi(sid))}</button> ${dz}</td>
+      <td><input data-isc="${esc(sid)}" data-f="ciro" inputmode="decimal" value="${c?esc(tl(c)):''}" placeholder="Ciro" style="width:110px"></td>
+      <td><input data-isc="${esc(sid)}" data-f="lojman" inputmode="decimal" value="${lj?esc(tl(lj)):''}" placeholder="—" style="width:90px"></td>
+      <td>${x?tl0(x.resmi+x.banka):'—'}</td><td>${x?tl0(x.elden):'—'}</td><td><b>${top!=null?tl0(top):'—'}</b></td>
+      <td><b>${iscYuzde(o)}</b>${oo!=null?`<br><small class="mut">geçen ay ${iscYuzde(oo)}</small>`:''}</td></tr>`;}).join('');
+  h+=`<div class="tk-wrap" style="overflow-x:auto"><table class="tk" id="iscT"><thead><tr><th class="l">Şube</th><th>Ciro (KDV dahil)</th><th>Lojman</th><th>Resmi (SGK + maaş)</th><th>Elden</th><th>Toplam işçilik</th><th>Oran</th></tr></thead><tbody>${satir}</tbody>
+    <tfoot><tr><td class="l"><b>Toplam</b></td><td><b>${tl0(tc)}</b></td><td>${tl0(tl_)}</td><td></td><td></td><td><b>${tl0(tt)}</b></td><td><b>${iscYuzde(iscOran(tt,tc))}</b></td></tr></tfoot></table></div>
+    <p class="note">Ciro ve lojman yazıp başka alana geçince kaydedilir. Şube adına dokunun: kişi kişi döküm. Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. "Tahmini": ay henüz onaylanmadı, rakamlar değişebilir.</p>`;
+  return view(h,()=>iscBagla(ak));}
+function iscBagla(ak){const p=byId('iPrev'),n=byId('iNext');if(p)p.onclick=()=>{S.iscAy=ayKaydir(ak,-1);render();};if(n)n.onclick=()=>{S.iscAy=ayKaydir(ak,1);render();};
+  const hb=byId('iHes');if(hb)hb.onclick=()=>iscilikHesapla(ak);
+  const ak2=byId('iaK');if(ak2)ak2.onclick=async()=>{const a={asgari:sayi(byId('iaA').value),sgk:sayi(byId('iaS').value),issizlik:sayi(byId('iaI').value)};
+    if(!(a.asgari>0)||!(a.sgk>=0&&a.sgk<100)||!(a.issizlik>=0&&a.issizlik<100)){toast('Ayar değerlerini kontrol edin.');return;}
+    try{await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar:a},{merge:true});toast('Ayar kaydedildi. Rakamlara yansıması için yeniden hesaplayın.');}catch(e){yazmaHatasi(e);}};
+  document.querySelectorAll('[data-isc]').forEach(el=>el.onchange=async()=>{const sid=el.dataset.isc,f=el.dataset.f;const v=el.value.trim()?sayi(el.value):0;if(!(v>=0)){toast('Geçersiz tutar.');return;}
+    try{await setDoc(doc(db,'iscilik',ak),{ay:ak,subeler:{[sid]:{[f]:v}}},{merge:true});}catch(e){yazmaHatasi(e);}if(!document.activeElement||!document.activeElement.closest||!document.activeElement.closest('#iscT'))render();});
+  const T=byId('iscT');if(T)T.addEventListener('focusout',()=>setTimeout(()=>{const a=document.activeElement;if(!a||!a.closest||!a.closest('#iscT'))render();},60));
+  document.querySelectorAll('[data-isd]').forEach(b=>b.onclick=()=>iscDetay(ak,b.dataset.isd));}
+function iscDetay(ak,sid){const D=S.iscDoc||{};const x=(D.hesap||{})[sid];if(!x)return;const g=(D.subeler||{})[sid]||{};const lj=sayi(g.lojman),c=sayi(g.ciro);const top=x.toplam+lj;
+  const grup=k=>x.kisi.filter(y=>y.grup===k);const satir=y=>`<tr><td class="l">${esc(adBuyuk(y.ad))}</td><td>${y.gun||'—'}</td><td>${tl0(y.resmi+y.banka)}</td><td>${tl0(y.elden)}</td><td><b>${tl0(y.toplam)}</b></td></tr>`;
+  const bolum=GRUP_SIRA.filter(k=>grup(k).length).map(k=>`<tr><td class="l" colspan="4"><b>${GRUP[k]}</b> · ${grup(k).length} kişi</td><td><b>${tl0(x.gruplar[k]||0)}</b></td></tr>`+grup(k).map(satir).join('')).join('');
+  openSheet(`<h2>${esc(subeAdi(sid))} · İşçilik</h2><div class="sub">${ayAdi(ak)} · ${x.durum==='kesin'?'kesin':x.durum==='onayli'?'onaylı':'tahmini'} · ${x.kisiSay} kişi</div>
+   ${x.ozetHata?'<div class="banner bad">Diğer şubelerin özetleri okunamadı; rakamlar eksik olabilir. Yeniden hesaplayın.</div>':''}
+   <div class="tk-wrap" style="overflow-x:auto"><table class="tk"><thead><tr><th class="l">Kişi</th><th>SGK gün</th><th>Resmi</th><th>Elden</th><th>Toplam</th></tr></thead><tbody>${bolum}</tbody>
+   <tfoot><tr><td class="l">Lojman</td><td></td><td></td><td></td><td>${tl0(lj)}</td></tr><tr><td class="l"><b>Toplam işçilik</b></td><td></td><td>${tl0(x.resmi+x.banka)}</td><td>${tl0(x.elden)}</td><td><b>${tl0(top)}</b></td></tr></tfoot></table></div>
+   <p class="note">Ciro ${c?tl0(c):'girilmedi'} · oran <b>${iscYuzde(iscOran(top,c))}</b>. Resmi: SGK günü × günlük resmi maliyet (bankaya yatan dahil); SGK'sız ve esnaf kuryede bankaya yatan. Elden: maaş farkı, fazla mesai, primler, ek ödeme − kesinti.</p>
+   <div class="row2"><button class="btn grow" id="iDK">Kapat</button></div>`,()=>{byId('iDK').onclick=closeSheet;});}
 function renderYedek(h){const son=tryLS('pm.sonYedek');const gun=son?Math.floor((Date.now()-Date.parse(son))/86400000):null;
   h+=`<div class="card" style="padding:14px">
     <h3 style="margin:0 0 6px">Veritabanı yedeği</h3>

@@ -52,6 +52,14 @@ Telefonda adresi açın → tarayıcı menüsü → **Ana ekrana ekle**.
 - Sıra: önceki ay kesin kapanmadan sonraki ay kesin kapatılamaz; sonraki ay kesin kapalıyken önceki ayın kesin kapanışı açılamaz.
 - Düzeltme gerekirse işveren **Kesin kapanışı aç** der (kayda geçer); ay bölge onaylı duruma döner.
 
+## İşçilik (işveren)
+- **Yönetim → İşçilik**: ay seçilir, her şubeye ciro (KDV dahil) ve varsa lojman yazılır, **Hesapla** denir. Her şubenin işçilik toplamı ve ciroya oranı çıkar; şube adına dokununca kişi kişi döküm.
+- Kişi maliyeti = **resmi** (SGK günü × asgari brüt × (1 + işveren SGK payı + işsizlik) ÷ 30; bankaya yatan net maaş bunun içinde) + **elden** (maaş farkı, fazla mesai, paket / ciro primi, ek ödeme − kesinti). Avans ve ara ödeme elden ödemenin parçasıdır, ayrıca eklenmez; geçen aydan gelen eksi devir sayılmaz.
+- SGK'sız çalışan ve esnaf kuryede bankaya yatan da maliyete eklenir (resmi maliyet yok).
+- Maaş, SGK ve başka şubede yapılan fazla mesai kişinin maaşının ödendiği şubeye yazılır.
+- Asgari ücret ve oranlar aya göre girilir (2026: 33.030 brüt, %21,75 + %2 → 30 günlük 40.874,63). Ocak'ta değişince yeni ayda güncelleyin; eski aylar değişmez.
+- Onaylanmamış ay "Tahmini" görünür; puantaj değişince **Yeniden hesapla**.
+
 ## Çok şubeli çalışma
 - Kişinin kartında: SGK şubesi, çalıştığı şube, **diğer çalıştığı şubeler** (sadece işveren / bölge müdürü değiştirir) ve aya göre maaş şubesi.
 - Kişi bütün bu şubelerin çizelgesinde görünür. **Aynı gün tek şube:** bir şubede vardiya yazılı günde başka şubeye vardiya (ya da rapor/izin) yazılamaz; o gün diğer şubede "LEGENDS 11:00–19:30" gibi gri görünür.

@@ -50,6 +50,11 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(['kullaniciAdi', 'sifre', 'guncellendi', 'guncelleyen']));
     }
 
+    // İşçilik maliyeti (ciro, lojman, ay ayarı ve hesap sonucu): sadece işveren.
+    match /iscilik/{ay} {
+      allow read, write: if isveren();
+    }
+
     // Yeni şifre isteği: işveren yazar; GitHub'daki "Kullanıcı işlemleri" otomasyonu (yönetici anahtarıyla) uygular ve siler.
     match /sifreIstek/{uid} {
       allow read, delete: if isveren();
