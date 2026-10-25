@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=100;
+const APP_SURUM=101;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -599,7 +599,7 @@ function subeSec(after){openSheet(`<h2>Şube seç</h2><div class="sub">${S.subeI
 function hesapPanel(){openSheet(`<h2>${esc(S.me.adSoyad||S.me.kullaniciAdi)}</h2><div class="sub">${esc(ROL[rol()])} · kullanıcı adı: ${esc(S.me.kullaniciAdi||'')}</div>
   <span class="lbl">Şifre değiştir</span><label class="field"><span>Mevcut şifre</span><input id="s1" type="password" autocomplete="current-password"></label>
   <label class="field"><span>Yeni şifre (en az 6 karakter)</span><input id="s2" type="password" autocomplete="new-password"></label><div id="sErr"></div>
-  <div class="row2"><button class="btn grow" id="sOk">Şifreyi değiştir</button></div><div class="row2"><button class="btn danger grow" id="outB">Çıkış yap</button></div>`,sh=>{
+  <div class="row2"><button class="btn grow" id="sOk">Şifreyi değiştir</button></div><div class="row2"><button class="btn danger grow" id="outB">Çıkış yap</button></div><p class="note" style="text-align:center;margin-top:10px">Sürüm ${APP_SURUM}</p>`,sh=>{
   byId('outB').onclick=()=>{closeSheet();signOut(auth);};
   byId('sOk').onclick=async()=>{const a=byId('s1').value,b=byId('s2').value;if(b.length<6){byId('sErr').innerHTML='<div class="confirm">Yeni şifre en az 6 karakter olmalı.</div>';return;}
     try{await reauthenticateWithCredential(auth.currentUser,EmailAuthProvider.credential(auth.currentUser.email,a));await updatePassword(auth.currentUser,b);closeSheet();toast('Şifreniz değiştirildi.');}
