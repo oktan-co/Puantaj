@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=107;
+const APP_SURUM=108;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -520,7 +520,7 @@ function subeleriDinle(){subs.subeDocs.forEach(u=>u());subs.subeDocs=[];
   subs.subeDocs.push(onSnapshot(doc(db,'sistem','subeAdlari'),s=>{S.subeAdlari=s.exists()?(s.data().adlar||{}):{};if(isIsveren())subeAdSenkron();},()=>{}));
   if(isSube())subs.subeDocs.push(onSnapshot(doc(db,'sistem','goc'),s=>{const v=!!(s.exists()&&s.data().v4);if(S.goc4!==v){S.goc4=v;render();}},()=>{}));
   if(isIsveren()&&!subs.users){const u1=onSnapshot(collection(db,'kullanicilar'),s=>{S.users=s.docs.map(d=>({uid:d.id,...d.data()}));if(S.tab==='yonetim')render();});
-    const u2=onSnapshot(collection(db,'sifreler'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreler=m;S.sifreHata=false;if(S.tab==='yonetim')render();},e=>{console.error(e);S.sifreler={};S.sifreHata=true;if(S.tab==='yonetim')render();});subs.users=()=>{u1();u2();};}}
+    const u2=onSnapshot(collection(db,'sifreler'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreler=m;S.sifreHata=false;if(S.tab==='yonetim')render();},e=>{console.error(e);S.sifreler={};S.sifreHata=true;if(S.tab==='yonetim')render();});const u3=onSnapshot(collection(db,'sifreIstek'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreIstek=m;if(S.tab==='yonetim')render();},()=>{S.sifreIstek={};});subs.users=()=>{u1();u2();u3();};}}
 // Personel şube şube tutulur: herkes sadece kendi şubelerinin listesini okur. Bölge müdürü ayrıca SGK'sı kendi şubelerinde olanları görür (puantaj için).
 function personelDinle(){const parca={};const yay=()=>{const m={};Object.values(parca).forEach(L=>L.forEach(p=>m[p.id]=p));S.personel=Object.values(m);S.loaded.personel=true;S.kuralHata=false;gocKontrol();render();};
   const hata=e=>{console.error(e);S.kuralHata=true;S.loaded.personel=true;render();};
@@ -1900,10 +1900,11 @@ function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
   else{h+=`<div class="actions"><button class="btn primary grow" id="yKulEkle">Kullanıcı ekle</button></div>`;
     // Şifre listesi durumu: kurallar yayınlanmadıysa okunamaz; eski kullanıcıların şifresi kayıtlı değildir.
     if(S.sifreHata)h+=`<div class="banner bad"><b>Şifreler okunamıyor.</b> Firebase kuralları güncel değil: Firestore → Kurallar sekmesine GitHub'daki firestore.rules dosyasını yapıştırıp Yayınla'ya basın, sonra uygulamayı kapatıp açın.</div>`;
-    else{const yok=(S.users||[]).filter(u=>!sifreOf(u.uid)).length;if(yok)h+=`<div class="banner">${yok} kullanıcının şifresi kayıtlı değil (şifre kaydı eklenmeden önce açılmışlar). Kullanıcıya dokunup bildiğiniz şifreyi kaydedin, ya da kullanıcı kendi şifresini bir kez değiştirsin.</div>`;}
+    else{const yok=(S.users||[]).filter(u=>!sifreOf(u.uid)&&!(S.sifreIstek||{})[u.uid]).length;if(yok)h+=`<div class="banner">${yok} kullanıcının şifresi kayıtlı değil (şifre kaydı eklenmeden önce açılmışlar). Kullanıcıya dokunup yeni şifre verin; eski şifreyi bilmeniz gerekmez.</div>`;
+      const eski=Object.values(S.sifreIstek||{}).filter(x=>!x.hata&&x.t&&Date.now()-new Date(x.t).getTime()>20*60000).length;if(eski)h+=`<div class="banner bad">${eski} şifre isteği 20 dakikadır uygulanmadı. GitHub'daki "Kullanıcı işlemleri" otomasyonu kurulmamış olabilir (FIREBASE_SERVICE_ACCOUNT anahtarı).</div>`;}
     const us=S.users.slice().sort((a,b)=>['isveren','bolge','sube'].indexOf(a.rol)-['isveren','bolge','sube'].indexOf(b.rol)||String(a.adSoyad).localeCompare(String(b.adSoyad),'tr'));
     h+=`<div class="card list">${us.map(u=>`<button class="row" data-uid="${esc(u.uid)}"><div class="av">${esc(bas(u.adSoyad||u.kullaniciAdi))}</div><div class="m"><b>${esc(u.adSoyad||u.kullaniciAdi)}</b><span>${esc(u.kullaniciAdi)} · ${u.rol==='isveren'?'Tüm şubeler':(u.subeler||[]).map(s=>S.subeler[s]?S.subeler[s].ad:s).join(', ')||'Şube atanmamış'}</span></div>
-      <span class="chip ${u.aktif===false?'mut':u.rol==='isveren'?'warn':u.rol==='bolge'?'ok':'mut'}">${u.aktif===false?'Pasif':ROL[u.rol]||u.rol}</span>${S.sifreHata||sifreOf(u.uid)?'':'<span class="chip mut" title="Şifre kayıtlı değil">şifre ?</span>'}</button>`).join('')}</div>`;}
+      <span class="chip ${u.aktif===false?'mut':u.rol==='isveren'?'warn':u.rol==='bolge'?'ok':'mut'}">${u.aktif===false?'Pasif':ROL[u.rol]||u.rol}</span>${S.sifreHata||sifreOf(u.uid)?'':(S.sifreIstek||{})[u.uid]?'<span class="chip warn" title="Yeni şifre bekliyor">şifre bekliyor</span>':'<span class="chip mut" title="Şifre kayıtlı değil">şifre ?</span>'}</button>`).join('')}</div>`;}
   view(h,()=>{document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});
     document.querySelectorAll('#yDon button').forEach(b=>b.onclick=async()=>{const v=b.dataset.v;const bt=writeBatch(db);S.subeIds.forEach(id=>bt.set(doc(db,'subeler',id),{fmDonem:v,...ayarGecmisYama(id,{fmDonem:v})},{merge:true}));try{await bt.commit();toast(`Tüm şubelerde fazla mesai dönemi: ${v==='hafta'?'haftalık':'takvim ayı'}.`);}catch(e){yazmaHatasi(e);}});
     const se=byId('ySubeEkle');if(se)se.onclick=()=>subePanel(null);document.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>subePanel(b.dataset.sid));
@@ -2070,6 +2071,11 @@ function girisHata(e){const c=(e&&e.code)||'';
   if(c.includes('permission'))return 'Yetki hatası. Firebase kurallarının güncel olduğundan emin olun.';return 'İşlem yapılamadı: '+((e&&(e.message||c))||'');}
 async function kSifreDegistir(u,yeni){const eski=sifreOf(u.uid);if(!eski)throw{code:'sifre-yok'};const user=await ikincilGiris(u.kullaniciAdi,eski);
   try{await updatePassword(user,yeni);}finally{await ikincilCikis();}await sifreKaydet(u.uid,u.kullaniciAdi,yeni);}
+// Şifresi bilinmeyen kullanıcıya yeni şifre: istek yazılır, GitHub'daki "Kullanıcı işlemleri" otomasyonu birkaç dakika içinde uygular.
+function kSifreIstek(u,p){return setDoc(doc(db,'sifreIstek',u.uid),{sifre:p,isteyen:S.user.uid,isteyenAd:benAd(),t:new Date().toISOString()});}
+// Tek düğme: kayıtlı şifre varsa hemen değiştirir; yoksa yazılan şifre mevcut şifreyse hemen kaydeder; ikisi de olmazsa yeni şifre isteği bırakır.
+async function kSifreAyarla(u,p){try{if(sifreOf(u.uid))await kSifreDegistir(u,p);else await kSifreDogrula(u,p);return 'hemen';}
+  catch(e){const c=(e&&e.code)||'';if(c==='sifre-yok'||c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found')){await kSifreIstek(u,p);return 'bekliyor';}throw e;}}
 // Bilinen şifreyi kaydeder; önce o şifreyle giriş denenir (yanlış şifre kaydedilmez).
 async function kSifreDogrula(u,p){await ikincilGiris(u.kullaniciAdi,p);await ikincilCikis();await sifreKaydet(u.uid,u.kullaniciAdi,p);}
 // Kullanıcı adı Firebase'de giriş adresidir, olduğu yerde değişmez: yeni adla giriş hesabı açılır, rol / şube / durum taşınır, eski giriş hesabı silinir.
@@ -2083,14 +2089,15 @@ async function kAdDegistir(u,yeniK,yeniP){const eskiP=sifreOf(u.uid);const p=yen
   if(eskiP){try{await deleteUser(await ikincilGiris(u.kullaniciAdi,eskiP));eskiSilindi=true;}catch(e){}finally{await ikincilCikis();}}return eskiSilindi;}
 async function kSil(u){const p=sifreOf(u.uid);const b=writeBatch(db);b.delete(doc(db,'kullanicilar',u.uid));b.delete(doc(db,'sifreler',u.uid));await b.commit();
   let girisSilindi=false;if(p){try{await deleteUser(await ikincilGiris(u.kullaniciAdi,p));girisSilindi=true;}catch(e){}finally{await ikincilCikis();}}return girisSilindi;}
-function girisKarti(u,ben){const sf=sifreOf(u.uid);
+function girisKarti(u,ben){const sf=sifreOf(u.uid);const ist=(S.sifreIstek||{})[u.uid];
+  const istH=ist?`<div class="banner${ist.hata?' bad':''}" style="margin:6px 0">${ist.hata?`Yeni şifre uygulanamadı: ${esc(ist.hata)}`:`Yeni şifre verildi (${esc(tarihSaat(ist.t))}). Birkaç dakika içinde geçerli olur ve burada görünür.`} <button class="mini" id="uIstIptal">İptal et</button></div>`:'';
   return `<div class="card" style="padding:12px;margin:10px 0"><span class="lbl" style="margin-top:0">Giriş bilgileri</span>
    <p style="margin:4px 0">Kullanıcı adı: <b class="mono">${esc(u.kullaniciAdi)}</b></p>
-   <p style="margin:4px 0">Şifre: ${sf?`<b class="mono" id="uSfG" data-s="${esc(sf)}">••••••</b> <button class="mini" id="uSfGos">Göster</button>`:'<i>kayıtlı değil</i>'}</p>
-   ${ben?'<p class="note" style="margin-bottom:0">Kendi şifrenizi sağ üstteki hesap menüsünden değiştirin.</p>':`
-   ${sf?'':'<p class="note">Bu kullanıcı şifreler kaydedilmeden önce açıldığı için şifresi görünmüyor. Biliyorsanız yazıp "Şifreyi kaydet" deyin (doğruluğu denenir). Bilmiyorsanız yeni şifre yazıp kullanıcı adını değiştirin. Kullanıcı kendi şifresini değiştirdiğinde de burada görünür.</p>'}
-   <label class="field"><span>${sf?'Yeni şifre (en az 6)':'Şifre'}</span><input id="uYP" type="text" autocomplete="off" autocapitalize="none" autocorrect="off"></label>
-   <div class="row2"><button class="btn grow" id="uSfB">${sf?'Şifreyi değiştir':'Şifreyi kaydet'}</button></div>
+   <p style="margin:4px 0">Şifre: ${sf?`<b class="mono" id="uSfG" data-s="${esc(sf)}">••••••</b> <button class="mini" id="uSfGos">Göster</button>`:'<i>kayıtlı değil</i>'}</p>${istH}
+   ${ben?'<p class="note" style="margin-bottom:0">Kendi şifrenizi sağ üstteki hesap menüsünden değiştirin; değiştirince burada görünür.</p>':`
+   <label class="field"><span>Yeni şifre (en az 6)</span><input id="uYP" type="text" autocomplete="off" autocapitalize="none" autocorrect="off"></label>
+   <div class="row2"><button class="btn grow" id="uSfB">${sf?'Şifreyi değiştir':'Şifreyi ayarla'}</button></div>
+   ${sf?'':'<p class="note">Eski şifreyi bilmeniz gerekmez. Yeni şifreyi yazıp "Şifreyi ayarla" deyin; birkaç dakika içinde geçerli olur ve burada görünür. Bundan sonra şifreyi her zaman burada görür ve anında değiştirirsiniz.</p>'}
    <label class="field"><span>Yeni kullanıcı adı</span><input id="uYK" autocapitalize="none" autocorrect="off" placeholder="${esc(u.kullaniciAdi)}"></label>
    <div class="row2"><button class="btn grow" id="uKB">Kullanıcı adını değiştir</button></div>
    <p class="note" style="margin-bottom:0">Değişiklikten sonra kullanıcı yeni bilgilerle giriş yapar; açık oturumu kapanır.</p>`}<div id="uGErr"></div></div>`;}
@@ -2109,8 +2116,9 @@ function kullaniciPanel(uid){const u=uid?S.users.find(x=>x.uid===uid):{kullanici
    const gos=byId('uSfGos');if(gos)gos.onclick=()=>{const g=byId('uSfG');const ac=gos.textContent==='Göster';g.textContent=ac?g.dataset.s:'••••••';gos.textContent=ac?'Gizle':'Göster';};
    const GE=byId('uGErr');const mesgul=(b,y)=>{sh.querySelectorAll('#uSfB,#uKB,#uPasif,#uSil,#uOk').forEach(x=>x.disabled=!!y);if(b&&y)b.textContent='Bekleyin…';};
    const sfB=byId('uSfB');if(sfB)sfB.onclick=async()=>{const p=byId('uYP').value;if(p.length<6){GE.innerHTML='<div class="confirm">Şifre en az 6 karakter olmalı.</div>';return;}const ad0=sfB.textContent;mesgul(sfB,true);
-     try{if(sifreOf(u.uid)){await kSifreDegistir(u,p);toast(`${u.adSoyad||u.kullaniciAdi} için şifre değiştirildi.`);}else{await kSifreDogrula(u,p);toast('Şifre doğrulandı ve kaydedildi.');}closeSheet();}
+     try{const r=await kSifreAyarla(u,p);closeSheet();toast(r==='hemen'?`${u.adSoyad||u.kullaniciAdi} için şifre kaydedildi.`:`Yeni şifre verildi; birkaç dakika içinde geçerli olur.`);}
      catch(e){console.error(e);mesgul(null,false);sfB.textContent=ad0;GE.innerHTML=`<div class="confirm bad">${esc(girisHata(e))}</div>`;}};
+   const ipt=byId('uIstIptal');if(ipt)ipt.onclick=async()=>{try{await deleteDoc(doc(db,'sifreIstek',u.uid));closeSheet();toast('Şifre isteği iptal edildi.');}catch(e){yazmaHatasi(e);}};
    const kB=byId('uKB');if(kB)kB.onclick=async()=>{const k=kadiNorm(byId('uYK').value);const p=byId('uYP').value;
      if(k.length<3){GE.innerHTML='<div class="confirm">Yeni kullanıcı adı en az 3 karakter olmalı (harf, rakam, nokta).</div>';return;}if(k===u.kullaniciAdi){GE.innerHTML='<div class="confirm">Kullanıcı adı aynı.</div>';return;}
      if(p&&p.length<6){GE.innerHTML='<div class="confirm">Şifre en az 6 karakter olmalı.</div>';return;}if(!p&&!sifreOf(u.uid)){GE.innerHTML=`<div class="confirm">${esc(girisHata({code:'sifre-yok'}))}</div>`;return;}

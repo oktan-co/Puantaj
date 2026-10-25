@@ -33,7 +33,8 @@ Telefonda adresi açın → tarayıcı menüsü → **Ana ekrana ekle**.
    Kullanıcılar kullanıcı adı + şifreyle girer; e-posta görmezler.
 4. **Yönetim → Kullanıcılar → kullanıcıya dokun**: işveren kullanıcı adını ve şifreyi görür, şifreyi ya da kullanıcı adını değiştirir, kullanıcıyı pasife alır / aktif eder ya da siler.
    - Şifreler `sifreler` koleksiyonunda tutulur; sadece işveren okur, yedek dosyasına girmez. İşveren hesabının şifresi güçlü olmalı: bu hesap herkesin şifresini görür.
-   - Bu özellikten önce açılan kullanıcıların şifresi görünmez. Biliyorsanız "Şifreyi kaydet" ile girin, ya da kullanıcı kendi şifresini bir kez değiştirsin. Bilmiyorsanız yeni şifre yazıp kullanıcı adını değiştirin.
+   - Şifresi kayıtlı olmayan kullanıcıya eski şifreyi bilmeden yeni şifre verilir: "Şifreyi ayarla" bir istek bırakır, GitHub'daki **Kullanıcı işlemleri** otomasyonu 5 dakikada bir çalışıp uygular.
+   - Otomasyonun bir kez kurulması gerekir: Firebase → Proje ayarları → Hizmet hesapları → **Yeni özel anahtar oluştur** (JSON iner). GitHub → depo → Settings → Secrets and variables → Actions → **New repository secret**: ad `FIREBASE_SERVICE_ACCOUNT`, değer JSON dosyasının tamamı. Bu anahtar veritabanının tam yetkili anahtarıdır; başka yere yapıştırmayın, kurduktan sonra indirilen dosyayı silin.
    - Kullanıcı adı değişince yeni adla giriş hesabı açılır, rol ve şubeler taşınır; eski ad artık giremez.
 
 ## Hafta ve ay sonu akışı

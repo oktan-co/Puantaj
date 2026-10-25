@@ -1,0 +1,31 @@
+# Kullanıcı işlemleri: işverenin uygulamada verdiği yeni şifreleri Firebase'e uygular.
+# Firebase, başka bir kullanıcının şifresini sadece yönetici anahtarıyla (hizmet hesabı) değiştirtir;
+# bu anahtar tarayıcıda olamayacağı için iş burada yapılır. Her 5 dakikada bir ve elle çalıştırılabilir.
+name: Kullanıcı işlemleri
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+concurrency:
+  group: kullanici-islem
+  cancel-in-progress: false
+
+jobs:
+  islem:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Bağımlılık
+        working-directory: scripts
+        run: npm install --no-audit --no-fund --silent
+      - name: Bekleyen şifre isteklerini uygula
+        working-directory: scripts
+        env:
+          FIREBASE_SERVICE_ACCOUNT: ${{ secrets.FIREBASE_SERVICE_ACCOUNT }}
+        run: node kullanici-islem.mjs

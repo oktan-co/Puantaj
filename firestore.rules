@@ -50,6 +50,13 @@ service cloud.firestore {
             && request.resource.data.keys().hasOnly(['kullaniciAdi', 'sifre', 'guncellendi', 'guncelleyen']));
     }
 
+    // Yeni şifre isteği: işveren yazar; GitHub'daki "Kullanıcı işlemleri" otomasyonu (yönetici anahtarıyla) uygular ve siler.
+    match /sifreIstek/{uid} {
+      allow read, delete: if isveren();
+      allow create, update: if isveren() && request.resource.data.isteyen == request.auth.uid
+        && request.resource.data.sifre is string && request.resource.data.sifre.size() >= 6;
+    }
+
     // Kullanıcı adı → giriş e-postası eşlemesi gerekmez; giriş e-postası kullanıcı adından üretilir.
 
     // Personel: ortak havuz yok. Kişi, çalıştığı şubenin, SGK şubesinin ve diğer çalıştığı şubelerin (gorunurSubeler) listesinde görünür.
