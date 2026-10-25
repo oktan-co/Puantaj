@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=101;
+const APP_SURUM=102;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -717,7 +717,7 @@ function hucre(pid,i,opt={}){if(kilitEngel())return;const p=S.personel.find(x=>x
    <span class="lbl">Durum</span><div class="codes">${KOD_SIRA.filter(k=>(k!=='B'&&k!=='D')||val===k).map(k=>`<button data-k="${k}" class="${val===k?'sel':''}" ${kodStil(k)}>${KOD[k].ad}</button>`).join('')}</div>
    <div class="codes" style="margin-top:8px;grid-template-columns:1fr"><button class="clear" data-k="">Hücreyi temizle</button></div>`,sh=>{
    const A=byId('tA'),B=byId('tB'),M=byId('tMeta');
-   const bitisSecenek=()=>{const x=A.value;if(!x)return;const ta=saatKonum(x,sb);[...B.options].forEach(op=>{if(!op.value)return;let tb=saatKonum(op.value,sb);if(tb<=ta)tb+=24;op.disabled=tb<=ta||tb-ta>16;});if(B.selectedOptions[0]&&B.selectedOptions[0].disabled)B.value='';};
+   const bitisSecenek=()=>{const x=A.value;if(!x)return;const ar=saatAraligi(sb);const azami=Math.max(16,ar.n1-ar.n0+(pay?2:0));const ta=saatKonum(x,sb);[...B.options].forEach(op=>{if(!op.value)return;let tb=saatKonum(op.value,sb);if(tb<=ta)tb+=24;op.disabled=tb<=ta||tb-ta>azami;});if(B.selectedOptions[0]&&B.selectedOptions[0].disabled)B.value='';};
    const upd=()=>{const x=A.value,y=B.value;if(x&&y){const v=x+'-'+y;const k=shiftKind(v,sb);const vk=vardiyaKontrol(v,sb,d);
        M.innerHTML=vk.ok?`<span>${fmt(shiftHours(v))} saat</span><span class="chip ${k.o||k.k?'warn':'mut'}">${k.o&&k.k?'Açılış + kapanış':k.o?'Açılış vardiyası':k.k?'Kapanış vardiyası':'Ara vardiya'}</span>${vk.pay?'<span class="chip warn">Erken / geç</span>':''}`:`<span class="chip bad">${esc(vk.neden)}</span>`;}
      else M.innerHTML='';};
