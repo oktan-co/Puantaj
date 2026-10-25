@@ -85,3 +85,18 @@ Oyun alanında "Kimliği doğrulanmış" seçip UID girerek şunları deneyin:
 | SUBE_UID | get | `personel/P1` | İzin verildi (diğer çalıştığı şube) |
 | SUBE_UID | update | `personel/P1` `{ekSubeler:[]}` | **Reddedildi** |
 | BOLGE_UID | update | `personel/P1` `{ekSubeler:[], gorunurSubeler:[aynı]}` | İzin verildi |
+
+## Yedek ve veri kontrolü (işveren)
+- **Yönetim → Yedek → Yedek indir**: bütün veritabanı tek dosya (JSON) olarak iner. Ücretsiz Firebase planında otomatik yedek yoktur; **haftada en az bir** ve her ay sonu onayından sonra alın. Dosyada maaş, TC ve IBAN var; güvenli yerde saklayın.
+- **Veri kontrolü**: bütün şubelerin haftalarını tarar; şubeyle bağı olmayan ya da silinmiş kişilere ait hücreleri listeler. Hiçbir şeyi değiştirmez.
+
+## Kayıt güvenliği
+- Kayıtlar cihazda da saklanır: internet yokken girilenler uygulama kapanıp açılsa da internet gelince gönderilir. Altta "İnternet yok · N değişiklik bekliyor" yazarken uygulamayı silmeyin / tarayıcı verisini temizlemeyin.
+- Veri girişi satır satır kaydedilir (veriM / veriSil). Eski "veri" listesi okunurken birleştirilir.
+- Personeli sadece işveren silebilir; çizelge kaydı olan kişi silinmez, çıkış tarihi girilir.
+- Şube ayarlarındaki mesai / ücret değişikliği o aydan itibaren geçerlidir; önceki aylar eski ayarla hesaplanır.
+
+## Güncelleme yayınlarken
+- `app.js` içindeki `APP_SURUM` sayısını ve `index.html` içindeki `app.js?v=` sayısını bir artırın.
+- İşveren yeni sürümü açınca `sistem/surum` yükselir; eski sürümle açık kalan cihazlar kayıt yapamaz, "Uygulama güncellendi" ekranında Yenile'ye basar.
+- `firestore.rules` değiştiyse Firebase → Firestore → Kurallar'a yapıştırıp **Yayınla**.
