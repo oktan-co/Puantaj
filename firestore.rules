@@ -60,6 +60,20 @@ service cloud.firestore {
             && ben().subeler.hasAll(eski.removeAll(yeni))
             && gorYeni.hasAll(gorEski));
     }
+    // IBAN değişikliği izlenir: eski IBAN (ibanEski) ve sunucu saati (ibanZaman) yazılmadan değiştirilemez,
+    // bu iz alanları IBAN'la birlikte değişmeden elle değiştirilemez. Böylece değişen IBAN işverenin listesinde mutlaka görünür.
+    function ibanUygun() {
+      let e = resource.data;
+      let y = request.resource.data;
+      let ayni = y.get('iban', '') == e.get('iban', '');
+      let izAyni = y.get('ibanZaman', null) == e.get('ibanZaman', null)
+        && y.get('ibanEski', '') == e.get('ibanEski', '')
+        && y.get('ibanTarih', '') == e.get('ibanTarih', '');
+      return isveren()
+        || (ayni && izAyni)
+        || (!ayni && e.get('iban', '') == '' && izAyni)
+        || (!ayni && y.get('ibanEski', '') == e.get('iban', '') && y.get('ibanZaman', null) == request.time);
+    }
     match /personel/{p} {
       allow read: if subede(resource.data.get('anaSube', ''))
         || subede(resource.data.get('sgkSube', ''))
@@ -67,7 +81,7 @@ service cloud.firestore {
       allow create: if (subede(request.resource.data.anaSube)
         || subede(request.resource.data.get('sgkSube', '')))
         && (request.resource.data.get('ekSubeler', []).size() == 0 || ben().rol in ['bolge', 'isveren']);
-      allow update: if ekDegisimiUygun() && (
+      allow update: if ibanUygun() && ekDegisimiUygun() && (
         ((subede(resource.data.anaSube) || subede(resource.data.get('sgkSube', '')))
           && (subede(request.resource.data.anaSube) || subede(request.resource.data.get('sgkSube', ''))))
         || (aktif() && ben().rol == 'bolge'
@@ -197,7 +211,8 @@ service cloud.firestore {
       allow read: if bolgede(s);
       // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödemeler ve veri girişi devam eder.
       // Veri girişi satır satır (veriM / veriSil). Eski "veri" listesine yazılamaz: eski sürümle açık kalan cihaz satırları ezemez.
-      allow create: if bolgede(s) && !('veri' in request.resource.data);
+      allow create: if bolgede(s) && !('veri' in request.resource.data)
+        && (request.resource.data.get('kesin', false) != true || isveren());
       // Kesin kapanmış ay: sadece işveren kesin kapanışı açabilir (başka hiçbir alan değişmez). Kesin kapatmayı sadece işveren yapar.
       allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['veri'])
         && (resource.data.get('kesin', false) != true

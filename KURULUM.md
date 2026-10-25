@@ -42,7 +42,7 @@ Telefonda adresi açın → tarayıcı menüsü → **Ana ekrana ekle**.
 
 ## Kesin kapanış (işveren)
 - Bölge müdürü ayı onaylayınca muhasebe kilitlenir; ödemeler ve veri girişi devam eder.
-- Ödemeler bitince **işveren** Puantaj → Ödemeler altında **Ayı kesin kapat**'a basar. O anki bütün rakamlar (muhasebe + ödemeler + kalan) saklanır.
+- Ödemeler bitince **işveren** Puantaj → Ödemeler altında **Ayı kesin kapat**'a basar. Ayın bütün haftaları (sonraki aya taşan hafta dahil) onaylı olmalı ve cihazda gönderilmeyi bekleyen kayıt olmamalı. O anki bütün rakamlar (muhasebe + ödemeler + kalan) saklanır.
 - Kesin kapanan ay bir daha hesaplanmaz: sonradan çizelge, şube ayarı (ör. fazla mesai dönemi), maaş ya da program değişse de rakamları aynı kalır. O ayın haftaları, veri girişi ve ödemeleri kimse tarafından değiştirilemez (sunucu kuralı).
 - Sıra: önceki ay kesin kapanmadan sonraki ay kesin kapatılamaz; sonraki ay kesin kapalıyken önceki ayın kesin kapanışı açılamaz.
 - Düzeltme gerekirse işveren **Kesin kapanışı aç** der (kayda geçer); ay bölge onaylı duruma döner.
@@ -98,9 +98,11 @@ Oyun alanında "Kimliği doğrulanmış" seçip UID girerek şunları deneyin:
 - **Veri kontrolü**: bütün şubelerin haftalarını tarar; şubeyle bağı olmayan ya da silinmiş kişilere ait hücreleri listeler. Hiçbir şeyi değiştirmez.
 
 ## Kayıt güvenliği
+- Ücretsiz planda otomatik yedek ve geri alma (PITR) yoktur. Silinen ya da ezilen veri ancak indirilen yedek dosyasından elle kurtarılabilir.
 - Kayıtlar cihazda da saklanır: internet yokken girilenler uygulama kapanıp açılsa da internet gelince gönderilir. Altta "İnternet yok · N değişiklik bekliyor" yazarken uygulamayı silmeyin / tarayıcı verisini temizlemeyin.
 - Veri girişi satır satır kaydedilir (veriM / veriSil). Eski "veri" listesi okunurken birleştirilir.
-- Personeli sadece işveren silebilir; çizelge kaydı olan kişi silinmez, çıkış tarihi girilir.
+- Personeli işveren ve kişinin çalıştığı şubenin bölge müdürü silebilir; çizelge kaydı olan kişi silinmez, çıkış tarihi girilir.
+- IBAN değişikliği sunucu saatiyle kaydedilir ve eski IBAN saklanır; kural bunlar olmadan IBAN'ı değiştirtmez. Değişen her IBAN işverenin IBAN listesinde "IBAN'ı güncellenenler" altında görünür. Ödeme öncesi bu listeyi kontrol edin.
 - Şube ayarlarındaki mesai / ücret değişikliği o aydan itibaren geçerlidir; önceki aylar eski ayarla hesaplanır.
 
 ## Güncelleme yayınlarken

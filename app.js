@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=103;
+const APP_SURUM=104;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -113,9 +113,10 @@ function normTime(raw){let s=String(raw||'').trim().replace(/[.,\s]/g,':');if(!s
   if(!(h>=0&&h<=24&&m>=0&&m<=59))return null;if(h===24)h=0;return String(h).padStart(2,'0')+':'+String(m).padStart(2,'0');}
 /* ---- Saat seçimi: yarım saatlik, şubenin saatlerine göre ----
    Normal aralık: açılış – kapanış + 30 dk (örn. 11:00 – 02:30). Bugün ve geçmiş günlerde düzeltme için iki uçta birer saat pay (10:00 – 03:30). */
+const SON_SAAT_AZAMI=20;// saat listesi son saati, açılıştan en fazla 20 saat sonra olabilir
 function saatAraligi(sb){const op=Math.round(tnum(sb.acilis||'11:00')*2)/2;let cl=Math.round(tnum(sb.kapanis||'00:30')*2)/2;if(cl<=op)cl+=24;let n1=cl+0.5;
   // İsteğe bağlı "saat listesi son saati" (örn. destek için 02:30): kapanış değişmez, sadece seçilebilir saatler uzar.
-  if(sb.sonSaat&&/^\d{1,2}:\d{2}$/.test(sb.sonSaat)){let t=Math.round(tnum(sb.sonSaat)*2)/2;while(t<=op)t+=24;if(t>n1)n1=t;}return{n0:op,n1};}
+  if(sb.sonSaat&&/^\d{1,2}:\d{2}$/.test(sb.sonSaat)){let t=Math.round(tnum(sb.sonSaat)*2)/2;while(t<=op)t+=24;if(t>n1&&t-op<=SON_SAAT_AZAMI)n1=t;}return{n0:op,n1};}
 function saatYaz(t){const tt=((t%24)+24)%24;const h=Math.floor(tt+1e-9);return String(h).padStart(2,'0')+':'+(tt-h>0.25?'30':'00');}
 function duzeltmeGunu(d){return ymd(d)<=ymd(today());}
 function saatListesi(sb,pay){const{n0,n1}=saatAraligi(sb);const L=[];for(let t=n0-(pay?1:0);t<=n1+(pay?1:0)+1e-9;t+=0.5)L.push({s:saatYaz(t),t,pay:t<n0-1e-9?'erken':t>n1+1e-9?'gec':''});return L;}
@@ -938,11 +939,14 @@ async function tcYukle(list){if(!puantajYetki())return;S.tcler=S.tcler||{};const
   if(!need.length)return;await Promise.all(need.map(async s=>{try{const d=await getDoc(doc(db,'maaslar',s));S.tcler[s]=(d.exists()&&d.data().tc)||{};}catch(e){S.tcler[s]=null;}}));render();}
 // TC personel kaydında; eski kayıtlarda bordrodan gelen TC maaslar'da durabilir (bölge/işveren görür).
 function tcOf(p){if(p.tc)return p.tc;const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':'';}
-function bilgiKaydet(p,f,v){const ek={};if(f.k==='iban'&&p.iban&&p.iban!==v){ek.ibanEski=p.iban;ek.ibanTarih=ymd(today());} // IBAN değişince eski değer ve tarih tutulur (işveren listesi için)
-  p[f.k]=v;Object.assign(p,ek);return sirayla('p'+p.id,()=>{arka(setDoc(doc(db,'personel',p.id),{[f.k]:v,...ek},{merge:true}));});}
+// IBAN değişince eski değer, tarih ve sunucu saati (ibanZaman) tutulur; kural bunlar olmadan IBAN değiştirtmez (işveren listesinde görünür).
+function bilgiKaydet(p,f,v){const ek={};const iz=f.k==='iban'&&p.iban&&p.iban!==v;if(iz){ek.ibanEski=p.iban;ek.ibanTarih=ymd(today());}
+  p[f.k]=v;Object.assign(p,ek);return sirayla('p'+p.id,()=>{arka(setDoc(doc(db,'personel',p.id),{[f.k]:v,...ek,...(iz?{ibanZaman:serverTimestamp()}:{})},{merge:true}));});}
+// IBAN'ın değiştiği gün: sunucu saati varsa o (cihaz tarihi değiştirilemez), yoksa eski kayıtlardaki tarih.
+function ibanDegisim(p){const z=p.ibanZaman;return z&&typeof z.toDate==='function'?ymd(z.toDate()):(p.ibanTarih||'');}
 /* İşverene IBAN listesi: seçilen ayda SGK girişi olanlar + IBAN'ı o ay değişenler. Tüm şubeler tek listede; IBAN bitişik yazılır. Sadece bölge müdürü ve işveren. */
 function ibanAyi(){const bu=ayKey(today());return S.ibanAy||(today().getDate()<=15?ayKaydir(bu,-1):bu);}
-function ibanListe(ak){const g=[],u=[];S.personel.forEach(p=>{if(p.giris&&p.giris.slice(0,7)===ak&&p.sgkSube!==SGK_YOK)g.push(p);else if(p.iban&&p.ibanTarih&&p.ibanTarih.slice(0,7)===ak)u.push(p);});
+function ibanListe(ak){const g=[],u=[];S.personel.forEach(p=>{if(p.giris&&p.giris.slice(0,7)===ak&&p.sgkSube!==SGK_YOK)g.push(p);else if(p.iban&&ibanDegisim(p).slice(0,7)===ak)u.push(p);});
   const o=(a,b)=>String(subeAdi(maasSubesi(a))).localeCompare(String(subeAdi(maasSubesi(b))),'tr')||String(a.ad).localeCompare(String(b.ad),'tr');return{g:g.sort(o),u:u.sort(o)};}
 function ibanMetin(ak){const L=ibanListe(ak);const s=p=>`${adBuyuk(p.ad)} | ${tcOf(p)||'TC yok'} | ${p.iban||'IBAN yok'}`;
   let t=`${ayAdi(ak)} · yeni girenler (${L.g.length})\n`+L.g.map(s).join('\n');if(L.u.length)t+=`\n\nIBAN'ı güncellenenler (${L.u.length})\n`+L.u.map(s).join('\n');return t;}
@@ -957,7 +961,7 @@ function ibanKutusu(){if(!puantajYetki())return'';const bu=ayKey(today());const 
     const satir=(p,gun,guncel)=>{const ib=p.iban||'';const tc=tcOf(p);return `<div class="ibr ${ib?'':'eks'}"><div class="n"><b>${esc(adBuyuk(p.ad))}</b><i>${esc(gorevTahmin(p)||'')} · ${esc(subeAdi(maasSubesi(p)))} · ${gun}</i></div><div class="v"><span class="mono">${ib?esc(ib):'IBAN girilmemiş'}</span><span>TC ${tc?esc(tc):'—'}${guncel&&p.ibanEski?' · eski: '+esc(p.ibanEski):''}</span></div></div>`;};
     h+=`<div class="ibk-t"><label>Ay <select id="ibanAy">${aylar.map(a=>`<option value="${a}" ${a===ak?'selected':''}>${ayAdi(a)}</option>`).join('')}</select></label><span>Tüm şubeler tek listede</span></div>
      <div class="ibk-s"><span>Yeni girenler · ${L.g.length}</span><span>SGK girişi bu ay</span></div>${L.g.length?L.g.map(p=>satir(p,'giriş '+trTarih(p.giris),false)).join(''):'<div class="ibr"><div class="n"><i>Bu ay SGK girişi olan yok.</i></div></div>'}
-     <div class="ibk-s"><span>IBAN'ı güncellenenler · ${L.u.length}</span><span>Bu ay değişen</span></div>${L.u.length?L.u.map(p=>satir(p,'değişiklik '+trTarih(p.ibanTarih),true)).join(''):'<div class="ibr"><div class="n"><i>Bu ay IBAN değişikliği yok.</i></div></div>'}
+     <div class="ibk-s"><span>IBAN'ı güncellenenler · ${L.u.length}</span><span>Bu ay değişen</span></div>${L.u.length?L.u.map(p=>satir(p,'değişiklik '+trTarih(ibanDegisim(p)),true)).join(''):'<div class="ibr"><div class="n"><i>Bu ay IBAN değişikliği yok.</i></div></div>'}
      <div class="ibk-f"><button class="btn primary grow" id="ibanKop">WhatsApp için kopyala</button><button class="btn grow" id="ibanXls">Excel indir</button></div>`;}
   return h+'</div>';}
 // Personel listesi: tek tablo, her şey satır içinde düzenlenir, değişiklik anında kaydedilir.
@@ -1373,7 +1377,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   h+=`<div class="row2">${bolgeIs?`${pOnceki?`<button class="btn primary grow" disabled title="Önce önceki ay onaylanmalı">Onayla ve kilitle</button>`:'<button class="btn primary grow" id="onayB">Onayla ve kilitle</button>'}`:''}${isIsveren()&&durum==='bolge_onay'?'<button class="btn grow" id="acB">Kilidi aç</button>':''}</div>`;
   // İşveren: ödemeler bitince ayı kesin kapatır. Önceki ay kesin kapanmadan olmaz (devir ondan gelir).
   if(isIsveren()&&durum==='bolge_onay'&&V.kilitli){const pk=pOnc<BASLANGIC_AY||(S.aylar[pOnc]||{}).durum==='kesin';
-    h+=`<div class="card" style="padding:12px;margin-top:10px"><b>Kesin kapanış</b><p class="note" style="margin:4px 0 8px">Ödemeler ve veri girişi bitince ayı kesin kapatın. Kesin kapanan ayın rakamları o anki halleriyle saklanır; sonradan çizelge, ayar, maaş ya da program değişse de bu ay değişmez ve kimse düzenleyemez.</p>${pk?'<button class="btn primary" id="kesinB" style="width:100%">Ayı kesin kapat</button>':`<p class="note" style="color:var(--bad);font-weight:600;margin:0">${ayAdi(pOnc)} kesin kapanmadan bu ay kesin kapatılamaz.</p>`}</div>`;}
+    h+=`<div class="card" style="padding:12px;margin-top:10px"><b>Kesin kapanış</b><p class="note" style="margin:4px 0 8px">Ödemeler ve veri girişi bitince ayı kesin kapatın. Kesin kapanan ayın rakamları o anki halleriyle saklanır; sonradan çizelge, ayar, maaş ya da program değişse de bu ay değişmez ve kimse düzenleyemez.</p>${!HD.tamam?'<p class="note" style="color:var(--bad);font-weight:600;margin:0">Ayın bütün haftaları (sonraki aya taşan hafta dahil) onaylanmadan kesin kapatılamaz.</p>':pk?'<button class="btn primary" id="kesinB" style="width:100%">Ayı kesin kapat</button>':`<p class="note" style="color:var(--bad);font-weight:600;margin:0">${ayAdi(pOnc)} kesin kapanmadan bu ay kesin kapatılamaz.</p>`}</div>`;}
   if(isIsveren()&&durum==='kesin'){const sonraki=(S.aylar[ayKaydir(ak,1)]||{}).durum==='kesin';
     h+=`<div class="row2" style="margin-top:10px">${sonraki?`<p class="note">${ayAdi(ayKaydir(ak,1))} kesin kapalı olduğu için bu ay açılamaz.</p>`:'<button class="btn grow" id="kesinAcB">Kesin kapanışı aç</button>'}</div>`;}
   view(h,()=>{navBagla();document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{if(S.pt.gorunum==='veri'&&b.dataset.v!=='veri')veriBosTemizle();S.pt.gorunum=b.dataset.v;S.pt.vsel=null;render();});
@@ -1594,7 +1598,11 @@ async function onayla(){const ak=S.ay,sid=S.subeId;const ayni=()=>S.subeId===sid
   b.commit().then(()=>toast(`${sube().ad} · ${ayAdi(ak)} onaylandı.`)).catch(yazmaHatasi);}
 // İşverenin kesin kapanışı: ekranda görünen bütün sonuçlar (muhasebe + ödemeler) saklanır; ay ve haftaları kurallarla kilitlenir.
 async function kesinKapat(){const ak=S.ay,sid=S.subeId;const ayni=()=>isIsveren()&&S.subeId===sid&&S.ay===ak&&S.pt.sube===sid&&!!S.pt.doc&&S.pt.doc.kilitli===true&&S.pt.doc.kesin!==true&&S.pt.prev!==null&&sunucuHazir(sid);
-  if(!ayni()){toast('Puantaj tam yüklenmeden kesin kapatılamaz.');return;}if(await kilitliMi(ptK(sid,ak)))return;if(!ayni()){toast('Ekran değişti, işlem yapılmadı.');return;}
+  if(!ayni()){toast('Puantaj tam yüklenmeden kesin kapatılamaz.');return;}
+  // Kesin kapanan aya değen haftalar bir daha düzenlenemez: açık / onaysız hafta kalırsa sonraki ayın günleri de donar.
+  if(!ayHaftaDurumu(ak).tamam){toast('Ayın bütün haftaları onaylanmadan kesin kapatılamaz.');return;}
+  if(KAYIT.n||navigator.onLine===false||(VBEK[sid+'|'+ak]||[]).length){toast('Gönderilmeyi bekleyen kayıt var. İnternet bağlantısını kontrol edip birkaç saniye sonra tekrar deneyin.');return;}
+  if(await kilitliMi(ptK(sid,ak)))return;if(!ayni()){toast('Ekran değişti, işlem yapılmadı.');return;}
   const V=ptVerisi();const sag=sagSonuclu(V);const t=new Date().toISOString();const ad=benAd();
   const satir=V.satir.map(x=>({pid:x.pid,sol:x.sol,sag:x.sag,net:x.net??null,hes:x.hes}));const ayar=Object.fromEntries(AYAR_ALANLARI.map(k=>[k,V.sb[k]??null]));
   const b=writeBatch(db);b.set(doc(db,'puantaj',sid,'aylar',ak),{kesin:true,kesinSonuc:satirTemiz({satir,oz:V.oz,sb:ayar}),sag:sagYama(sag,[]),kesinTarihi:t,kesinAd:ad,kesinKayit:arrayUnion({t,ad,i:'kesin kapattı'}),guncellendi:t},{merge:true});
@@ -1917,6 +1925,7 @@ function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
      const gu=sayi(byId('sGu').value),ha=sayi(byId('sHa').value);if(!(gu>0&&gu<=16)||!(ha>0&&ha<=100)){byId('sErr').innerHTML='<div class="confirm">Günlük mesai 1–16 saat, haftalık mesai 1–100 saat arasında olmalı (örn. 8,5 ve 51).</div>';return;}
      const sid=id||slug(ad);if(!id&&S.subeler[sid]){byId('sErr').innerHTML='<div class="confirm">Bu isimde bir şube var.</div>';return;}
      const sonEl=byId('sSon');const sonRaw=sonEl?sonEl.value.trim():(s.sonSaat||'');const son=sonRaw?normTime(sonRaw):'';if(sonRaw&&!son){byId('sErr').innerHTML='<div class="confirm">Saat listesi son saati geçersiz (örn. 02:30) ya da boş bırakın.</div>';return;}
+     if(son){let t=tnum(son);const op=tnum(ac);while(t<=op)t+=24;if(t-op>SON_SAAT_AZAMI){byId('sErr').innerHTML=`<div class="confirm">Saat listesi son saati açılıştan en fazla ${SON_SAAT_AZAMI} saat sonra olabilir (örn. 02:30).</div>`;return;}}
      const body={ad,acilis:ac,kapanis:ka,sonSaat:son,gunluk:sayi(byId('sGu').value)||8.5,haftalik:sayi(byId('sHa').value)||51,partSaat:sayi(byId('sPa').value)||8,paketUcret:sayi(byId('sPk').value),fmYontem:sh.querySelector('#sYon .on').dataset.v,fmUcret:sayi(byId('sUc').value),fmDonem:sh.querySelector('#sDon .on').dataset.v};
      if(id)Object.assign(body,ayarGecmisYama(id,body));
      sirayla('s'+sid,()=>{arka(setDoc(doc(db,'subeler',sid),body,{merge:true}));});closeSheet();toast(id?'Şube ayarları kaydedildi.':`${ad} şubesi eklendi.`);};});}
