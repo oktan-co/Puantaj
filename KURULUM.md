@@ -63,6 +63,7 @@ Telefonda adresi açın → tarayıcı menüsü → **Ana ekrana ekle**.
 ## Çok şubeli çalışma
 - Kişinin kartında: SGK şubesi, çalıştığı şube, **diğer çalıştığı şubeler** (sadece işveren / bölge müdürü değiştirir) ve aya göre maaş şubesi.
 - Kişi bütün bu şubelerin çizelgesinde görünür. **Aynı gün tek şube:** bir şubede vardiya yazılı günde başka şubeye vardiya (ya da rapor/izin) yazılamaz; o gün diğer şubede "LEGENDS 11:00–19:30" gibi gri görünür.
+- **Fazla mesai dönemi geçişi:** dönem, önceki ayın döneminin bittiği günün ertesinden başlar. Eylül haftalık (7 Eyl – 4 Eki) ödendiyse ve Ekim takvim ayına alındıysa Ekim fazla mesaisi 5 Ekim'den başlar (1–4 Ekim iki kez ödenmez). Takvim ayından haftalığa geçişte aradaki günler (ör. 1 Kasım) yeni aya eklenir. Ayar değişikliği yapıldığı aydan itibaren geçerlidir; o ay bitmeden değiştirin.
 - Fazla mesai günü kimde çalışıldıysa o şubede: günün normal saati (8,5) çalışılan şubede beklenir. Boş gün (eksi mesai) sadece maaş şubesinde sayılır.
 - İzin günü kullanmadan 7 gün çalışılan haftanın fazlası (7 × 8,5 − 51 = 8,5 sa): maaş şubesi dışında çalışılan son günün şubesine, yoksa maaş şubesine.
 - Şubeden çıkarmak geçmiş haftaları silmez; kişi sadece yeni haftalara önerilmez.
