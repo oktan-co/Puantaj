@@ -422,7 +422,8 @@ const RED_NEDEN='şube saatleri dışında, yarım saat değil ya da kişi o gü
 function bootstrap(){
   if(!ayarliMi){view(`<div class="login"><div class="card"><h2>Kurulum gerekli</h2><p class="note" style="margin:6px 0 0">config.js dosyasına Firebase proje bilgilerini yapıştırın.</p></div></div>`);top('Puantaj Merkezi','Kurulum');return;}
   S.hafta=mondayOf(today());S.tab=tryLS('pm.tab')||'cizelge';
-  try{const g=JSON.parse(tryLS('pm.gor')||'null');if(g&&g.d===ymd(today())){if(/^\d{4}-\d\d-\d\d$/.test(g.hafta||''))S.hafta=g.hafta;if(/^\d{4}-\d\d$/.test(g.ay||'')){S.ay=g.ay;S.ayElle=!!g.ayElle;}}}catch(e){} // aynı gün yenilenirse bakılan hafta/ay korunur
+  try{const g=JSON.parse(tryLS('pm.gor')||'null');if(g){if(g.tk==='ay'||g.tk==='hafta')S.tkGorunum=g.tk;S.ptGeri=g.pt||null;}
+  if(g&&g.d===ymd(today())){if(/^\d{4}-\d\d-\d\d$/.test(g.hafta||''))S.hafta=g.hafta;if(/^\d{4}-\d\d$/.test(g.ay||'')){S.ay=g.ay;S.ayElle=!!g.ayElle;}}}catch(e){} // aynı gün yenilenirse bakılan hafta/ay korunur
   onAuthStateChanged(auth,async u=>{S.user=u;temizle();
     if(!u){S.me=null;loginEkrani();return;}
     view(`<div class="empty-state"><b>Hesabınız yükleniyor</b></div>`);
@@ -522,7 +523,8 @@ function renderTop(){const sb=S.subeId?sube():null;const ak=S.tab==='ay'?aktifAy
   byId('top').innerHTML=`<div class="top-row"><div class="grow"><button class="sube-btn eyebrow" id="subeBtn">${subeTxt}</button><h1>${baslik}</h1></div>${chip}
    <button class="icon-btn" id="hesapBtn" aria-label="Hesap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button></div>`;
   byId('subeBtn').onclick=()=>{if(S.tab!=='puantaj'&&S.tab!=='yonetim'&&S.subeIds.length>1)subeSec();};byId('hesapBtn').onclick=hesapPanel;}
-function render(){if(!S.me||S.me.aktif!==true)return;tryLS('pm.gor',JSON.stringify({d:ymd(today()),hafta:S.hafta,ay:S.ay,ayElle:!!S.ayElle}));renderTabs();renderTop();
+function render(){if(!S.me||S.me.aktif!==true)return;tryLS('pm.gor',JSON.stringify({d:ymd(today()),hafta:S.hafta,ay:S.ay,ayElle:!!S.ayElle,tk:S.tkGorunum,pt:S.pt.sube||null}));renderTabs();renderTop();
+  if(S.ptGeri&&S.tab==='puantaj'&&puantajYetki()&&S.subeIds.includes(S.ptGeri)){const id=S.ptGeri;S.ptGeri=null;S.ay=aktifAy('puantaj');return puantajAc(id);}
   if(S.kuralHata)return view(`<div class="banner bad">Personel listesi okunamadı. Firebase kuralları güncel değil. ${isIsveren()?'Firestore → Rules sekmesine son firestore.rules dosyasını yapıştırıp Publish\'e basın.':'İşverene haber verin.'}</div>`);
   if(S.tab==='yonetim')return renderYonetim();
   if(S.tab==='puantaj')return renderPuantaj();
