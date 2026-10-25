@@ -42,6 +42,14 @@ service cloud.firestore {
       allow update, delete: if isveren();
     }
 
+    // Kullanıcı şifreleri: işveren görür ve değiştirir. Kullanıcı kendi şifresini değiştirince sadece kendi kaydını yazar (okuyamaz).
+    match /sifreler/{uid} {
+      allow read, delete: if isveren();
+      allow create, update: if isveren()
+        || (aktif() && request.auth.uid == uid
+            && request.resource.data.keys().hasOnly(['kullaniciAdi', 'sifre', 'guncellendi', 'guncelleyen']));
+    }
+
     // Kullanıcı adı → giriş e-postası eşlemesi gerekmez; giriş e-postası kullanıcı adından üretilir.
 
     // Personel: ortak havuz yok. Kişi, çalıştığı şubenin, SGK şubesinin ve diğer çalıştığı şubelerin (gorunurSubeler) listesinde görünür.

@@ -30,7 +30,11 @@ Telefonda adresi açın → tarayıcı menüsü → **Ana ekrana ekle**.
 2. Uygulamayı açın, `admin` ve şifrenizle girin. **İlk kurulum** ekranı çıkar → adınızı yazıp **İşveren olarak kur**.
    Bu ekran yalnızca bir kez çalışır; kurulum yapıldıktan sonra kimse kendini işveren yapamaz.
 3. **Yönetim → Şubeler** ile şubeleri, **Yönetim → Kullanıcılar** ile şube ve bölge müdürlerini ekleyin.
-   Kullanıcılar kullanıcı adı + şifreyle girer; e-posta görmezler. Şifresini unutan kullanıcının hesabını kapatıp yeni kullanıcı adıyla açın.
+   Kullanıcılar kullanıcı adı + şifreyle girer; e-posta görmezler.
+4. **Yönetim → Kullanıcılar → kullanıcıya dokun**: işveren kullanıcı adını ve şifreyi görür, şifreyi ya da kullanıcı adını değiştirir, kullanıcıyı pasife alır / aktif eder ya da siler.
+   - Şifreler `sifreler` koleksiyonunda tutulur; sadece işveren okur, yedek dosyasına girmez. İşveren hesabının şifresi güçlü olmalı: bu hesap herkesin şifresini görür.
+   - Bu özellikten önce açılan kullanıcıların şifresi görünmez. Biliyorsanız "Şifreyi kaydet" ile girin, ya da kullanıcı kendi şifresini bir kez değiştirsin. Bilmiyorsanız yeni şifre yazıp kullanıcı adını değiştirin.
+   - Kullanıcı adı değişince yeni adla giriş hesabı açılır, rol ve şubeler taşınır; eski ad artık giremez.
 
 ## Hafta ve ay sonu akışı
 1. **Şube müdürü** → hafta bitince (pazartesiden itibaren) 2 gün içinde Çizelge → *Haftayı kapat → bölge müdürüne gönder*. Boş gün varsa ya da izin günü kullanmadan 7 gün çalışan teyit edilmediyse kapatılamaz. Kapatılan hafta şube müdürüne görünmez.
