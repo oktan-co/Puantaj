@@ -223,7 +223,7 @@ function gunCakisir(yeni,diger){if(!yeni||!diger)return null;const IZ=['R','UI',
   for(const[s,v]of Object.entries(diger)){if(isShift(yeni)&&(isShift(v)||IZ.includes(v)))return{s,v};if(IZ.includes(yeni)&&isShift(v))return{s,v};}return null;}
 function cakismaMesaj(p,ds,c){const d=parse(ds);return `${kisaAd(p.ad)} ${d.getDate()} ${AY[d.getMonth()]} günü ${subeAdi(c.s)} şubesinde ${isShift(c.v)?c.v.replace('-',' – '):KOD[c.v]?KOD[c.v].ad.toLocaleLowerCase('tr-TR'):c.v} yazılı. Bir kişi aynı gün tek şubede çalışır; o gün nerede başladıysa oraya yazın.`;}
 // Gün kaydını şubeler arası ortak belgeye yazar. Çakışma varsa yazmaz, çakışmayı döner.
-async function gunYaz(p,ds,val,sid=S.subeId){const ak=ds.slice(0,7);const ref=doc(db,'gunler',p.id+'__'+ak);const subeler=[...new Set([...kisiSubeleri(p),sid])];
+async function gunYaz(p,ds,val,sid){gerekliSube(sid);const ak=ds.slice(0,7);const ref=doc(db,'gunler',p.id+'__'+ak);const subeler=[...new Set([...kisiSubeleri(p),sid])];
   return runTransaction(db,async tr=>{const s=await tr.get(ref);const g=(s.exists()&&s.data().g&&s.data().g[ds])||{};const o={};Object.entries(g).forEach(([x,v])=>{if(x!==sid&&v)o[x]=v;});
     const c=gunCakisir(val,o);if(c)return c;
     tr.set(ref,{pid:p.id,ay:ak,subeler,g:{[ds]:{[sid]:val?val:deleteField()}}},{merge:true});return null;});}
@@ -335,17 +335,18 @@ function sagHesap(pid,sol,sag,net,sb,devir,ek={},us={}){const e=k=>ek[k]||0;if(t
 const kuyruk={};function sirayla(key,fn){kuyruk[key]=(kuyruk[key]||Promise.resolve()).then(fn).catch(yazmaHatasi);return kuyruk[key];}
 function yazmaHatasi(e){console.error(e);const c=e&&e.code||'';
   if(c.includes('permission'))toast('Bu işlem için yetkiniz yok.');else if(c.includes('unavailable'))toast('Bağlantı yok. İnternet gelince tekrar deneyin.');else toast('Kaydedilemedi: '+(e.message||c));}
-const weekRef=(wid,sid=S.subeId)=>doc(db,'subeler',sid,'haftalar',wid);
+const gerekliSube=sid=>{if(!sid)throw new Error('Şube belirtilmeden yazma engellendi');return sid;};
+const weekRef=(wid,sid)=>doc(db,'subeler',gerekliSube(sid),'haftalar',wid);
 /* ================= Düzenleme kilidi ================= */
 // Aynı anda tek kişi düzenler: çizelgede şube + hafta, puantajda şube + ay. Bakmak serbesttir.
 // Kilit ilk değişiklikte alınır; son işlemden 2 dakika sonra (ya da sayfadan çıkınca, uygulama arka plana geçince) kendiliğinden düşer. İşveren her kilidi, bölge müdürü şube müdürününkini devralabilir.
 const KILIT_SN=120,KILIT_TAZE=30000;
 const KL={key:null,k:null,d:null,unsub:null,zT:null,benim:{}};
-const czK=(wid,sid=S.subeId)=>({tur:'cz',sube:sid,donem:wid});
+const czK=(wid,sid)=>({tur:'cz',sube:gerekliSube(sid),donem:wid});
 const ptK=(sid=S.subeId,ak=S.ay)=>({tur:'pt',sube:sid,donem:ak});
 const kilitId=k=>k.tur+'__'+k.sube+'__'+k.donem;
 function kilitAnahtar(){if(!S.user||!S.me||!S.subeId)return null;
-  if(S.tab==='cizelge'&&S.hafta)return czK(S.hafta);
+  if(S.tab==='cizelge'&&S.hafta)return czK(S.hafta,S.subeId);
   if(S.tab==='puantaj'&&S.pt.sube&&S.pt.sube===S.subeId&&S.ay)return ptK();
   return null;}
 function kilitMs(d){const t=d&&d.t;return t&&t.toMillis?t.toMillis():0;}
@@ -397,7 +398,7 @@ function setCell(pid,wid,i,val){const sid=S.subeId;if(wid===S.hafta&&kilitEngel(
   const w0=S.haftalar[wid]||{};const kad=kadroOf(wid).ids.slice();if(!kad.includes(pid))kad.push(pid);undoKaydet(wid);const eski=cellOf(pid,wid,i);
   const w=S.haftalar[wid]={...w0,kadro:kad,cells:{...(w0.cells||{})}};w.cells[pid]={...(w.cells[pid]||{}),[String(i)]:val};render();const ds=ymd(weekDays(wid)[i]);
   return sirayla(sid+'|'+wid,async()=>{if(!(await kilitAl(czK(wid,sid)))){if(S.subeId===sid){S.haftalar[wid]=w0;undo.pop();render();toast(kilitMesaj());}return false;}
-    if(p&&cokSubeli(p)&&(val||eski)){let c=null;try{c=await gunYaz(p,ds,val,sid);}catch(e){console.error(e);}
+    if(p&&cokSubeli(p)&&(val||eski)){let c=null;try{c=await gunYaz(p,ds,val,sid);}catch(e){console.error(e);toast('Bu hücre diğer şubeye işlenemedi, tekrar dene.');}
       if(c){if(S.subeId===sid){const w1=S.haftalar[wid];if(w1&&w1.cells&&w1.cells[pid])w1.cells[pid][String(i)]=eski;undo.pop();render();toast(cakismaMesaj(p,ds,c));}return false;}}
     await setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad,cells:{[pid]:{[String(i)]:val}}},{merge:true});kapaliHaftaGuncelle(wid,sid);return true;});}
 // Birden çok hücre: saat kuralına ya da aynı gün kuralına uymayan hücreler eski değerinde kalır, sayısı döner.
@@ -413,7 +414,7 @@ function setWeek(wid,cells,kadro,pushUndo=true){const sid=S.subeId;if(wid===S.ha
   S.haftalar[wid]={...w0,hafta:wid,kadro:kad,cells};render();
   sirayla(sid+'|'+wid,async()=>{if(!(await kilitAl(czK(wid,sid)))){if(S.subeId===sid){S.haftalar[wid]=w0;if(pushUndo)undo.pop();render();toast(kilitMesaj());}return;}
     await setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),...(kadDeg?{kadro:kad}:{}),...(Object.keys(fark).length?{cells:fark}:{})},{merge:true});
-    for(const[p,d,v]of degisen){try{const c=await gunYaz(p,d,v,sid);if(c)toast(cakismaMesaj(p,d,c));}catch(e){console.error(e);}}kapaliHaftaGuncelle(wid,sid);});
+    for(const[p,d,v]of degisen){try{const c=await gunYaz(p,d,v,sid);if(c)toast(cakismaMesaj(p,d,c));}catch(e){console.error(e);toast('Bazı günler diğer şubeye işlenemedi, tekrar dene.');}}kapaliHaftaGuncelle(wid,sid);});
   return red;}
 
 const RED_NEDEN='şube saatleri dışında, yarım saat değil ya da kişi o gün başka şubede';
@@ -714,7 +715,7 @@ function isimMenu(pid){const p=S.personel.find(x=>x.id===pid);if(!p)return;const
    Hafta bitince şube müdürü 2 gün içinde kontrol edip kapatır → bölge müdürünün onayına gider. Kapatılan haftayı şube müdürü göremez.
    Bölge müdürü (kendi şubeleri) ve işveren: kapatır, onaylar, notla geri gönderir, kilidi açar. Her işlem haftanın kaydına yazılır. */
 const KAPATMA_GUN=2;
-const durumRef=(sid=S.subeId)=>doc(db,'subeler',sid,'durum','haftalar');
+const durumRef=sid=>doc(db,'subeler',gerekliSube(sid),'durum','haftalar');
 const benAd=()=>(S.me&&(S.me.adSoyad||S.me.kullaniciAdi))||'';
 function haftaPazar(wid){return addDays(parse(wid),6);}
 function haftaBitti(wid){return ymd(today())>ymd(haftaPazar(wid));}
@@ -1690,16 +1691,16 @@ function bordroPanel(V){if(kilitEngel())return;const ids=Object.keys(V.sol);let 
      byId('bOut').querySelectorAll('select[data-j]').forEach(s=>s.onchange=()=>{const k=satirlar[+s.dataset.j];k.pid=s.value||null;k.yol=s.value?'elle':null;ciz();});
      byId('bOut').querySelectorAll('input[data-n]').forEach(i=>i.onchange=()=>{const bos=i.value.trim()==='';satirlar[+i.dataset.n].netYazi=bos?null:sayi(i.value);i.value=bos?'':fmt(sayi(i.value));});
      const ok=byId('bOk');if(ok)ok.onclick=()=>{const tutarli=es.filter(k=>k.netYazi!=null);if(tutarli.length<es.length)toast(`${es.length-tutarli.length} kişinin net tutarı boş, atlandı.`);isle(tutarli);};};
-   const isle=async es=>{if(await kilitliMi(ptK()))return;const taban=ptTaban(S.subeId,V.ak);const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
+   const isle=async es=>{const sid0=S.subeId;if(await kilitliMi(ptK(sid0)))return;const taban=ptTaban(sid0,V.ak);const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
       const n=Object.keys(deg).length;if(!n){toast('Eşleşen personel yok.');return;}
-      try{if(Object.keys(tcYeni).length)await setDoc(doc(db,'maaslar',S.subeId),{tc:tcYeni},{merge:true});
+      try{if(Object.keys(tcYeni).length)await setDoc(doc(db,'maaslar',sid0),{tc:tcYeni},{merge:true});
         const sonGun=ymd(new Date(+V.ak.slice(0,4),+V.ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
-        const hedefOf=pid=>{const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p,V.ak):S.subeId;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
-        const burada=Object.keys(deg).filter(pid=>hedefOf(pid)===S.subeId),disari={};Object.keys(deg).forEach(pid=>{const h=hedefOf(pid);if(h!==S.subeId)(disari[h]=disari[h]||[]).push(pid);});
+        const hedefOf=pid=>{const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p,V.ak):sid0;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
+        const burada=Object.keys(deg).filter(pid=>hedefOf(pid)===sid0),disari={};Object.keys(deg).forEach(pid=>{const h=hedefOf(pid);if(h!==sid0)(disari[h]=disari[h]||[]).push(pid);});
         const eski=((S.pt.doc&&S.pt.doc.veri)||[]).filter(v=>!(v.kaynak==='bordro'&&deg[v.pid]));const yeni=[...eski,...burada.map(satirOf)];
         const degS={};Object.keys(deg).forEach(pid=>degS[pid]={bankaya:''});
         S.pt.doc={...(S.pt.doc||{}),veri:yeni};const V2={...V,D:{...V.D,veri:yeni}};const sag=sagSonuclu(V2,degS);
-        await ptYazHemen(S.subeId,V.ak,{...(V.kilitli?{}:{sube:S.subeId,ay:V.ak}),sag:sagYama(sag,Object.keys(deg)),veri:yeni,guncellendi:z},taban);
+        await ptYazHemen(sid0,V.ak,{...(V.kilitli?{}:{sube:sid0,ay:V.ak}),sag:sagYama(sag,Object.keys(deg)),veri:yeni,guncellendi:z},taban);
         const giden=[],yetkiYok=[];for(const[h,L] of Object.entries(disari)){if(!(isIsveren()||(S.me.subeler||[]).includes(h))){yetkiYok.push(subeAdi(h)+': '+L.map(pid=>adBuyuk(V.sol[pid].ad)).join(', '));continue;}
           const ref=doc(db,'puantaj',h,'aylar',V.ak);
           await runTransaction(db,async tr=>{const d0=await tr.get(ref);const v0=((d0.exists()&&d0.data().veri)||[]).filter(v=>!(v.kaynak==='bordro'&&L.includes(v.pid)));tr.set(ref,{sube:h,ay:V.ak,veri:[...v0,...L.map(satirOf)],guncellendi:z},{merge:true});});giden.push(`${L.length} kişi → ${subeAdi(h)}`);}
