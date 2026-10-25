@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=106;
+const APP_SURUM=107;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -520,7 +520,7 @@ function subeleriDinle(){subs.subeDocs.forEach(u=>u());subs.subeDocs=[];
   subs.subeDocs.push(onSnapshot(doc(db,'sistem','subeAdlari'),s=>{S.subeAdlari=s.exists()?(s.data().adlar||{}):{};if(isIsveren())subeAdSenkron();},()=>{}));
   if(isSube())subs.subeDocs.push(onSnapshot(doc(db,'sistem','goc'),s=>{const v=!!(s.exists()&&s.data().v4);if(S.goc4!==v){S.goc4=v;render();}},()=>{}));
   if(isIsveren()&&!subs.users){const u1=onSnapshot(collection(db,'kullanicilar'),s=>{S.users=s.docs.map(d=>({uid:d.id,...d.data()}));if(S.tab==='yonetim')render();});
-    const u2=onSnapshot(collection(db,'sifreler'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreler=m;if(S.tab==='yonetim')render();},()=>{S.sifreler={};});subs.users=()=>{u1();u2();};}}
+    const u2=onSnapshot(collection(db,'sifreler'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreler=m;S.sifreHata=false;if(S.tab==='yonetim')render();},e=>{console.error(e);S.sifreler={};S.sifreHata=true;if(S.tab==='yonetim')render();});subs.users=()=>{u1();u2();};}}
 // Personel şube şube tutulur: herkes sadece kendi şubelerinin listesini okur. Bölge müdürü ayrıca SGK'sı kendi şubelerinde olanları görür (puantaj için).
 function personelDinle(){const parca={};const yay=()=>{const m={};Object.values(parca).forEach(L=>L.forEach(p=>m[p.id]=p));S.personel=Object.values(m);S.loaded.personel=true;S.kuralHata=false;gocKontrol();render();};
   const hata=e=>{console.error(e);S.kuralHata=true;S.loaded.personel=true;render();};
@@ -1898,9 +1898,12 @@ function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
      <p class="note" style="margin-bottom:0">Şu an ${hf} / ${S.subeIds.length} şube haftalık. Seçince tüm şubelere uygulanır; tek tek şube ayarından da değiştirilebilir.</p></div>`;
     h+=S.subeIds.length?`<div class="card list">${S.subeIds.map(id=>{const s=sube(id);return `<button class="row" data-sid="${esc(id)}"><div class="av">${esc(bas(s.ad))}</div><div class="m"><b>${esc(s.ad)}</b><span>${esc(s.acilis)}–${esc(s.kapanis)} · günlük ${fmt(s.gunluk)} sa · FM ${s.fmYontem==='maas'?'maaş ÷ 30 ÷ 9':tl0(s.fmUcret)+'/sa'}</span></div></button>`;}).join('')}</div>`:`<div class="empty-state"><b>Henüz şube yok</b>İlk şubeyi ekleyin.</div>`;}
   else{h+=`<div class="actions"><button class="btn primary grow" id="yKulEkle">Kullanıcı ekle</button></div>`;
+    // Şifre listesi durumu: kurallar yayınlanmadıysa okunamaz; eski kullanıcıların şifresi kayıtlı değildir.
+    if(S.sifreHata)h+=`<div class="banner bad"><b>Şifreler okunamıyor.</b> Firebase kuralları güncel değil: Firestore → Kurallar sekmesine GitHub'daki firestore.rules dosyasını yapıştırıp Yayınla'ya basın, sonra uygulamayı kapatıp açın.</div>`;
+    else{const yok=(S.users||[]).filter(u=>!sifreOf(u.uid)).length;if(yok)h+=`<div class="banner">${yok} kullanıcının şifresi kayıtlı değil (şifre kaydı eklenmeden önce açılmışlar). Kullanıcıya dokunup bildiğiniz şifreyi kaydedin, ya da kullanıcı kendi şifresini bir kez değiştirsin.</div>`;}
     const us=S.users.slice().sort((a,b)=>['isveren','bolge','sube'].indexOf(a.rol)-['isveren','bolge','sube'].indexOf(b.rol)||String(a.adSoyad).localeCompare(String(b.adSoyad),'tr'));
     h+=`<div class="card list">${us.map(u=>`<button class="row" data-uid="${esc(u.uid)}"><div class="av">${esc(bas(u.adSoyad||u.kullaniciAdi))}</div><div class="m"><b>${esc(u.adSoyad||u.kullaniciAdi)}</b><span>${esc(u.kullaniciAdi)} · ${u.rol==='isveren'?'Tüm şubeler':(u.subeler||[]).map(s=>S.subeler[s]?S.subeler[s].ad:s).join(', ')||'Şube atanmamış'}</span></div>
-      <span class="chip ${u.aktif===false?'mut':u.rol==='isveren'?'warn':u.rol==='bolge'?'ok':'mut'}">${u.aktif===false?'Pasif':ROL[u.rol]||u.rol}</span></button>`).join('')}</div>`;}
+      <span class="chip ${u.aktif===false?'mut':u.rol==='isveren'?'warn':u.rol==='bolge'?'ok':'mut'}">${u.aktif===false?'Pasif':ROL[u.rol]||u.rol}</span>${S.sifreHata||sifreOf(u.uid)?'':'<span class="chip mut" title="Şifre kayıtlı değil">şifre ?</span>'}</button>`).join('')}</div>`;}
   view(h,()=>{document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});
     document.querySelectorAll('#yDon button').forEach(b=>b.onclick=async()=>{const v=b.dataset.v;const bt=writeBatch(db);S.subeIds.forEach(id=>bt.set(doc(db,'subeler',id),{fmDonem:v,...ayarGecmisYama(id,{fmDonem:v})},{merge:true}));try{await bt.commit();toast(`Tüm şubelerde fazla mesai dönemi: ${v==='hafta'?'haftalık':'takvim ayı'}.`);}catch(e){yazmaHatasi(e);}});
     const se=byId('ySubeEkle');if(se)se.onclick=()=>subePanel(null);document.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>subePanel(b.dataset.sid));
