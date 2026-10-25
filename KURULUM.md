@@ -40,6 +40,13 @@ Telefonda adresi açın → tarayıcı menüsü → **Ana ekrana ekle**.
 4. Bordro gelince: Ödemeler → *Bordro PDF yükle* → net ödenen tutarlar "bankaya yatan" olarak işlenir.
    Eşleşme önce isimle (Türkçe karakter farkı yok sayılır), tutmazsa kayıtlı TC ile yapılır ve uyarı gösterilir.
 
+## Kesin kapanış (işveren)
+- Bölge müdürü ayı onaylayınca muhasebe kilitlenir; ödemeler ve veri girişi devam eder.
+- Ödemeler bitince **işveren** Puantaj → Ödemeler altında **Ayı kesin kapat**'a basar. O anki bütün rakamlar (muhasebe + ödemeler + kalan) saklanır.
+- Kesin kapanan ay bir daha hesaplanmaz: sonradan çizelge, şube ayarı (ör. fazla mesai dönemi), maaş ya da program değişse de rakamları aynı kalır. O ayın haftaları, veri girişi ve ödemeleri kimse tarafından değiştirilemez (sunucu kuralı).
+- Sıra: önceki ay kesin kapanmadan sonraki ay kesin kapatılamaz; sonraki ay kesin kapalıyken önceki ayın kesin kapanışı açılamaz.
+- Düzeltme gerekirse işveren **Kesin kapanışı aç** der (kayda geçer); ay bölge onaylı duruma döner.
+
 ## Çok şubeli çalışma
 - Kişinin kartında: SGK şubesi, çalıştığı şube, **diğer çalıştığı şubeler** (sadece işveren / bölge müdürü değiştirir) ve aya göre maaş şubesi.
 - Kişi bütün bu şubelerin çizelgesinde görünür. **Aynı gün tek şube:** bir şubede vardiya yazılı günde başka şubeye vardiya (ya da rapor/izin) yazılamaz; o gün diğer şubede "LEGENDS 11:00–19:30" gibi gri görünür.

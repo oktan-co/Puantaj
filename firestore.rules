@@ -127,7 +127,8 @@ service cloud.firestore {
       match /haftalar/{w} {
         allow read: if bolgede(s)
           || (subede(s) && (resource == null || !('hd' in resource.data) || resource.data.hd == 'acik'));
-        allow write: if bolgede(s)
+        // Kesin kapanmış aya değen haftaya kimse yazamaz (işveren önce kesin kapanışı açar).
+        allow write: if !haftaKesin(s, w) && (bolgede(s)
           || (subede(s) && !ayKilitli(s, w)
               && request.resource != null
               && (resource == null || resource.data.get('hd', 'acik') == 'acik')
@@ -139,7 +140,7 @@ service cloud.firestore {
           // Onaylı aya değen açık haftada şube müdürü, kapatmadan önce 7 gün çalışan teyidini (teyit7) ve rapor / izin / giriş / çıkış teyidini (teyitK) işaretleyebilir; hücreler değişmez.
           || (subede(s) && resource != null && resource.data.get('hd', 'acik') == 'acik'
               && request.resource.data.get('hd', 'acik') == 'acik'
-              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'teyit7', 'teyitK']));
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'teyit7', 'teyitK'])));
       }
 
       // Kapatılan haftaların listesi ve kişi bazında toplamları (şube müdürü kapalı haftayı göremediği için "bu haftaya kadar" toplamı buradan).
@@ -154,13 +155,15 @@ service cloud.firestore {
       // Ay durumu: taslak → sube_onay → bolge_onay; bölge müdürü 'geri' ile iade edebilir.
       match /aylar/{a} {
         allow read: if subede(s);
-        allow write: if bolgede(s)
+        // 'kesin' durumuna sadece işveren alır ve sadece işveren çıkarır.
+        allow write: if ((resource == null || resource.data.get('durum', '') != 'kesin') && (request.resource == null || request.resource.data.get('durum', '') != 'kesin') || isveren())
+          && (bolgede(s)
           || (subede(s)
               && request.resource.data.durum in ['taslak', 'sube_onay']
               && (resource == null || resource.data.durum in ['taslak', 'sube_onay', 'geri']))
           // geri gönderilmiş ayda kontrol işaretleri (durum değişmeden)
           || (subede(s) && resource != null && resource.data.durum == 'geri'
-              && request.resource.data.durum == 'geri');
+              && request.resource.data.durum == 'geri'));
       }
     }
 
@@ -171,7 +174,14 @@ service cloud.firestore {
     }
     function ilkAy(w) { return w.split('-')[0] + '-' + w.split('-')[1]; }
     // Aylık şube kapatması kaldırıldı: şube müdürleri haftayı kapatır. Ay sadece bölge onayında kilitlenir (eski 'sube_onay' kayıtları kilit sayılmaz).
-    function kilitliDurum(d) { return d == 'bolge_onay'; }
+    function kilitliDurum(d) { return d == 'bolge_onay' || d == 'kesin'; }
+    function haftaKesin(s, w) {
+      return ayDurum(s, ilkAy(w)) == 'kesin'
+        || (request.resource != null && request.resource.data.get('ay2', '') is string && request.resource.data.get('ay2', '') != ''
+            && ayDurum(s, request.resource.data.ay2) == 'kesin')
+        || (resource != null && resource.data.get('ay2', '') is string && resource.data.get('ay2', '') != ''
+            && ayDurum(s, resource.data.ay2) == 'kesin');
+    }
     function ayKilitli(s, w) {
       return kilitliDurum(ayDurum(s, ilkAy(w)))
         || (request.resource != null && request.resource.data.keys().hasAll(['ay2'])
@@ -188,7 +198,12 @@ service cloud.firestore {
       // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödemeler ve veri girişi devam eder.
       // Veri girişi satır satır (veriM / veriSil). Eski "veri" listesine yazılamaz: eski sürümle açık kalan cihaz satırları ezemez.
       allow create: if bolgede(s) && !('veri' in request.resource.data);
+      // Kesin kapanmış ay: sadece işveren kesin kapanışı açabilir (başka hiçbir alan değişmez). Kesin kapatmayı sadece işveren yapar.
       allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['veri'])
+        && (resource.data.get('kesin', false) != true
+            || (isveren() && request.resource.data.get('kesin', false) == false
+                && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['kesin', 'kesinKayit', 'guncellendi'])))
+        && (request.resource.data.get('kesin', false) != true || resource.data.get('kesin', false) == true || isveren())
         && (isveren()
         || (bolgede(s) && (resource.data.get('kilitli', false) != true
             || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veriM', 'veriSil', 'guncellendi']))));
