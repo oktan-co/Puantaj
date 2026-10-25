@@ -106,6 +106,12 @@ service cloud.firestore {
       allow write: if isveren();
     }
 
+    // Uygulama sürümü: eski sürümle açık kalan cihazların kayıt yapması engellenir. İşveren yeni sürümü açınca yükselir.
+    match /sistem/surum {
+      allow read: if aktif();
+      allow write: if isveren();
+    }
+
     match /subeler/{s} {
       allow read: if subede(s);
       allow create, delete: if isveren();
