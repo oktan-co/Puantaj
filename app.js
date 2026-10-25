@@ -1,7 +1,7 @@
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getAuth, signInWithEmailAndPassword, onAuthStateChanged, signOut, createUserWithEmailAndPassword,
   updatePassword, EmailAuthProvider, reauthenticateWithCredential } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
-import { getFirestore, doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, onSnapshot, collection, writeBatch, query, where, runTransaction, arrayUnion, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+import { getFirestore, initializeFirestore, persistentLocalCache, persistentMultipleTabManager, doc, getDoc, getDocs, setDoc as fsSetDoc, updateDoc as fsUpdateDoc, deleteDoc as fsDeleteDoc, onSnapshot, collection, writeBatch as fsWriteBatch, query, where, runTransaction as fsRunTransaction, arrayUnion, deleteField, serverTimestamp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 import { firebaseConfig, GIRIS_ALANI } from "./config.js?v=67";
 
 /* ================= Sabitler ================= */
@@ -49,7 +49,28 @@ const VARSAYILAN={ad:'Şube',acilis:'11:00',kapanis:'00:30',gunluk:8.5,haftalik:
 /* ================= Firebase ================= */
 const ayarliMi=!String(firebaseConfig.apiKey||'').startsWith('BURAYA');
 let app,auth,db;
-if(ayarliMi){app=initializeApp(firebaseConfig);auth=getAuth(app);db=getFirestore(app);}
+// Kalıcı önbellek: internet yokken yapılan kayıtlar telefonda saklanır, uygulama kapanıp açılsa da internet gelince gönderilir.
+if(ayarliMi){app=initializeApp(firebaseConfig);auth=getAuth(app);try{db=initializeFirestore(app,{localCache:persistentLocalCache({tabManager:persistentMultipleTabManager()})});}catch(e){console.error(e);db=getFirestore(app);}}
+/* ---- Bekleyen kayıt takibi ----
+   Her yazma sunucu onaylayana kadar sayılır. Bekleyen kayıt varken ekranın altında durum gösterilir, sayfa kapatılmak istenirse uyarılır. */
+const KAYIT={n:0};
+function kayitIzle(p){KAYIT.n++;kayitCiz();const bit=()=>{KAYIT.n=Math.max(0,KAYIT.n-1);kayitCiz();};p.then(bit,bit);return p;}
+const setDoc=(...a)=>kayitIzle(fsSetDoc(...a));
+const updateDoc=(...a)=>kayitIzle(fsUpdateDoc(...a));
+const deleteDoc=(...a)=>kayitIzle(fsDeleteDoc(...a));
+const runTransaction=(...a)=>kayitIzle(fsRunTransaction(...a));
+function writeBatch(d){const b=fsWriteBatch(d);const c=b.commit.bind(b);b.commit=()=>kayitIzle(c());return b;}
+// Sunucu onayını beklemeden gönder (kayıt telefonda sıraya girdi); ret gelirse kullanıcıya söylenir.
+const arka=p=>{p.catch(e=>yazmaHatasi(e));};
+let kayitT=null;
+function kayitCiz(){let el=document.getElementById('kayitDurum');if(!el){el=document.createElement('div');el.id='kayitDurum';el.setAttribute('role','status');
+    el.style.cssText='position:fixed;left:50%;transform:translateX(-50%);bottom:calc(76px + env(safe-area-inset-bottom));z-index:60;padding:8px 14px;border-radius:999px;font:600 13px system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.18);display:none;max-width:92vw;text-align:center';document.body.appendChild(el);}
+  clearTimeout(kayitT);if(!KAYIT.n){el.style.display='none';return;}
+  const goster=()=>{if(!KAYIT.n){el.style.display='none';return;}const off=navigator.onLine===false;el.style.background=off?'#b42318':'#1f3a6b';el.style.color='#fff';
+    el.textContent=off?`İnternet yok · ${KAYIT.n} değişiklik bu cihazda bekliyor, internet gelince gönderilecek.`:`Kaydediliyor… (${KAYIT.n})`;el.style.display='block';};
+  if(navigator.onLine===false)goster();else kayitT=setTimeout(goster,1500);}
+window.addEventListener('online',kayitCiz);window.addEventListener('offline',kayitCiz);
+window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.returnValue='Kaydedilmeyi bekleyen değişiklikler var.';return e.returnValue;}});
 
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
@@ -365,7 +386,8 @@ function kilitTakip(){const k=kilitAnahtar();const id=k?kilitId(k):null;if(id===
 async function kilitAl(k,zorla=false){if(!k||!S.user)return true;const id=kilitId(k);const ref=doc(db,'kilitler',id);
   if(!zorla&&KL.benim[id]&&Date.now()-KL.benim[id]<KILIT_TAZE)return true;
   if(!zorla&&id===KL.key&&kilitBaskasi())return false;
-  try{const ok=await runTransaction(db,async tr=>{const s=await tr.get(ref);const x=s.exists()?s.data():null;
+  if(navigator.onLine===false)return true;// internet yok: kilit alınamaz, kayıt telefonda sıraya girer
+  try{const ok=await fsRunTransaction(db,async tr=>{const s=await tr.get(ref);const x=s.exists()?s.data():null;
       if(x&&x.uid!==S.user.uid&&!zorla&&isIsveren()&&Date.now()-kilitMs(x)<KILIT_SN*1000)return false;
       tr.set(ref,{tur:k.tur,sube:k.sube,donem:k.donem,uid:S.user.uid,ad:benAd()||S.user.email||'',rol:rol(),t:serverTimestamp()});return true;});
     if(ok)KL.benim[id]=Date.now();else delete KL.benim[id];return ok;}
@@ -376,7 +398,7 @@ async function kilitAl(k,zorla=false){if(!k||!S.user)return true;const id=kilitI
 async function kilitliMi(k){if(await kilitAl(k))return false;toast(kilitMesaj());return true;}
 // Bende olan kilitleri bırakır (başkası devraldıysa dokunmaz).
 function kilitBirak(){const ids=Object.keys(KL.benim);KL.benim={};if(!S.user)return;const uid=S.user.uid;
-  ids.forEach(id=>{const ref=doc(db,'kilitler',id);runTransaction(db,async tr=>{const s=await tr.get(ref);if(s.exists()&&s.data().uid===uid)tr.delete(ref);}).catch(()=>{});});}
+  ids.forEach(id=>{const ref=doc(db,'kilitler',id);fsRunTransaction(db,async tr=>{const s=await tr.get(ref);if(s.exists()&&s.data().uid===uid)tr.delete(ref);}).catch(()=>{});});}
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')kilitBirak();});
 window.addEventListener('pagehide',()=>kilitBirak());
 async function kilitDevral(){if(!KL.k)return;if(await kilitAl(KL.k,true)){toast('Düzenleme size geçti.');render();}else toast('Devralınamadı, tekrar deneyin.');}
@@ -400,7 +422,7 @@ function setCell(pid,wid,i,val){const sid=S.subeId;if(wid===S.hafta&&kilitEngel(
   return sirayla(sid+'|'+wid,async()=>{if(!(await kilitAl(czK(wid,sid)))){if(S.subeId===sid){S.haftalar[wid]=w0;undo.pop();render();toast(kilitMesaj());}return false;}
     if(p&&cokSubeli(p)&&(val||eski)){let c=null;try{c=await gunYaz(p,ds,val,sid);}catch(e){console.error(e);toast('Bu hücre diğer şubeye işlenemedi, tekrar dene.');}
       if(c){if(S.subeId===sid){const w1=S.haftalar[wid];if(w1&&w1.cells&&w1.cells[pid])w1.cells[pid][String(i)]=eski;undo.pop();render();toast(cakismaMesaj(p,ds,c));}return false;}}
-    await setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad,cells:{[pid]:{[String(i)]:val}}},{merge:true});kapaliHaftaGuncelle(wid,sid);return true;});}
+    arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad,cells:{[pid]:{[String(i)]:val}}},{merge:true}));kapaliHaftaGuncelle(wid,sid);return true;});}
 // Birden çok hücre: saat kuralına ya da aynı gün kuralına uymayan hücreler eski değerinde kalır, sayısı döner.
 function setWeek(wid,cells,kadro,pushUndo=true){const sid=S.subeId;if(wid===S.hafta&&kilitBaskasi()){setTimeout(()=>toast(kilitMesaj()),60);return 0;}
   const w0=S.haftalar[wid]||{};const eskiC=w0.cells||{};const ds=weekDays(wid);let red=0;const degisen=[];
@@ -413,7 +435,7 @@ function setWeek(wid,cells,kadro,pushUndo=true){const sid=S.subeId;if(wid===S.ha
   const kadDeg=!Array.isArray(w0.kadro)||JSON.stringify(w0.kadro)!==JSON.stringify(kad);
   S.haftalar[wid]={...w0,hafta:wid,kadro:kad,cells};render();
   sirayla(sid+'|'+wid,async()=>{if(!(await kilitAl(czK(wid,sid)))){if(S.subeId===sid){S.haftalar[wid]=w0;if(pushUndo)undo.pop();render();toast(kilitMesaj());}return;}
-    await setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),...(kadDeg?{kadro:kad}:{}),...(Object.keys(fark).length?{cells:fark}:{})},{merge:true});
+    arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),...(kadDeg?{kadro:kad}:{}),...(Object.keys(fark).length?{cells:fark}:{})},{merge:true}));
     for(const[p,d,v]of degisen){try{const c=await gunYaz(p,d,v,sid);if(c)toast(cakismaMesaj(p,d,c));}catch(e){console.error(e);toast('Bazı günler diğer şubeye işlenemedi, tekrar dene.');}}kapaliHaftaGuncelle(wid,sid);});
   return red;}
 
@@ -787,9 +809,9 @@ async function haftaKapatPanel(wid,onayDa){await gunleriYukle(cizelgeKisileri(wi
    <div class="row2"><button class="btn grow" id="hkNo">Vazgeç</button><button class="btn primary grow" id="hkOk" ${engel?'disabled':''}>${onayDa?'Kapat ve onayla':'Evet, kapat'}</button></div>`;
   openSheet(h,sh=>{byId('hkNo').onclick=closeSheet;
     sh.querySelectorAll('[data-t7]').forEach(c=>c.onchange=()=>{const pid=c.dataset.t7;const w0=S.haftalar[wid]||{};S.haftalar[wid]={...w0,teyit7:{...(w0.teyit7||{}),[pid]:c.checked}};
-      {const sid=S.subeId;sirayla(sid+'|'+wid,()=>setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(haftaPazar(wid)),hd:hdYaz(wid),teyit7:{[pid]:c.checked}},{merge:true}));}haftaKapatPanel(wid,onayDa);});
+      {const sid=S.subeId;sirayla(sid+'|'+wid,()=>{arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(haftaPazar(wid)),hd:hdYaz(wid),teyit7:{[pid]:c.checked}},{merge:true}));});}haftaKapatPanel(wid,onayDa);});
     sh.querySelectorAll('[data-tk]').forEach(c=>c.onchange=()=>{const key=c.dataset.tk;const w0=S.haftalar[wid]||{};S.haftalar[wid]={...w0,teyitK:{...(w0.teyitK||{}),[key]:c.checked}};
-      {const sid=S.subeId;sirayla(sid+'|'+wid,()=>setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(haftaPazar(wid)),hd:hdYaz(wid),teyitK:{[key]:c.checked}},{merge:true}));}haftaKapatPanel(wid,onayDa);});
+      {const sid=S.subeId;sirayla(sid+'|'+wid,()=>{arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(haftaPazar(wid)),hd:hdYaz(wid),teyitK:{[key]:c.checked}},{merge:true}));});}haftaKapatPanel(wid,onayDa);});
     const ok=byId('hkOk');if(ok)ok.onclick=async()=>{ok.disabled=true;try{await haftayiKapat(wid,onayDa);closeSheet();toast(onayDa?`${rangeLabel(wid)} kapatıldı ve onaylandı.`:`${rangeLabel(wid)} kapatıldı${isSube()?', bölge müdürüne gönderildi':''}.`);}catch(e){ok.disabled=false;yazmaHatasi(e);}};});}
 // Kapatılan haftanın kişi bazında özeti: şube müdürü kapalı haftayı göremediği için "bu haftaya kadar" toplamı buradan gelir.
 function haftaOzHesap(wid){const sb=sube();const oz={};const k=kadroDoc(wid)||[];
@@ -829,7 +851,7 @@ function ayHaftaDurumu(ak){const L=ayinHaftalari(ak).filter(w=>haftaDolu(w));con
 // Kişiyi bir şubenin haftalık listesine ekler (o haftanın listesi yoksa önceki haftanın listesini temel alır).
 async function cizelgeyeKoy(sid,wid,pid){if(!erisimVar(sid))return;try{
   if(sid===S.subeId){const kad=kadroOf(wid).ids.slice();if(kad.includes(pid))return;kad.push(pid);
-    return sirayla(sid+'|'+wid,()=>setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad},{merge:true}));}
+    return sirayla(sid+'|'+wid,()=>{arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),hd:hdYaz(wid),kadro:kad},{merge:true}));});}
   const ref=weekRef(wid,sid);const s0=await getDoc(ref);let kad=null,hd='acik';
   if(s0.exists()){const d=s0.data();if(!isSube())hd=d.hd||'acik';kad=Array.isArray(d.kadro)?d.kadro.slice():Object.keys(d.cells||{});}
   else for(let i=1;i<=8&&!kad;i++){let q;try{q=await getDoc(weekRef(ymd(addDays(parse(wid),-7*i)),sid));}catch(e){continue;}if(q.exists()){const d=q.data();kad=Array.isArray(d.kadro)?d.kadro.slice():Object.keys(d.cells||{});}}
@@ -877,7 +899,7 @@ async function tcYukle(list){if(!puantajYetki())return;S.tcler=S.tcler||{};const
 // TC personel kaydında; eski kayıtlarda bordrodan gelen TC maaslar'da durabilir (bölge/işveren görür).
 function tcOf(p){if(p.tc)return p.tc;const m=S.tcler&&S.tcler[maasSubesi(p)];return m?m[p.id]||'':'';}
 function bilgiKaydet(p,f,v){const ek={};if(f.k==='iban'&&p.iban&&p.iban!==v){ek.ibanEski=p.iban;ek.ibanTarih=ymd(today());} // IBAN değişince eski değer ve tarih tutulur (işveren listesi için)
-  p[f.k]=v;Object.assign(p,ek);return sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),{[f.k]:v,...ek},{merge:true}));}
+  p[f.k]=v;Object.assign(p,ek);return sirayla('p'+p.id,()=>{arka(setDoc(doc(db,'personel',p.id),{[f.k]:v,...ek},{merge:true}));});}
 /* İşverene IBAN listesi: seçilen ayda SGK girişi olanlar + IBAN'ı o ay değişenler. Tüm şubeler tek listede; IBAN bitişik yazılır. Sadece bölge müdürü ve işveren. */
 function ibanAyi(){const bu=ayKey(today());return S.ibanAy||(today().getDate()<=15?ayKaydir(bu,-1):bu);}
 function ibanListe(ak){const g=[],u=[];S.personel.forEach(p=>{if(p.giris&&p.giris.slice(0,7)===ak&&p.sgkSube!==SGK_YOK)g.push(p);else if(p.iban&&p.ibanTarih&&p.ibanTarih.slice(0,7)===ak)u.push(p);});
@@ -957,7 +979,7 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
    <tbody>${body||`<tr><td class="l" colspan="${CAL?8:F.length+2}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
   view(h,()=>{byId('addP').onclick=()=>personelPanel(null);byId('addX').onclick=personelYapistirPanel;document.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.pk));const tb=byId('blTbl');const ibB=byId('ibanBas');if(ibB)ibB.onclick=()=>{S.ibanAcik=!S.ibanAcik;render();};const ibA=byId('ibanAy');if(ibA)ibA.onchange=()=>{S.ibanAy=ibA.value;render();};const ibK=byId('ibanKop');if(ibK)ibK.onclick=async()=>{toast(await panoyaYaz(ibanMetin(ibanAyi()))?'Liste kopyalandı. WhatsApp\'a yapıştırabilirsiniz.':'Kopyalanamadı.');};const ibX=byId('ibanXls');if(ibX)ibX.onclick=()=>ibanExcel(ibanAyi());document.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{S.acc={...(S.acc||{}),[b.dataset.acc]:!(S.acc||{})[b.dataset.acc]};render();});document.querySelectorAll('.pasAra').forEach(i=>i.oninput=()=>{S.pasAra=i.value;const s0=i.selectionStart;render();const nI=[...document.querySelectorAll('.pasAra')].find(x=>x.offsetParent);if(nI){nI.focus();try{nI.setSelectionRange(s0,s0);}catch(_){}}});document.querySelectorAll('#pGor button').forEach(b=>b.onclick=()=>{S.pgor=b.dataset.v;render();});
     const pOf=el=>S.personel.find(x=>x.id===el.closest('tr').dataset.pid);
-    const yaz1=(p,body,yenidenCiz)=>{Object.assign(p,body);sirayla('p'+p.id,()=>setDoc(doc(db,'personel',p.id),body,{merge:true}));if(yenidenCiz){document.activeElement&&document.activeElement.blur();render();}};
+    const yaz1=(p,body,yenidenCiz)=>{Object.assign(p,body);sirayla('p'+p.id,()=>{arka(setDoc(doc(db,'personel',p.id),body,{merge:true}));});if(yenidenCiz){document.activeElement&&document.activeElement.blur();render();}};
     const geri=(el,msg,v)=>{toast(msg);el.value=v;el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),2500);};
     tb.querySelectorAll('[data-x]').forEach(el=>{const x=el.dataset.x;
       if(x==='menu'){el.onclick=()=>personelPanel(el.closest('tr').dataset.pid);return;}
@@ -1080,7 +1102,7 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
      const bas=byId('pBas').value;if(bas&&giris&&bas>giris){W.innerHTML='<div class="confirm">Deneme başlangıcı SGK girişinden sonra olamaz.</div>';return;}
      const body={ad,gorev:g.ad,grup:g.grup,sekil,giris,cikis,baslama:bas,sgkSube:sgkV,anaSube:ana,...bilgi};
      if(id){const akM=ayKey(today());const msEl=byId('pMs');const ms0=odemeSubesi(p,akM);const ym=msEl&&msEl.value!==ms0?maasGecmisYama(p,msEl.value,akM):maasGecmisYama(p,{anaSube:ana,sgkSube:sgkV},akM);if(ym)Object.assign(body,ym);}if(p.sira!=null)body.sira=p.sira;const pid=id||(slug(ad)+'-'+Math.random().toString(36).slice(2,6));
-     const p0={...p};sirayla('p'+pid,()=>setDoc(doc(db,'personel',pid),body,{merge:true}));if(!id)S.personel.push({id:pid,...body});else Object.assign(p,body);closeSheet();
+     const p0={...p};sirayla('p'+pid,()=>{arka(setDoc(doc(db,'personel',pid),body,{merge:true}));});if(!id)S.personel.push({id:pid,...body});else Object.assign(p,body);closeSheet();
      const ilkHafta=mondayOf(giris&&parse(giris)>today()?parse(giris):today());
      if(opt.sonra)opt.sonra(pid);
      const eskiAna=id?p0.anaSube:null,eskiSgk=id?p0.sgkSube:null;
@@ -1088,7 +1110,7 @@ function personelPanel(id,gr,opt={}){const p=id?S.personel.find(x=>x.id===id):{a
      let sgkNot='';if(sgkV&&sgkV!==SGK_YOK&&sgkV!==ana&&(!id||eskiSgk!==sgkV)){if(erisimVar(sgkV)){cizelgeyeKoy(sgkV,ilkHafta,pid);sgkNot=`, ${subeAdi(sgkV)} çizelgesine de eklendi`;}else sgkNot=`. ${subeAdi(sgkV)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir`;}
      toast((id?'Personel güncellendi':`Personel eklendi${ana!==S.subeId?', '+subeAdi(ana)+' çizelgesine de eklendi':''}`)+sgkNot+'.');};
    const del=byId('pDel');if(del)del.onclick=()=>{if(!del.dataset.ok){del.dataset.ok='1';del.textContent='Evet, sil';W.innerHTML='<div class="confirm">Kişi şirketin personel listesinden silinir. Ayrılan biri için silmek yerine çıkış tarihi girin.</div>';return;}
-     sirayla('p'+id,()=>deleteDoc(doc(db,'personel',id)));closeSheet();toast(`${p.ad} silindi.`);};});}
+     sirayla('p'+id,()=>{arka(deleteDoc(doc(db,'personel',id)));});closeSheet();toast(`${p.ad} silindi.`);};});}
 
 /* ================= Ay sonu (şube müdürü) ================= */
 // Ay sonu kontrol listesi
@@ -1140,16 +1162,16 @@ function renderAy(){const ak=aktifAy('ay');S.ay=ak;const sb=sube();const kisiler
     // Teyit, haftanın kaydına yazılır (ay kapanmadan değiştirilebilir)
     document.querySelectorAll('[data-teyit]').forEach(c=>c.onchange=()=>{const k=c.dataset.teyit;const i=k.lastIndexOf('_');const pid=k.slice(0,i),wid=k.slice(i+1);
       const w0=S.haftalar[wid]||{};S.haftalar[wid]={...w0,teyit7:{...(w0.teyit7||{}),[pid]:c.checked}};
-      {const sid=S.subeId;sirayla(sid+'|'+wid,()=>setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),teyit7:{[pid]:c.checked}},{merge:true}));}render();});
+      {const sid=S.subeId;sirayla(sid+'|'+wid,()=>{arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),teyit7:{[pid]:c.checked}},{merge:true}));});}render();});
     document.querySelectorAll('[data-kon]').forEach(c=>c.onchange=()=>{const k=c.dataset.kon;S.aylar[ak]={...d,kontrol:{...(d.kontrol||{}),[k]:c.checked}};
-      {const sid=S.subeId;sirayla('ay'+ak,()=>setDoc(doc(db,'subeler',sid,'aylar',ak),{durum:d.durum||'taslak',kontrol:{[k]:c.checked}},{merge:true}));}render();});
+      {const sid=S.subeId;sirayla('ay'+ak,()=>{arka(setDoc(doc(db,'subeler',sid,'aylar',ak),{durum:d.durum||'taslak',kontrol:{[k]:c.checked}},{merge:true}));});}render();});
     const kb=byId('kapB');if(kb)kb.onclick=()=>openSheet(`<h2>Ayı kapat</h2><div class="sub">${esc(trBuyukBas(sb.ad))} şubesi · ${ayAdi(ak)}</div>
       <div class="confirm">Ay kapatılınca bu ayın çizelgesi şube tarafından değiştirilemez. Çalışma günleri, fazla mesai, rapor ve izinler bölge müdürünün onayına gönderilir.</div>
       <p class="note">${R.length} çalışan · toplam fazla mesai ${fmt(topFm)} sa · rapor ${rap} gün · ücretsiz izin ${ui} gün</p>
       <div class="row2"><button class="btn grow" id="kNo">Vazgeç</button><button class="btn primary grow" id="kOk">Evet, kapat ve gönder</button></div>`,()=>{byId('kNo').onclick=closeSheet;byId('kOk').onclick=()=>{closeSheet();
       const sid=S.subeId;sirayla('ay'+ak,async()=>{const b=writeBatch(db);b.set(doc(db,'subeler',sid,'aylar',ak),{durum:'sube_onay',kapatan:S.user.uid,kapatanAd:S.me.adSoyad||'',kapatma:new Date().toISOString(),not:''},{merge:true});
         b.set(doc(db,'ozetler',ak+'__'+sid),{sube:sid,ay:ak,kisiler:subeOzeti(ak,sid),guncellendi:new Date().toISOString()});await b.commit();});toast(`${ayAdi(ak)} kapatıldı, bölge müdürüne gönderildi.`);};});
-    const cb=byId('cekB');if(cb)cb.onclick=()=>{{const sid=S.subeId;sirayla('ay'+ak,()=>setDoc(doc(db,'subeler',sid,'aylar',ak),{durum:'taslak'},{merge:true}));}toast('Kapatma geri çekildi.');};});}
+    const cb=byId('cekB');if(cb)cb.onclick=()=>{{const sid=S.subeId;sirayla('ay'+ak,()=>{arka(setDoc(doc(db,'subeler',sid,'aylar',ak),{durum:'taslak'},{merge:true}));});}toast('Kapatma geri çekildi.');};});}
 
 /* ================= Haftalar: şubelerin haftalık kapatma takibi (bölge müdürü + işveren) ================= */
 const TK_HAFTA=4;
@@ -1297,7 +1319,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     if(S.pt._kf&&S.pt.gorunum!=='veri'){kfBagla(S.pt._kf.t,S.pt._kf.cols,S.pt._kf.rows);const kh=byId('kfHepsi');if(kh)kh.onclick=()=>{kfDurum(S.pt._kf.t).f={};render();};}
     if(S.pt.gorunum==='veri')veriGirisiBagla(V);else document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));
     document.querySelectorAll('[data-bk]').forEach(c=>c.onchange=()=>{if(kilitEngel()){c.checked=!c.checked;return;}const k=c.dataset.bk;const sid=S.subeId;S.pt.doc={...(S.pt.doc||{}),bkontrol:{...((S.pt.doc||{}).bkontrol||{}),[k]:c.checked}};
-      sirayla('pt'+sid+ak,()=>setDoc(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,bkontrol:{[k]:c.checked}},{merge:true}));render();});
+      sirayla('pt'+sid+ak,()=>{arka(setDoc(doc(db,'puantaj',sid,'aylar',ak),{sube:sid,ay:ak,bkontrol:{[k]:c.checked}},{merge:true}));});render();});
     const ob=byId('onayB');if(ob)ob.onclick=()=>{const T2=V.satir.reduce((t,x)=>t+Math.max(x.hes.kalan,0),0);openSheet(`<h2>Puantajı onayla</h2><div class="sub">${esc(trBuyukBas(sb.ad))} şubesi · ${ayAdi(ak)}</div>
       <div class="confirm">Onaylayınca muhasebe tarafı kilitlenir ve puantajın son hali işverene iletilir. Raporlar, yıllık izinler ve SGK giriş-çıkışları muhasebe grubundan kontrol ettiğinizden emin olun.</div>
       <p class="note">${V.satir.length} kişi · ihtiyaç duyulan nakit ${tl0(T2)}</p><div class="row2"><button class="btn grow" id="oVz">Vazgeç</button><button class="btn primary grow" id="oEv">Evet, onayla ve gönder</button></div>`,()=>{byId('oVz').onclick=closeSheet;byId('oEv').onclick=()=>{closeSheet();onayla();};});};
@@ -1508,7 +1530,7 @@ async function kilidiAc(){const ak=S.ay,sid=S.subeId;if(await kilitliMi(ptK(sid,
   b.set(doc(db,'subeler',sid,'aylar',ak),{durum:'taslak'},{merge:true});b.commit().then(()=>toast('Kilit açıldı, ay yeniden düzenlenebilir.')).catch(yazmaHatasi);}
 function geriGonderPanel(){if(kilitEngel())return;openSheet(`<h2>Şubeye geri gönder</h2><div class="sub">Şube müdürü notu görür, düzeltip ayı yeniden kapatır.</div><label class="field"><span>Not</span><textarea id="gNot" rows="3" placeholder="Örn: Ali'nin 14 Ekim raporu eksik"></textarea></label>
   <div class="row2"><button class="btn grow" id="gNo">Vazgeç</button><button class="btn danger grow" id="gOk">Geri gönder</button></div>`,()=>{byId('gNo').onclick=closeSheet;
-  byId('gOk').onclick=()=>{const not=byId('gNot').value.trim();{const sid=S.subeId,ay=S.ay;sirayla('ay'+ay,()=>setDoc(doc(db,'subeler',sid,'aylar',ay),{durum:'geri',not,geriGonderen:S.user.uid,geriTarih:new Date().toISOString()},{merge:true}));}closeSheet();toast('Şubeye geri gönderildi.');};});}
+  byId('gOk').onclick=()=>{const not=byId('gNot').value.trim();{const sid=S.subeId,ay=S.ay;sirayla('ay'+ay,()=>{arka(setDoc(doc(db,'subeler',sid,'aylar',ay),{durum:'geri',not,geriGonderen:S.user.uid,geriTarih:new Date().toISOString()},{merge:true}));});}closeSheet();toast('Şubeye geri gönderildi.');};});}
 function odemePanel(pid){if(kilitEngel())return;const V=ptVerisi();const x=V.satir.find(s=>s.pid===pid);if(!x)return;const s=x.sag;const esnaf=x.hes.esnaf;const ekToplam=k=>{const v=(V.oz[pid]||{})[k]||0;return v?tl(v):'';};const us0=usOf(pid);let tip=us0.tip;const maasDisi=x.sol.maasBurada===false;const kuryeMi=(x.sol.grup||'')==='S';const partMi=x.sol.sekil==='Part';if((maasDisi||!kuryeMi)&&tip==='paket')tip='maas';if(!partMi&&tip==='saat'&&!maasDisi)tip=us0.tip==='saat'?'saat':tip;const tc=(S.pt.maas&&S.pt.maas.tc&&S.pt.maas.tc[pid])||((S.personel.find(q=>q.id===pid)||{}).tc)||'';
   const inp=(id,label,val,ph='')=>`<label class="field"><span>${label}</span><input id="${id}" inputmode="decimal" value="${val??''}" placeholder="${ph}"></label>`;
   const pK=S.personel.find(q=>q.id===pid);const ms0=pK?odemeSubesi(pK,V.ak):'';let msSecHtml='';
@@ -1810,7 +1832,7 @@ function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
      const gu=sayi(byId('sGu').value),ha=sayi(byId('sHa').value);if(!(gu>0&&gu<=16)||!(ha>0&&ha<=100)){byId('sErr').innerHTML='<div class="confirm">Günlük mesai 1–16 saat, haftalık mesai 1–100 saat arasında olmalı (örn. 8,5 ve 51).</div>';return;}
      const sid=id||slug(ad);if(!id&&S.subeler[sid]){byId('sErr').innerHTML='<div class="confirm">Bu isimde bir şube var.</div>';return;}
      const body={ad,acilis:ac,kapanis:ka,gunluk:sayi(byId('sGu').value)||8.5,haftalik:sayi(byId('sHa').value)||51,partSaat:sayi(byId('sPa').value)||8,paketUcret:sayi(byId('sPk').value),fmYontem:sh.querySelector('#sYon .on').dataset.v,fmUcret:sayi(byId('sUc').value),fmDonem:sh.querySelector('#sDon .on').dataset.v};
-     sirayla('s'+sid,()=>setDoc(doc(db,'subeler',sid),body,{merge:true}));closeSheet();toast(id?'Şube ayarları kaydedildi.':`${ad} şubesi eklendi.`);};});}
+     sirayla('s'+sid,()=>{arka(setDoc(doc(db,'subeler',sid),body,{merge:true}));});closeSheet();toast(id?'Şube ayarları kaydedildi.':`${ad} şubesi eklendi.`);};});}
 /* ================= Excel'den çizelge aktarma (işveren) ================= */
 let xlsxYuklendi=null;function xlsxLib(){if(xlsxYuklendi)return xlsxYuklendi;xlsxYuklendi=new Promise((ok,no)=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';s.onload=()=>ok(window.XLSX);s.onerror=no;document.head.appendChild(s);});return xlsxYuklendi;}
 const XKOD={'HAF. İZİN':'HT','HAF.İZİN':'HT','HAFTALIK İZİN':'HT','HAFTA TATİLİ':'HT','İZİN':'HT','ÜCR. İZİN':'UI','ÜCR.İZİN':'UI','ÜCRETSİZ İZİN':'UI','YILLIK İZİN':'YI','YILLIK':'YI','RAPOR':'R','RAPORLU':'R','BAYRAM':'B','DİĞER':'D'};
