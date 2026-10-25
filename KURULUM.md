@@ -100,3 +100,4 @@ Oyun alanında "Kimliği doğrulanmış" seçip UID girerek şunları deneyin:
 - `app.js` içindeki `APP_SURUM` sayısını ve `index.html` içindeki `app.js?v=` sayısını bir artırın.
 - İşveren yeni sürümü açınca `sistem/surum` yükselir; eski sürümle açık kalan cihazlar kayıt yapamaz, "Uygulama güncellendi" ekranında Yenile'ye basar.
 - `firestore.rules` değiştiyse Firebase → Firestore → Kurallar'a yapıştırıp **Yayınla**.
+- Eski bir sürüme geri dönülürse önce Firestore'da `sistem/surum.min` değerini o sürümün `APP_SURUM` sayısına indirin; yoksa herkes "güncellendi" ekranında kalır.

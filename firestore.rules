@@ -52,7 +52,8 @@ service cloud.firestore {
       let gorEski = resource.data.get('gorunurSubeler', []);
       let gorYeni = request.resource.data.get('gorunurSubeler', []);
       // Diğer çalıştığı şubeler değişmiyorsa görünür şubeler sadece büyüyebilir (çalıştığı / SGK şubesi değişince eski şube eklenir).
-      return (eski == yeni && gorYeni.hasAll(gorEski))
+      return (eski == yeni && gorYeni.hasAll(gorEski)
+              && gorYeni.toSet().difference(gorEski.toSet()).hasOnly([resource.data.get('anaSube', ''), resource.data.get('sgkSube', '')]))
         || isveren()
         || (aktif() && ben().rol == 'bolge'
             && ben().subeler.hasAll(yeni.removeAll(eski))
@@ -185,10 +186,12 @@ service cloud.firestore {
     match /puantaj/{s}/aylar/{a} {
       allow read: if bolgede(s);
       // Bölge onayından sonra muhasebe tarafı (sol) kilitlenir; ödemeler ve veri girişi devam eder.
-      allow create: if bolgede(s);
-      allow update: if isveren()
+      // Veri girişi satır satır (veriM / veriSil). Eski "veri" listesine yazılamaz: eski sürümle açık kalan cihaz satırları ezemez.
+      allow create: if bolgede(s) && !('veri' in request.resource.data);
+      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny(['veri'])
+        && (isveren()
         || (bolgede(s) && (resource.data.get('kilitli', false) != true
-            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veri', 'veriM', 'veriSil', 'guncellendi'])));
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veriM', 'veriSil', 'guncellendi']))));
       allow delete: if isveren();
     }
 
