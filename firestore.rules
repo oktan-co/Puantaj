@@ -172,7 +172,7 @@ service cloud.firestore {
       allow create: if bolgede(s);
       allow update: if isveren()
         || (bolgede(s) && (resource.data.get('kilitli', false) != true
-            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veri', 'guncellendi'])));
+            || request.resource.data.diff(resource.data).affectedKeys().hasOnly(['sag', 'veri', 'veriM', 'veriSil', 'guncellendi'])));
       allow delete: if isveren();
     }
 

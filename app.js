@@ -1209,10 +1209,11 @@ function renderPuantaj(){if(!puantajYetki())return;S.ay=aktifAy('puantaj');
     document.querySelectorAll('.row[data-id]').forEach(b=>b.onclick=()=>puantajAc(b.dataset.id));});}
 let listeAy=null;function listeDinle(ak){if(listeAy===ak+S.subeIds.join())return;listeAy=ak+S.subeIds.join();subs.liste.forEach(u=>u());subs.liste=[];
   S.subeIds.forEach(id=>subs.liste.push(onSnapshot(doc(db,'subeler',id,'aylar',ak),s=>{S.pt.listeAylar[id+'|'+ak]=s.exists()?s.data():{durum:'taslak'};if(S.tab==='puantaj'&&!S.pt.sube)render();},()=>{})));}
-function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=null;S.pt.maas=null;S.pt.prev=null;S.pt.ozetler={};subs.detay.forEach(u=>u());subs.detay=[];const ak=S.ay;
-  S.pt.temiz=false;subs.detay.push(onSnapshot(doc(db,'puantaj',id,'aylar',ak),s=>{S.pt.doc=s.exists()?s.data():{};S.pt.veriTaban=(S.pt.doc.veri||[]).slice();if(!S.pt.temiz){S.pt.temiz=true;veriBosTemizle();}render();},e=>{S.pt.doc={};yazmaHatasi(e);}));
+function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=null;S.pt.ham=null;S.pt.maas=null;S.pt.prev=null;S.pt.ozetler=null;S.pt.ozetHata=false;subs.detay.forEach(u=>u());subs.detay=[];const ak=S.ay;
+  S.pt.temiz=false;subs.detay.push(onSnapshot(doc(db,'puantaj',id,'aylar',ak),s=>{if(S.pt.sube!==id||S.ay!==ak)return;S.pt.ham=s.exists()?s.data():{};S.pt.doc={...S.pt.ham,veri:bekleyenUygula(id,ak,veriListesi(S.pt.ham))};if(!S.pt.temiz){S.pt.temiz=true;veriBosTemizle();}render();},e=>{S.pt.doc={};yazmaHatasi(e);}));
   subs.detay.push(onSnapshot(doc(db,'maaslar',id),s=>{S.pt.maas=s.exists()?s.data():{};render();},()=>{S.pt.maas={};}));
-  getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{const m={};q.docs.forEach(d=>{const x=d.data();if(x.sube)m[x.sube]=x.kisiler||{};});S.pt.ozetler=m;render();}).catch(e=>console.error(e));
+  // Diğer şubelerin ay özetleri (izin, saat): yüklenmeden puantaj gösterilmez ve onaylanmaz.
+  getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{if(S.pt.sube!==id||S.ay!==ak)return;const m={};q.docs.forEach(d=>{const x=d.data();if(x.sube)m[x.sube]=x.kisiler||{};});S.pt.ozetler=m;render();}).catch(e=>{console.error(e);if(S.pt.sube===id&&S.ay===ak){S.pt.ozetler={};S.pt.ozetHata=true;render();}});
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
 function ucretSekli(pid){const m=S.pt.maas||{};const u=m.ucretSekli&&m.ucretSekli[pid];if(u)return u;return m.paketBasi&&m.paketBasi[pid]?'paket':'maas';}
 function paketBasiMi(pid){return ucretSekli(pid)==='paket';}
@@ -1234,9 +1235,10 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   let h=`<div class="ptbar"><button class="ptback" id="geriL" aria-label="Şube listesine dön"><span aria-hidden="true">‹</span> Şubeler</button><span class="chip mut ptdurum">${D.ad}</span></div><div class="ptnav">${subeSec}<div class="ptay"><button class="nav-arrow" id="ptPrev" aria-label="Önceki ay" ${ayKaydir(ak,-1)<BASLANGIC_AY?'disabled':''}>‹</button><div class="ttl">${ayAdi(ak)}</div><button class="nav-arrow" id="ptNext" aria-label="Sonraki ay">›</button></div></div>`;
   const ayDeg=n=>{const y=ayKaydir(ak,n);if(y<BASLANGIC_AY)return;veriBosTemizle();S.ay=y;S.ayElle=true;S.pt.vsel=null;puantajAc(S.pt.sube);};
   const navBagla=()=>{byId('geriL').onclick=listeyeDon;const ps=byId('ptSube');if(ps)ps.onchange=e=>{const y=e.target.value;if(!y||y===S.pt.sube)return;veriBosTemizle();S.pt.vsel=null;puantajAc(y);window.scrollTo(0,0);};byId('ptPrev').onclick=()=>ayDeg(-1);byId('ptNext').onclick=()=>ayDeg(1);};
-  if(S.pt.doc===null||S.pt.maas===null||!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Puantaj yükleniyor</b></div>`,navBagla);
-  const V=ptVerisi();const ad=S.aylar[ak]||{};
+  if(S.pt.doc===null||S.pt.maas===null||S.pt.ozetler===null||S.pt.prev===null||!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Puantaj yükleniyor</b></div>`,navBagla);
+  const V=ptVerisi();const ad=S.aylar[ak]||{};kalanTazele(V);
   if(sb.fmDonem==='hafta')h+=`<div class="banner ok">Fazla mesai dönemi: ${fmDonemYazi(ak,sb)} (haftalık). Rapor, izin ve bordro günü takvim ayına göre.</div>`;
+  if(S.pt.ozetHata)h+=`<div class="banner bad">Diğer şubelerin bu ayki özetleri okunamadı; başka şubelerdeki izin ve saatler eksik görünebilir. Sayfayı yenileyin, düzelmeden onaylamayın.</div>`;
   const HD=ayHaftaDurumu(ak);if(durum!=='bolge_onay'){const yz=[HD.say.onay?`${HD.say.onay} onaylı`:'',HD.say.kapali?`${HD.say.kapali} onay bekliyor`:'',HD.say.acik?`${HD.say.acik} açık`:''].filter(Boolean).join(', ');
     h+=HD.tamam?`<div class="banner ok">Bu ayın ${HD.L.length} haftası da onaylandı. Puantajı kontrol edip onaylayabilirsiniz.</div>`:`<div class="banner">Bu ayın haftaları: ${yz||'çizelge yok'}. Rakamlar çizelge değiştikçe güncellenir; bütün haftalar onaylanınca ay onaylanabilir. <button class="hgit" id="ptHaftalar">Haftalar ›</button></div>`;}
   if(durum==='geri')h+=`<div class="banner bad">Şubeye geri gönderildi${ad.not?': "'+esc(ad.not)+'"':''}.</div>`;
@@ -1389,30 +1391,46 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
     if(ac)h+=`<div class="tbl-wrap" style="margin-top:8px"><table class="pt"><thead><tr><th>Kaynak</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th></tr></thead><tbody>${oto.map(v=>{const t=veriTur(v.tur);const mk=v.miktar==null?'—':t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'');
       return`<tr class="oto"><td><span class="tag">${v.tur==='AV'?'devir':'çizelge'}</span></td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${mk}</td><td class="l">${esc(v.aciklama||'Mesai çizelgesinden')}</td></tr>`;}).join('')}</tbody></table></div>`;}
   return h;}
-// Veri girişi satırları sunucudaki son hal ile satır satır (id ile) birleştirilir: aynı anda başka biri satır ekleyip sildiyse kaybolmaz.
-function veriBirlestir(taban,yeni,srv){const idli=a=>(a||[]).every(v=>v&&v.id);if(!taban||!idli(taban)||!idli(yeni)||!idli(srv))return yeni;
-  const tb=new Map(taban.map(v=>[v.id,v]));const yb=new Set(yeni.map(v=>v.id));const sil=new Set([...tb.keys()].filter(id=>!yb.has(id)));
-  const deg=new Map();yeni.forEach(v=>{const t=tb.get(v.id);if(!t||JSON.stringify(t)!==JSON.stringify(v))deg.set(v.id,v);});
-  const out=[],var_=new Set();(srv||[]).forEach(v=>{if(sil.has(v.id))return;var_.add(v.id);out.push(deg.has(v.id)?deg.get(v.id):v);});
-  yeni.forEach(v=>{if(!var_.has(v.id)&&deg.has(v.id))out.push(v);});return out;}
-// Puantaj belgesine yazar; "veri" varsa sunucudaki son hal ile birleştirerek (taban: ekrandaki listenin dayandığı sunucu hali).
-async function ptYazHemen(sid,ak,alanlar,taban){const ref=doc(db,'puantaj',sid,'aylar',ak);
-  if(!('veri' in alanlar))return setDoc(ref,alanlar,{merge:true});
-  const son=await runTransaction(db,async tr=>{const s=await tr.get(ref);const srv=(s.exists()&&s.data().veri)||[];const veri=veriBirlestir(taban,alanlar.veri,srv);
-    tr.set(ref,{...alanlar,veri},{merge:true});return veri;});
-  if(sid===S.pt.sube&&ak===S.ay)S.pt.veriTaban=son;return son;}
-const ptTaban=(sid,ak)=>sid===S.pt.sube&&ak===S.ay?S.pt.veriTaban:null;
+/* ---- Veri girişi kayıtları ----
+   Satırlar puantaj belgesinde satır satır tutulur: veriM.{id} = satır, silinen satır veriSil.{id} = true. Eski belgelerdeki "veri" dizisi okunurken birleştirilir.
+   Her kayıt sadece değişen satırları gönderir ve şube + ay yazma anında sabittir: başka ay / şube açılsa ya da aynı anda başka biri yazsa da diğer satırlara dokunulmaz.
+   Gönderilmeyi bekleyen değişiklikler, sunucudan gelen her güncellemede ekrandaki listeye yeniden uygulanır (yazılan değer kaybolmaz). */
+function veriListesi(D){if(!D)return[];const M=D.veriM||{},Sil=D.veriSil||{};const out=[];
+  (Array.isArray(D.veri)?D.veri:[]).forEach((v,i)=>{if(!v)return;const id=v.id||('_e'+i);if(Sil[id]||M[id])return;out.push({sira:i,...v,id});});
+  Object.entries(M).forEach(([id,v])=>{if(!v||Sil[id])return;out.push({...v,id});});return out.sort((a,b)=>(a.sira??0)-(b.sira??0));}
+let siraSay=0;const yeniSira=()=>Date.now()*100+(siraSay++%100);
+function veriFark(eski,yeni){const E=new Map((eski||[]).map(v=>[v.id,v]));const Y=new Set((yeni||[]).map(v=>v.id));const deg={},sil=[];
+  (yeni||[]).forEach(v=>{const e=E.get(v.id);if(!e||JSON.stringify(e)!==JSON.stringify(v))deg[v.id]=v;});E.forEach((v,id)=>{if(!Y.has(id))sil.push(id);});return{deg,sil};}
+function veriFarkUygula(list,f){const sil=new Set(f.sil);const out=list.filter(v=>!sil.has(v.id)).map(v=>f.deg[v.id]||v);const var_=new Set(out.map(v=>v.id));
+  Object.values(f.deg).forEach(v=>{if(!var_.has(v.id)&&!sil.has(v.id))out.push(v);});return out;}
+const VBEK={};// şube|ay → henüz gönderilmemiş farklar
+function bekleyenUygula(sid,ak,list){(VBEK[sid+'|'+ak]||[]).forEach(f=>{list=veriFarkUygula(list,f);});return list;}
+const satirTemiz=v=>JSON.parse(JSON.stringify(v));
+// Farkı yazar. ek: aynı kayda eklenecek alanlar (sag, sube, ay…). Kilit başkasındaysa yazmaz, false döner.
+function veriYaz(sid,ak,fark,ek={},sec={}){gerekliSube(sid);const deg=fark.deg||{},sil=fark.sil||[];const n=Object.keys(deg).length+sil.length;if(!n&&!Object.keys(ek).length)return Promise.resolve(true);
+  const key=sid+'|'+ak;const f={deg,sil};(VBEK[key]=VBEK[key]||[]).push(f);const birak=()=>{const L=VBEK[key]||[];const i=L.indexOf(f);if(i>=0)L.splice(i,1);};
+  const vm={},vs={};Object.entries(deg).forEach(([id,v])=>{vm[id]=satirTemiz({...v,id});});sil.forEach(id=>{vm[id]=deleteField();vs[id]=true;});
+  const body={...(n?{veriM:vm}:{}),...(sil.length?{veriSil:vs}:{}),guncellendi:new Date().toISOString(),...ek};
+  return sirayla('pt'+key,async()=>{try{if(!sec.kilitsiz&&!(await kilitAl(ptK(sid,ak)))){birak();toast(kilitMesaj());if(sid===S.pt.sube&&ak===S.ay&&S.pt.ham){S.pt.doc={...S.pt.ham,veri:bekleyenUygula(sid,ak,veriListesi(S.pt.ham))};S.pt.zorla=true;render();}return false;}
+      const p=setDoc(doc(db,'puantaj',sid,'aylar',ak),body,{merge:true});birak();p.catch(e=>{yazmaHatasi(e);});return true;}
+    catch(e){birak();throw e;}});}
+// Ekrandaki ay için, yeni veri listesiyle hesaplanan "kalan"lar: sonraki ayın devri bu kayıtlı kalandan gelir, her veri değişikliğinde güncellenir.
+function kalanYama(sid,ak,veri){if(sid!==S.pt.sube||sid!==S.subeId||ak!==S.ay||!S.pt.doc)return{};try{const V=ptVerisi();return{sag:sagYama(sagSonuclu({...V,D:{...V.D,veri}}),[])};}catch(e){console.error(e);return{};}}
 // Sağ taraf (ödemeler): sadece değişen kişilerin alanları; diğerlerinin yalnız hesaplanan kalanı yazılır.
 function sagYama(sag,kisiler){const o={};Object.entries(sag||{}).forEach(([pid,v])=>{o[pid]=kisiler.includes(pid)?v:{kalan:(v||{}).kalan??0};});return o;}
+// Onaylı (kilitli) ayda kayıtlı "kalan" hesaplanandan farklıysa düzeltilir: sonraki ayın devri doğru olsun. Ekran her açılışta bir kez bakar.
+function kalanTazele(V){const sid=S.subeId,ak=V.ak;const key=sid+'|'+ak;S.pt.kalanBak=S.pt.kalanBak||{};if(!V.kilitli||!puantajYetki()||S.pt.kalanBak[key]||kilitBaskasi()||!S.pt.prev||S.pt.sube!==sid)return;S.pt.kalanBak[key]=1;
+  const sag=sagSonuclu(V);const fark=Object.keys(sag).filter(pid=>Math.abs(((((V.D.sag||{})[pid])||{}).kalan??0)-(sag[pid].kalan??0))>0.004);if(!fark.length)return;
+  veriYaz(sid,ak,{deg:{},sil:[]},{sag:sagYama(sag,[])});}
 function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
-  const veri0=()=>((S.pt.doc&&S.pt.doc.veri)||[]);let kT=null;
-  const kaydetSimdi=yeni=>{const taban=ptTaban(sid,ak);return sirayla('pt'+sid+ak,async()=>{if(!(await kilitAl(ptK(sid,ak)))){if(sid===S.pt.sube&&ak===S.ay){S.pt.doc={...(S.pt.doc||{}),veri:S.pt.veriTaban||[]};S.pt.zorla=true;render();}toast(kilitMesaj());return;}
-    await ptYazHemen(sid,ak,{sube:sid,ay:ak,veri:yeni,guncellendi:new Date().toISOString()},taban);});};
-  const ayarla=(yeni,ciz)=>{if(kilitBaskasi()){toast(kilitMesaj());S.pt.zorla=true;render();return;}S.pt.doc={...(S.pt.doc||{}),veri:yeni};clearTimeout(kT);if(ciz){kaydetSimdi(yeni);S.pt.zorla=true;render();}else kT=setTimeout(()=>kaydetSimdi(veri0()),500);};
+  const veri0=()=>((S.pt.doc&&S.pt.doc.veri)||[]);
+  // Her değişiklik anında, sadece değişen satırlar yazılır.
+  const ayarla=(yeni,ciz)=>{if(kilitBaskasi()){toast(kilitMesaj());S.pt.zorla=true;render();return;}if(sid!==S.pt.sube||ak!==S.ay){S.pt.zorla=true;render();return;}
+    const fark=veriFark(veri0(),yeni);S.pt.doc={...(S.pt.doc||{}),veri:yeni};if(!Object.keys(fark.deg).length&&!fark.sil.length){if(ciz){S.pt.zorla=true;render();}return;}veriYaz(sid,ak,fark,kalanYama(sid,ak,yeni));if(ciz){S.pt.zorla=true;render();}};
   const coz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli);return{...v,pid:k.gecersiz&&k.hata!=='Veri türü seçin'&&k.hata!=='Muhasebe kilitli'&&k.hata!=='Başka ay'&&k.hata!=='Miktar yok'?'':k.pid,_k:k};};
   const temiz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli);const o={...v,pid:k.gecersiz?'':k.pid,tur:v.tur||''};return o;};
   const yeniSatir=(o={})=>{const son=veri0()[veri0().length-1]||{};const bugun=ymd(today()).slice(0,7)===ak?ymd(today()):ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));
-    return{id:Math.random().toString(36).slice(2,10),tarih:son.tarih||bugun,ad:'',pid:'',tur:'',miktar:'',aciklama:'',kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString(),...o};};
+    return{id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:son.tarih||bugun,ad:'',pid:'',tur:'',miktar:'',aciklama:'',kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString(),...o};};
   const grid=byId('vGrid');
   const durumGuncelle=(tr,v)=>{const k=veriKontrol(v,kL,ak,V.kilitli);tr.classList.toggle('hata',!!k.gecersiz);tr.querySelector('.dur').innerHTML=k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:'';};
   const hucreYaz=(v,c,val)=>{if(c===0){const d=trTarihCoz(val);v.tarih=d||'';v._tarihYazi=d?'':val;}else if(c===1){v.ad=adBuyuk(val);v.pid='';}else if(c===2){const t=veriTur(val)?val:turCoz(val);v.tur=t||'';v.turYazi=t?'':val;}else if(c===3)v.miktar=String(val).trim()===''?'':sayi(val);else if(c===4)v.aciklama=String(val).trim();return temiz(v);};
@@ -1474,9 +1492,9 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
 // Boş satırlar: sekme değişince, şubeden çıkınca ve sayfa açılınca silinir.
 function bosSatirMi(v){return !String(v.ad||'').trim()&&!v.pid&&!v.tur&&(v.miktar===''||v.miktar==null)&&!String(v.aciklama||'').trim();}
 // Sadece kendi açtığım ya da 1 saatten eski boş satırlar silinir (başkasının o an doldurduğu yeni satıra dokunulmaz).
-function veriBosTemizle(){const D=S.pt.doc;if(!D||!Array.isArray(D.veri)||!S.pt.sube)return;const ben=(S.me&&(S.me.adSoyad||S.me.kullaniciAdi))||'';
-  const silinir=v=>bosSatirMi(v)&&(v.kim===ben||!v.zaman||Date.now()-Date.parse(v.zaman)>3600000);const yeni=D.veri.filter(v=>!silinir(v));if(yeni.length===D.veri.length)return;
-  const sid=S.pt.sube,ak=S.ay;if(kilitBaskasi())return;const taban=ptTaban(sid,ak);S.pt.doc={...D,veri:yeni};sirayla('pt'+sid+ak,()=>ptYazHemen(sid,ak,{veri:yeni,guncellendi:new Date().toISOString()},taban));}
+function veriBosTemizle(){const D=S.pt.doc;if(!D||!Array.isArray(D.veri)||!S.pt.sube||S.pt.sube!==S.subeId)return;const ben=(S.me&&(S.me.adSoyad||S.me.kullaniciAdi))||'';
+  const silinir=v=>bosSatirMi(v)&&(v.kim===ben||!v.zaman||Date.now()-Date.parse(v.zaman)>3600000);const sil=D.veri.filter(silinir).map(v=>v.id);if(!sil.length)return;
+  const sid=S.pt.sube,ak=S.ay;if(kilitBaskasi())return;S.pt.doc={...D,veri:D.veri.filter(v=>!silinir(v))};veriYaz(sid,ak,{deg:{},sil});}
 function listeyeDon(){veriBosTemizle();S.pt.sube=null;subs.detay.forEach(u=>u());subs.detay=[];render();}
 function sagSonuclu(V,degisen){const sag=JSON.parse(JSON.stringify((V.D&&V.D.sag)||{}));if(degisen)Object.entries(degisen).forEach(([pid,v])=>sag[pid]={...(sag[pid]||{}),...v});
   const prevSag=(S.pt.prev&&S.pt.prev.sag)||{};const net=netMap(V.ak);
@@ -1525,25 +1543,25 @@ function odemePanel(pid){if(kilitEngel())return;const V=ptVerisi();const x=V.sat
        ${Math.abs(r.kalan-r.kalanHam)>0.004?`<div><span>Yuvarlama (5 ₺)</span><b>${tl(r.kalan-r.kalanHam)}</b></div>`:''}<div style="border-top:1px solid var(--line);margin-top:4px;padding-top:4px"><span>Kalan ödeme</span><b class="${r.kalan<0?'neg':'pos'}">${tl(r.kalan)}</b></div>${r.kalan<0?'<div><span class="note" style="margin:0">Eksi tutar sonraki ayın ödemesinden düşülür.</span></div>':''}`;};
    sh.querySelectorAll('input').forEach(i=>i.oninput=calc);calc();byId('oNo').onclick=closeSheet;
    byId('oOk').onclick=async()=>{const o=oku();const tcv=byId('oTc').value.replace(/\D/g,'');if(tcv&&tcv.length!==11){byId('oErr').innerHTML='<div class="confirm">TC kimlik no 11 haneli olmalı.</div>';return;}
-     const sid=S.subeId,ak=V.ak;const sag=sagSonuclu(V,{[pid]:o});const taban=ptTaban(sid,ak);
+     const sid=S.subeId,ak=V.ak;const sag=sagSonuclu(V,{[pid]:o});
      if(await kilitliMi(ptK(sid,ak)))return;
      try{const netEl=byId('oNet');if(!esnaf){const u=usSimdi();if(u.tip!==us0.tip||(u.tip==='saat'&&u.saatUcret!==us0.saatUcret)){const m0=S.pt.maas||{};
          const sg0=(m0.saatGecmis||{})[pid]||{};S.pt.maas={...m0,ucretSekli:{...(m0.ucretSekli||{}),[pid]:u.tip},paketBasi:{...(m0.paketBasi||{}),[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{...(m0.saatGecmis||{}),[pid]:{...sg0,[ak]:u.saatUcret}}}:{})};
-         await setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{[pid]:{[ak]:u.saatUcret}}}:{})},{merge:true});}}
+         setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{[pid]:{[ak]:u.saatUcret}}}:{})},{merge:true}).catch(yazmaHatasi);}}
        if(!esnaf&&byId('oFo')){const yeni=tip==='maas'?(sayi(byId('oFo').value)||0):0;const eski=sayi(us0.fmOzel)||0;if(yeni!==eski){const m0=S.pt.maas||{};const g0=(m0.fmOzelGecmis||{})[pid]||{};
-         S.pt.maas={...m0,fmOzelGecmis:{...(m0.fmOzelGecmis||{}),[pid]:{...g0,[ak]:yeni}}};await setDoc(doc(db,'maaslar',sid),{fmOzelGecmis:{[pid]:{[ak]:yeni}}},{merge:true});}}
+         S.pt.maas={...m0,fmOzelGecmis:{...(m0.fmOzelGecmis||{}),[pid]:{...g0,[ak]:yeni}}};setDoc(doc(db,'maaslar',sid),{fmOzelGecmis:{[pid]:{[ak]:yeni}}},{merge:true}).catch(yazmaHatasi);}}
        const netYeni=!esnaf&&netEl&&!byId('oNetW').hidden?(sayi(netEl.value)||null):undefined;const netDeg=netYeni!==undefined&&netYeni!==(sayi(x.net)||null);
        if(netDeg||tcv!==tc){const m={};if(netDeg)m.netGecmis={[pid]:{[ak]:netYeni}};if(tcv!==tc)m.tc={[pid]:tcv||null};
-         if(netDeg){const m0=S.pt.maas||{};S.pt.maas={...m0,netGecmis:{...(m0.netGecmis||{}),[pid]:{...((m0.netGecmis||{})[pid]||{}),[ak]:netYeni}}};}await setDoc(doc(db,'maaslar',sid),m,{merge:true});}
+         if(netDeg){const m0=S.pt.maas||{};S.pt.maas={...m0,netGecmis:{...(m0.netGecmis||{}),[pid]:{...((m0.netGecmis||{})[pid]||{}),[ak]:netYeni}}};}setDoc(doc(db,'maaslar',sid),m,{merge:true}).catch(yazmaHatasi);}
        // Primler ve eski kayıtlı avans/prim tutarları veri girişine taşınır: veri tek yerde.
        const sonGun=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();const adP=adBuyuk(x.sol.ad);
-       const satir=(tur,m,a)=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adP,pid,tur,miktar:m,aciklama:a,kim,zaman:z});const ek=[];
+       const satir=(tur,m,a)=>({id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:sonGun,ad:adP,pid,tur,miktar:m,aciklama:a,kim,zaman:z});const ek=[];
        if(sayi(byId('oPaket').value))ek.push(satir('PP',sayi(byId('oPaket').value),'Ödeme penceresinden'));if(sayi(byId('oCiro').value))ek.push(satir('CP',sayi(byId('oCiro').value),'Ödeme penceresinden'));
        const eskiS=sag[pid]||{};[['paketPrimi','PP'],['ciroPrimi','CP'],['avans','AV']].forEach(([f,t])=>{if(sayi(eskiS[f])){ek.push(satir(t,sayi(eskiS[f]),'Önceki kayıttan taşındı'));sag[pid]={...sag[pid],[f]:''};}});
-       const veriY=[...((S.pt.doc&&S.pt.doc.veri)||[]),...ek];S.pt.doc={...(S.pt.doc||{}),veri:veriY};
+       const burada=sid===S.pt.sube&&ak===S.ay&&S.pt.doc;const veriY=[...((burada?S.pt.doc.veri:V.D.veri)||[]),...ek];if(burada)S.pt.doc={...S.pt.doc,veri:veriY};
        const sag2=sagSonuclu({...V,D:{...V.D,sag,veri:veriY}});
-       await ptYazHemen(sid,ak,{...(V.kilitli?{}:{sube:sid,ay:ak}),sag:sagYama(sag2,[pid]),...(ek.length?{veri:veriY}:{}),guncellendi:z},taban);
-       const msEl=byId('oMs');let msMesaj='';if(pK&&msEl&&!msEl.disabled&&msEl.value&&msEl.value!==ms0){const ym=maasGecmisYama(pK,msEl.value,ak);if(ym){Object.assign(pK,ym);await setDoc(doc(db,'personel',pK.id),ym,{merge:true});msMesaj=` Maaşı ${ayAdi(ak)} ayından itibaren ${subeAdi(msEl.value)} puantajında.`;}}
+       veriYaz(sid,ak,{deg:Object.fromEntries(ek.map(r=>[r.id,r])),sil:[]},{...(V.kilitli?{}:{sube:sid,ay:ak}),sag:sagYama(sag2,[pid])},{kilitsiz:true});
+       const msEl=byId('oMs');let msMesaj='';if(pK&&msEl&&!msEl.disabled&&msEl.value&&msEl.value!==ms0){const ym=maasGecmisYama(pK,msEl.value,ak);if(ym){Object.assign(pK,ym);setDoc(doc(db,'personel',pK.id),ym,{merge:true}).catch(yazmaHatasi);msMesaj=` Maaşı ${ayAdi(ak)} ayından itibaren ${subeAdi(msEl.value)} puantajında.`;}}
        closeSheet();toast((ek.length?'Kaydedildi, primler veri girişine eklendi.':'Ödeme bilgileri kaydedildi.')+msMesaj);if(msMesaj)render();}
      catch(e){yazmaHatasi(e);}};});}
 
@@ -1691,19 +1709,21 @@ function bordroPanel(V){if(kilitEngel())return;const ids=Object.keys(V.sol);let 
      byId('bOut').querySelectorAll('select[data-j]').forEach(s=>s.onchange=()=>{const k=satirlar[+s.dataset.j];k.pid=s.value||null;k.yol=s.value?'elle':null;ciz();});
      byId('bOut').querySelectorAll('input[data-n]').forEach(i=>i.onchange=()=>{const bos=i.value.trim()==='';satirlar[+i.dataset.n].netYazi=bos?null:sayi(i.value);i.value=bos?'':fmt(sayi(i.value));});
      const ok=byId('bOk');if(ok)ok.onclick=()=>{const tutarli=es.filter(k=>k.netYazi!=null);if(tutarli.length<es.length)toast(`${es.length-tutarli.length} kişinin net tutarı boş, atlandı.`);isle(tutarli);};};
-   const isle=async es=>{const sid0=S.subeId;if(await kilitliMi(ptK(sid0)))return;const taban=ptTaban(sid0,V.ak);const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
+   const isle=async es=>{const sid0=S.subeId,ak=V.ak;if(sid0!==S.pt.sube||ak!==S.ay){toast('Ekran değişti, bordroyu yeniden yükleyin.');return;}if(await kilitliMi(ptK(sid0,ak)))return;const deg={},tcYeni={};es.forEach(k=>{deg[k.pid]={bankaya:sayi(k.netYazi),kaynak:k.isyeri};if(!tcMap[k.pid]&&k.tc)tcYeni[k.pid]=k.tc;});
       const n=Object.keys(deg).length;if(!n){toast('Eşleşen personel yok.');return;}
-      try{if(Object.keys(tcYeni).length)await setDoc(doc(db,'maaslar',sid0),{tc:tcYeni},{merge:true});
-        const sonGun=ymd(new Date(+V.ak.slice(0,4),+V.ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
-        const hedefOf=pid=>{const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p,V.ak):sid0;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
+      try{if(Object.keys(tcYeni).length)setDoc(doc(db,'maaslar',sid0),{tc:tcYeni},{merge:true}).catch(yazmaHatasi);
+        const sonGun=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
+        const hedefOf=pid=>{const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p,ak):sid0;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
         const burada=Object.keys(deg).filter(pid=>hedefOf(pid)===sid0),disari={};Object.keys(deg).forEach(pid=>{const h=hedefOf(pid);if(h!==sid0)(disari[h]=disari[h]||[]).push(pid);});
-        const eski=((S.pt.doc&&S.pt.doc.veri)||[]).filter(v=>!(v.kaynak==='bordro'&&deg[v.pid]));const yeni=[...eski,...burada.map(satirOf)];
+        // Aynı kişinin önceki bordro satırı yenisiyle değişir; diğer satırlara dokunulmaz.
+        const mevcut=((sid0===S.pt.sube&&ak===S.ay&&S.pt.doc)?S.pt.doc.veri:V.D.veri)||[];const silB=mevcut.filter(v=>v.kaynak==='bordro'&&burada.includes(v.pid)).map(v=>v.id);const yeniS=burada.map(satirOf);
+        const yeni=[...mevcut.filter(v=>!silB.includes(v.id)),...yeniS];
         const degS={};Object.keys(deg).forEach(pid=>degS[pid]={bankaya:''});
-        S.pt.doc={...(S.pt.doc||{}),veri:yeni};const V2={...V,D:{...V.D,veri:yeni}};const sag=sagSonuclu(V2,degS);
-        await ptYazHemen(sid0,V.ak,{...(V.kilitli?{}:{sube:sid0,ay:V.ak}),sag:sagYama(sag,Object.keys(deg)),veri:yeni,guncellendi:z},taban);
+        if(sid0===S.pt.sube&&ak===S.ay)S.pt.doc={...(S.pt.doc||{}),veri:yeni};const V2={...V,D:{...V.D,veri:yeni}};const sag=sagSonuclu(V2,degS);
+        veriYaz(sid0,ak,{deg:Object.fromEntries(yeniS.map(r=>[r.id,r])),sil:silB},{...(V.kilitli?{}:{sube:sid0,ay:ak}),sag:sagYama(sag,Object.keys(deg))},{kilitsiz:true});
         const giden=[],yetkiYok=[];for(const[h,L] of Object.entries(disari)){if(!(isIsveren()||(S.me.subeler||[]).includes(h))){yetkiYok.push(subeAdi(h)+': '+L.map(pid=>adBuyuk(V.sol[pid].ad)).join(', '));continue;}
-          const ref=doc(db,'puantaj',h,'aylar',V.ak);
-          await runTransaction(db,async tr=>{const d0=await tr.get(ref);const v0=((d0.exists()&&d0.data().veri)||[]).filter(v=>!(v.kaynak==='bordro'&&L.includes(v.pid)));tr.set(ref,{sube:h,ay:V.ak,veri:[...v0,...L.map(satirOf)],guncellendi:z},{merge:true});});giden.push(`${L.length} kişi → ${subeAdi(h)}`);}
+          const s0=await getDoc(doc(db,'puantaj',h,'aylar',ak));const d0=s0.exists()?s0.data():{};const silH=veriListesi(d0).filter(v=>v.kaynak==='bordro'&&L.includes(v.pid)).map(v=>v.id);const yeniH=L.map(satirOf);
+          veriYaz(h,ak,{deg:Object.fromEntries(yeniH.map(r=>[r.id,r])),sil:silH},d0.kilitli?{}:{sube:h,ay:ak},{kilitsiz:true});giden.push(`${L.length} kişi → ${subeAdi(h)}`);}
         closeSheet();toast(`${burada.length} kişi bu şubeye işlendi${giden.length?', '+giden.join(', '):''}.`);render();
         if(yetkiYok.length)openSheet(`<h2>Bazı tutarlar işlenemedi</h2><div class="sub">Bu kişilerin maaşı yetkiniz olmayan şubede ödeniyor. Tutarları o şubenin bölge müdürü veri girişine "Bankaya yatan" olarak girmeli.</div><div class="card" style="padding:12px">${yetkiYok.map(esc).join('<br>')}</div><div class="row2"><button class="btn primary grow" onclick="document.getElementById('sheetRoot').innerHTML=''">Tamam</button></div>`);}
       catch(e){yazmaHatasi(e);}};});}
