@@ -1754,7 +1754,8 @@ function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'p
 
 /* ================= Yönetim (işveren) ================= */
 function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
-  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button></div>`;
+  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button></div>`;
+  if(bolum==='yedek')return renderYedek(h);
   if(bolum==='subeler'){const hf=S.subeIds.filter(id=>sube(id).fmDonem==='hafta').length;
     h+=`<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>
      <div class="card" style="padding:12px;margin-bottom:10px"><span class="lbl" style="margin-top:0">Tüm şubelerde fazla mesai dönemi</span><div class="seg" id="yDon"><button data-v="hafta" class="${hf===S.subeIds.length?'on':''}">Haftalık (örn. Eylül: 7 Eyl – 4 Eki)</button><button data-v="ay" class="${hf===0?'on':''}">Takvim ayı</button></div>
@@ -1852,6 +1853,33 @@ function excelAktarPanel(sid){const sb=sube(sid);
          try{for(let i=0;i<ops.length;i+=400){const b=writeBatch(db);ops.slice(i,i+400).forEach(([r,d,m])=>m?b.set(r,d,{merge:true}):b.set(r,d));await b.commit();}
            closeSheet();toast(`${Object.keys(haftalar).length} hafta ve ${keys.length} kişi aktarıldı.`);if(S.subeId!==sid)selectSube(sid);}
          catch(e){btn.disabled=false;btn.textContent='Aktar';yazmaHatasi(e);}};};};});}
+
+/* ================= Yedek (işveren) =================
+   Tüm veritabanını tek bir JSON dosyası olarak indirir. Ücretsiz planda otomatik yedek olmadığı için düzenli alınmalı.
+   Dosyada maaş, TC ve IBAN bilgileri vardır; güvenli yerde saklanmalı. Eksik yedek yanıltıcı olacağı için bir bölüm okunamazsa yedek iptal edilir. */
+function yedekJson(v){if(v&&typeof v.toDate==='function'&&typeof v.toMillis==='function')return{__zaman:v.toDate().toISOString()};
+  if(Array.isArray(v))return v.map(yedekJson);if(v&&typeof v==='object'){const o={};Object.entries(v).forEach(([k,x])=>o[k]=yedekJson(x));return o;}return v;}
+async function yedekAl(durum){const B={};let n=0;const ekle=(yol,data)=>{B[yol]=yedekJson(data);n++;};
+  const kol=async yol=>{const q=await getDocs(collection(db,...yol));q.docs.forEach(d=>ekle([...yol,d.id].join('/'),d.data()));durum(`${n} kayıt okundu…`);return q.docs.map(d=>d.id);};
+  const tek=async yol=>{const s=await getDoc(doc(db,...yol));if(s.exists())ekle(yol.join('/'),s.data());};
+  for(const k of ['kullanicilar','personel','ekPersonel','gunler','ozetler'])await kol([k]);
+  for(const d of ['kurulum','subeAdlari','goc'])await tek(['sistem',d]);
+  const subeIds=await kol(['subeler']);const tum=[...new Set([...subeIds,...Object.keys(S.subeAdlari||{})])].filter(x=>x&&x!==SGK_YOK);
+  for(const s of tum){for(const alt of ['haftalar','durum','aylar','personel'])await kol(['subeler',s,alt]);await kol(['puantaj',s,'aylar']);await tek(['maaslar',s]);}
+  return{uygulama:'puantaj-merkezi',yedekSurum:1,tarih:new Date().toISOString(),alan:benAd(),subeSayisi:tum.length,belgeSayisi:n,belgeler:B};}
+function renderYedek(h){const son=tryLS('pm.sonYedek');const gun=son?Math.floor((Date.now()-Date.parse(son))/86400000):null;
+  h+=`<div class="card" style="padding:14px">
+    <h3 style="margin:0 0 6px">Veritabanı yedeği</h3>
+    <p class="note" style="margin-top:0">Bütün şubelerin çizelgeleri, personel listesi, puantajlar, ödemeler, maaşlar ve kullanıcılar tek dosya olarak bilgisayarınıza iner. Ücretsiz Firebase planında otomatik yedek yok; <b>haftada en az bir kez</b> ve her ay sonu onayından sonra alın.</p>
+    ${son?`<div class="banner ${gun>=7?'bad':'ok'}">Bu cihazda son yedek: ${tarihSaat(son)}${gun>=1?` (${gun} gün önce)`:''}${gun>=7?' · Yeni yedek alın.':''}</div>`:`<div class="banner bad">Bu cihazda henüz yedek alınmadı.</div>`}
+    <div class="actions"><button class="btn primary grow" id="yedekB">Yedek indir</button></div><div id="yedekD" class="note"></div>
+    <p class="note">Dosyada maaş, TC ve IBAN bilgileri var; kimseyle paylaşmayın, bilgisayarda ya da kendi bulut klasörünüzde saklayın. Silinen bir veriyi geri getirmek gerekirse bu dosya kullanılır. Yedek alırken tüm kayıtlar okunduğu için günlük okuma kotasından birkaç bin okuma harcanır.</p></div>`;
+  view(h,()=>{document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});
+    const b=byId('yedekB'),D=byId('yedekD');b.onclick=async()=>{b.disabled=true;b.textContent='Yedek alınıyor…';
+      try{const Y=await yedekAl(m=>{D.textContent=m;});const t=new Date();const ad=`Puantaj-yedek-${ymd(t)}-${String(t.getHours()).padStart(2,'0')}.${String(t.getMinutes()).padStart(2,'0')}.json`;
+        const f=new File([JSON.stringify(Y)],ad,{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=ad;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),10000);
+        tryLS('pm.sonYedek',t.toISOString());toast(`Yedek indirildi: ${Y.belgeSayisi} kayıt, ${Y.subeSayisi} şube.`);render();}
+      catch(e){console.error(e);const msj='Yedek alınamadı, hiçbir dosya inmedi: '+((e&&(e.code||e.message))||'bilinmeyen hata')+'. İnternet bağlantısını kontrol edip tekrar deneyin.';D.textContent=msj;b.disabled=false;b.textContent='Yedek indir';toast(msj);}};});}
 
 let ikincil=null;function ikincilAuth(){if(!ikincil)ikincil=getAuth(initializeApp(firebaseConfig,'ikincil'));return ikincil;}
 function kullaniciPanel(uid){const u=uid?S.users.find(x=>x.uid===uid):{kullaniciAdi:'',adSoyad:'',rol:'sube',subeler:[],aktif:true};if(!u)return;const ben=uid===S.user.uid;
