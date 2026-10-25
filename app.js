@@ -1904,6 +1904,21 @@ function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
     document.querySelectorAll('#yDon button').forEach(b=>b.onclick=async()=>{const v=b.dataset.v;const bt=writeBatch(db);S.subeIds.forEach(id=>bt.set(doc(db,'subeler',id),{fmDonem:v,...ayarGecmisYama(id,{fmDonem:v})},{merge:true}));try{await bt.commit();toast(`Tüm şubelerde fazla mesai dönemi: ${v==='hafta'?'haftalık':'takvim ayı'}.`);}catch(e){yazmaHatasi(e);}});
     const se=byId('ySubeEkle');if(se)se.onclick=()=>subePanel(null);document.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>subePanel(b.dataset.sid));
     const ke=byId('yKulEkle');if(ke)ke.onclick=()=>kullaniciPanel(null);document.querySelectorAll('[data-uid]').forEach(b=>b.onclick=()=>kullaniciPanel(b.dataset.uid));});}
+// Şube silme (işveren): sadece hiç verisi olmayan şube silinir. Personeli, haftası ya da puantajı olan şube silinirse geçmiş kayıtlar sahipsiz kalır; bu yüzden engellenir.
+async function subeSil(id,btn,W){
+  if(!isIsveren())return;
+  if(!btn.dataset.ok){btn.dataset.ok='1';btn.textContent='Evet, şubeyi sil';W.innerHTML=`<div class="confirm">${esc(subeAdi(id))} şubesi silinecek. Şubede personel, çizelge ya da puantaj kaydı varsa silinmez. Silmeden önce yedek almanız önerilir.</div>`;return;}
+  btn.disabled=true;btn.textContent='Kontrol ediliyor…';
+  const geri=m=>{btn.disabled=false;btn.dataset.ok='';btn.textContent='Şubeyi sil';W.innerHTML=`<div class="confirm bad">${m}</div>`;};
+  try{
+    const pk=S.personel.filter(p=>p.anaSube===id||p.sgkSube===id||(p.ekSubeler||[]).includes(id)||(p.gorunurSubeler||[]).includes(id));
+    if(pk.length){geri(`${esc(subeAdi(id))} şubesinde ${pk.length} personel kaydı var (${esc(pk.slice(0,3).map(p=>p.ad).join(', '))}${pk.length>3?'…':''}). Önce personeli başka şubeye taşıyın ya da silin.`);return;}
+    const [hf,pt,ay]=await Promise.all([getDocs(collection(db,'subeler',id,'haftalar')),getDocs(collection(db,'puantaj',id,'aylar')),getDocs(collection(db,'subeler',id,'aylar'))]);
+    if(hf.size||pt.size||ay.size){geri(`${esc(subeAdi(id))} şubesinin çizelge ya da puantaj kaydı var, silinemez: silinirse geçmiş kayıtlar ve ödemeler kaybolur. Kullanılmayacaksa kullanıcıların şube atamasını kaldırın.`);return;}
+    const b=writeBatch(db);b.delete(doc(db,'subeler',id));b.delete(doc(db,'ekPersonel',id));
+    (S.users||[]).filter(u=>(u.subeler||[]).includes(id)).forEach(u=>b.update(doc(db,'kullanicilar',u.uid),{subeler:u.subeler.filter(x=>x!==id)}));
+    await b.commit();closeSheet();toast('Şube silindi.');
+  }catch(e){geri('Şube silinemedi: '+esc(e.message||e.code||''));}}
 function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
   openSheet(`<h2>${id?'Şube ayarları':'Yeni şube'}</h2><div class="sub">Vardiya renkleri ve fazla mesai bu ayarlara göre hesaplanır.${id?` Mesai ve ücret ayarlarındaki değişiklik ${ayAdi(ayKey(today())<BASLANGIC_AY?BASLANGIC_AY:ayKey(today()))} ayından itibaren geçerli olur; önceki aylar eski ayarla kalır.`:''}</div>
    <label class="field"><span>Şube adı</span><input id="sAd" value="${esc(s.ad)}" placeholder="Altınkale"></label>
@@ -1916,7 +1931,8 @@ function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
    <span class="lbl">Fazla mesai dönemi</span><div class="seg" id="sDon"><button data-v="ay" class="${s.fmDonem!=='hafta'?'on':''}">Takvim ayı</button><button data-v="hafta" class="${s.fmDonem==='hafta'?'on':''}">Haftalık</button></div>
    <p class="note" style="margin-top:4px">Haftalık: pazartesisi o ayda olan haftalar sayılır. Örnek Eylül 2026: 7 Eylül – 4 Ekim. Rapor, izin ve bordro günü her iki durumda da takvim ayına göredir.</p><div id="sErr"></div>
    <div class="row2"><button class="btn grow" id="sNo">Vazgeç</button><button class="btn primary grow" id="sOk">Kaydet</button></div>
-   ${id?`<div class="row2"><button class="btn grow" id="sX">Excel'den çizelge aktar</button></div>`:''}`,sh=>{
+   ${id?`<div class="row2"><button class="btn grow" id="sX">Excel'den çizelge aktar</button></div>`:''}${id&&isIsveren()?`<div class="row2"><button class="btn danger grow" id="sSil">Şubeyi sil</button></div>`:''}`,sh=>{
+   const ss=byId('sSil');if(ss)ss.onclick=()=>subeSil(id,ss,byId('sErr'));
    const sx=byId('sX');if(sx)sx.onclick=()=>{closeSheet();if(S.subeId!==id)selectSube(id);let n=0;const bekle=()=>{if(sunucuHazir(id))excelAktarPanel(id);else if(++n<200)setTimeout(bekle,150);else toast('Şube verileri yüklenemedi, Excel aktarımı açılmadı.');};bekle();};
    const yb=sh.querySelectorAll('#sYon button');const tog=()=>byId('sUcW').hidden=sh.querySelector('#sYon .on').dataset.v==='maas';yb.forEach(b=>b.onclick=()=>{yb.forEach(x=>x.classList.remove('on'));b.classList.add('on');tog();});tog();
    const db_=sh.querySelectorAll('#sDon button');db_.forEach(b=>b.onclick=()=>{db_.forEach(x=>x.classList.remove('on'));b.classList.add('on');});
