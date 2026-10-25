@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=110;
+const APP_SURUM=111;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1933,9 +1933,17 @@ async function subeSil(id,btn,W){
   try{
     const pk=S.personel.filter(p=>p.anaSube===id||p.sgkSube===id||(p.ekSubeler||[]).includes(id)||(p.gorunurSubeler||[]).includes(id));
     if(pk.length){geri(`${esc(subeAdi(id))} şubesinde ${pk.length} personel kaydı var (${esc(pk.slice(0,3).map(p=>p.ad).join(', '))}${pk.length>3?'…':''}). Önce personeli başka şubeye taşıyın ya da silin.`);return;}
-    const [hf,pt,ay]=await Promise.all([getDocs(collection(db,'subeler',id,'haftalar')),getDocs(collection(db,'puantaj',id,'aylar')),getDocs(collection(db,'subeler',id,'aylar'))]);
-    if(hf.size||pt.size||ay.size){geri(`${esc(subeAdi(id))} şubesinin çizelge ya da puantaj kaydı var, silinemez: silinirse geçmiş kayıtlar ve ödemeler kaybolur. Kullanılmayacaksa kullanıcıların şube atamasını kaldırın.`);return;}
-    const b=writeBatch(db);b.delete(doc(db,'subeler',id));b.delete(doc(db,'ekPersonel',id));
+    const [hf,pt,ay,du]=await Promise.all([getDocs(collection(db,'subeler',id,'haftalar')),getDocs(collection(db,'puantaj',id,'aylar')),getDocs(collection(db,'subeler',id,'aylar')),getDocs(collection(db,'subeler',id,'durum'))]);
+    // Sadece gerçek veri engeller: hücresi dolu hafta, ödeme / veri girişi / onay olan puantaj, onaylı ay. Uygulamanın kendiliğinden açtığı boş kayıtlar engellemez, şubeyle birlikte silinir.
+    const dolu=o=>Object.values(o||{}).some(v=>v!=null&&v!==''&&v!==0&&v!==false&&!(typeof v==='object'&&!dolu(v)));
+    const hDolu=hf.docs.filter(d=>Object.values((d.data()||{}).cells||{}).some(c=>dolu(c)));
+    const pDolu=pt.docs.filter(d=>{const x=d.data()||{};return x.kilitli===true||x.kesin===true||(Array.isArray(x.veri)&&x.veri.length>0)||dolu(x.veriM)||dolu(x.sag);});
+    const aDolu=ay.docs.filter(d=>onayli((d.data()||{}).durum));
+    if(hDolu.length||pDolu.length||aDolu.length){const n=[hDolu.length?`${hDolu.length} haftada çizelge kaydı (ilki ${trTarih(hDolu[0].id)} haftası)`:'',pDolu.length?`${pDolu.length} ayda puantaj kaydı (${pDolu.map(d=>ayAdi(d.id)).join(', ')})`:'',aDolu.length?`${aDolu.length} onaylı ay`:''].filter(Boolean).join(', ');
+      geri(`${esc(subeAdi(id))} şubesinde ${esc(n)} var, silinemez: silinirse geçmiş kayıtlar ve ödemeler kaybolur. Kullanılmayacaksa kullanıcıların şube atamasını kaldırın.`);return;}
+    // Boş kayıtlar şubeyle birlikte silinir (en çok 450'şerlik paketler).
+    const bos=[...hf.docs,...pt.docs,...ay.docs,...du.docs].map(d=>d.ref);for(let i=0;i<bos.length;i+=450){const bb=writeBatch(db);bos.slice(i,i+450).forEach(r=>bb.delete(r));await bb.commit();}
+    const b=writeBatch(db);b.delete(doc(db,'subeler',id));b.delete(doc(db,'ekPersonel',id));b.delete(doc(db,'maaslar',id));
     (S.users||[]).filter(u=>(u.subeler||[]).includes(id)).forEach(u=>b.update(doc(db,'kullanicilar',u.uid),{subeler:u.subeler.filter(x=>x!==id)}));
     await b.commit();closeSheet();toast('Şube silindi.');
   }catch(e){geri('Şube silinemedi: '+esc(e.message||e.code||''));}}
