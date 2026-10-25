@@ -72,8 +72,8 @@ service cloud.firestore {
           && (subede(request.resource.data.anaSube) || subede(request.resource.data.get('sgkSube', ''))))
         || (aktif() && ben().rol == 'bolge'
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['ekSubeler', 'gorunurSubeler'])));
-      // Silme sadece işveren: silinen kişinin geçmiş haftaları ve puantajı hesaplardan düşer (uygulama kaydı olanı zaten sildirmez).
-      allow delete: if isveren();
+      // Silme işveren ve kişinin çalıştığı şubenin bölge müdürü: silinen kişinin geçmiş haftaları ve puantajı hesaplardan düşer (uygulama kaydı olanı zaten sildirmez).
+      allow delete: if bolgede(resource.data.get('anaSube', ''));
     }
 
     // Şubenin "diğer şubeden çalışanlar" listesi (kişi kimlikleri). Şube okur, bölge müdürü / işveren yazar.
