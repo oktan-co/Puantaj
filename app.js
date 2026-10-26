@@ -88,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=123;
+const APP_SURUM=124;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -329,6 +329,8 @@ const IZIN_KODLARI=['R','UI','YI'];
 // Aynı kişi mi: iki kayıtta da TC varsa TC, yoksa ad soyad.
 function ayniKisi(a,b){if(a.tc&&b.tc)return a.tc===b.tc;return isimAnahtar(a.ad)===isimAnahtar(b.ad);}
 const sgkVar=p=>!!(p.sgkSube&&p.sgkSube!==SGK_YOK);
+// SGK girişi boş olan kayıt, aynı kişinin başka kaydında SGK girişi varsa gerçek SGK kaydı değildir (çift SGK günü sayılmaz).
+const sgkYansiKayit=p=>sgkVar(p)&&!p.giris&&S.personel.some(x=>x.id!==p.id&&sgkVar(x)&&x.giris&&ayniKisi(x,p));
 // SGK şube değişikliği: aynı kişinin bu ay farklı şubelerde (farklı tarihlerde) SGK kaydı. En son girişli kayıt başta.
 function sgkGecisGrubu(p,ak){if(!sgkVar(p))return[];const L=S.personel.filter(x=>sgkVar(x)&&aktifAyda(x,ak)&&(x.id===p.id||(ayniKisi(x,p)&&x.sgkSube!==p.sgkSube)));
   if(L.length<2)return[];return L.sort((a,b)=>String(b.giris||'').localeCompare(String(a.giris||'')));}
@@ -367,7 +369,7 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
     let tH={R:0,UI:0};
     if(kaynak.length){const bl=gunBirlestir(kaynak,sgkVar(p)?(d=>sgkli(p,parse(d))):null);t.R=bl.say.R;t.UI=bl.say.UI;t.YI=bl.say.YI;t.B=bl.say.B;t.cakisma=gunBirlestir(kaynak).cakisma;
       tH=fiiliGrup.length?gunBirlestir(kaynak,d=>fiiliGrup.some(x=>employed(x,parse(d)))).say:t;}
-    let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(p.sgkSube!==SGK_YOK&&sgkli(p,d))ist++;/* SGK şubesi 'Boş' ise SGK günü yok */if(fiiliGrup.length?fiiliGrup.some(x=>employed(x,d)):employed(p,d))istF++;}
+    let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(p.sgkSube!==SGK_YOK&&!sgkYansiKayit(p)&&sgkli(p,d))ist++;/* SGK şubesi 'Boş' ise SGK günü yok */if(fiiliGrup.length?fiiliGrup.some(x=>employed(x,d)):employed(p,d))istF++;}
     const gun=sgkGunSayisi(ist,last.getDate(),t.R+t.UI);const hakGun=sgkGunSayisi(istF,last.getDate(),tH.R+tH.UI);const part=p.sekil==='Part';
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
       rapor:tumGun?t.R:0,ucretsiz:tumGun?t.UI:0,yillik:tumGun?t.YI:0,bayram:tumGun?t.B:0,muhBurada,odemeSube:subeAdi(odemeSubesi(maasKaydi,ak)),partGun:0,// part gün elle, veri girişinden
@@ -2138,7 +2140,7 @@ function iscLojSabitMi(D,ak,sid){const g=((D&&D.subeler)||{})[sid]||{};return g.
 function sgkSorunlari(ak){const o=[];S.personel.forEach(p=>{if(!aktifAyda(p,ak)||p.sekil==='Esnaf kurye')return;/* esnaf kurye ayrı şirket: SGK uyarısı yok */const n=[];
   if(!p.sgkSube)n.push('SGK şubesi seçilmemiş');
   else if(p.sgkSube===SGK_YOK){if(p.giris||p.cikis&&false)n.push('SGK şubesi "Boş" ama SGK giriş tarihi yazılı');}
-  else{if(!p.giris){const d=S.personel.filter(x=>x.id!==p.id&&ayniKisi(x,p)&&x.giris&&sgkVar(x));n.push(d.length?'SGK şubesi var ama giriş boş; aynı kişinin '+d.map(x=>subeAdi(x.sgkSube)+' kaydında SGK girişi '+trTarih(x.giris)+(x.cikis?' – çıkış '+trTarih(x.cikis):'')).join(', ')+' var → çift SGK sayılıyor olabilir':'SGK şubesi var ama SGK giriş tarihi boş (ay boyu sigortalı sayılır)');}}
+  else{if(!p.giris){const d=S.personel.filter(x=>x.id!==p.id&&ayniKisi(x,p)&&x.giris&&sgkVar(x));n.push(d.length?'SGK şubesi var ama giriş boş; aynı kişinin '+d.map(x=>subeAdi(x.sgkSube)+' kaydında SGK girişi '+trTarih(x.giris)+(x.cikis?' – çıkış '+trTarih(x.cikis):'')).join(', ')+' var → bu kayıtta SGK günü sayılmıyor':'SGK şubesi var ama SGK giriş tarihi boş (ay boyu sigortalı sayılır)');}}
   if(p.giris&&p.cikis&&p.cikis<p.giris)n.push('SGK çıkış tarihi girişten önce');
   if(n.length)o.push({ad:p.ad,sorun:n.join(' · '),sube:subeAdi(p.anaSube)});});return o;}
 function iscSgkSheet(ak){const L=sgkSorunlari(ak);openSheet(`<h2>SGK bilgisi kontrolü</h2><div class="sub">${ayAdi(ak)} · ${L.length} kişi</div>${L.length?`<div class="tk-wrap"><table class="tk"><thead><tr><th class="l">Kişi</th><th class="l">Şube</th><th class="l">Sorun</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${esc(adBuyuk(x.ad))}</td><td class="l">${esc(x.sube)}</td><td class="l">${esc(x.sorun)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="note">Sorun bulunmadı.</p>'}<div class="row2"><button class="btn grow" id="sgkK">Kapat</button></div>`,()=>{byId('sgkK').onclick=closeSheet;});}
