@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=126;
+const APP_SURUM=127;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2019,28 +2019,33 @@ function renderYonetim(){if(!isIsveren()&&!isBolge())return;const iv=isIsveren()
     const se=byId('ySubeEkle');if(se)se.onclick=()=>subePanel(null);document.querySelectorAll('[data-sid]').forEach(b=>b.onclick=()=>subePanel(b.dataset.sid));
     const ke=byId('yKulEkle');if(ke)ke.onclick=()=>kullaniciPanel(null);document.querySelectorAll('[data-uid]').forEach(b=>b.onclick=()=>kullaniciPanel(b.dataset.uid));});}
 // Şube silme (işveren): sadece hiç verisi olmayan şube silinir. Personeli, haftası ya da puantajı olan şube silinirse geçmiş kayıtlar sahipsiz kalır; bu yüzden engellenir.
+// Şubeyi bütün verisiyle siler (sadece işveren): çizelge haftaları, ay durumları, puantaj (ödemeler, veri girişi), maaşlar, çalıştığı şube bu şube olan personel,
+// şubeler arası ay özetleri (kurallar silmeye izin vermediği için boşaltılır), işçilik kayıtları. Diğer şubelerdeki personelden bu şubeye bağlar kaldırılır. Geri alınamaz.
 async function subeSil(id,btn,W){
-  if(!isIsveren())return;
-  if(!btn.dataset.ok){btn.dataset.ok='1';btn.textContent='Evet, şubeyi sil';W.innerHTML=`<div class="confirm">${esc(subeAdi(id))} şubesi silinecek. Şubede personel, çizelge ya da puantaj kaydı varsa silinmez. Silmeden önce yedek almanız önerilir.</div>`;return;}
-  btn.disabled=true;btn.textContent='Kontrol ediliyor…';
-  const geri=m=>{btn.disabled=false;btn.dataset.ok='';btn.textContent='Şubeyi sil';W.innerHTML=`<div class="confirm bad">${m}</div>`;};
-  try{
-    const pk=S.personel.filter(p=>p.anaSube===id||p.sgkSube===id||(p.ekSubeler||[]).includes(id)||(p.gorunurSubeler||[]).includes(id));
-    if(pk.length){geri(`${esc(subeAdi(id))} şubesinde ${pk.length} personel kaydı var (${esc(pk.slice(0,3).map(p=>p.ad).join(', '))}${pk.length>3?'…':''}). Önce personeli başka şubeye taşıyın ya da silin.`);return;}
-    const [hf,pt,ay,du]=await Promise.all([getDocs(collection(db,'subeler',id,'haftalar')),getDocs(collection(db,'puantaj',id,'aylar')),getDocs(collection(db,'subeler',id,'aylar')),getDocs(collection(db,'subeler',id,'durum'))]);
-    // Sadece gerçek veri engeller: hücresi dolu hafta, ödeme / veri girişi / onay olan puantaj, onaylı ay. Uygulamanın kendiliğinden açtığı boş kayıtlar engellemez, şubeyle birlikte silinir.
-    const dolu=o=>Object.values(o||{}).some(v=>v!=null&&v!==''&&v!==0&&v!==false&&!(typeof v==='object'&&!dolu(v)));
-    const hDolu=hf.docs.filter(d=>Object.values((d.data()||{}).cells||{}).some(c=>dolu(c)));
-    const pDolu=pt.docs.filter(d=>{const x=d.data()||{};return x.kilitli===true||x.kesin===true||(Array.isArray(x.veri)&&x.veri.length>0)||dolu(x.veriM)||dolu(x.sag);});
-    const aDolu=ay.docs.filter(d=>onayli((d.data()||{}).durum));
-    if(hDolu.length||pDolu.length||aDolu.length){const n=[hDolu.length?`${hDolu.length} haftada çizelge kaydı (ilki ${trTarih(hDolu[0].id)} haftası)`:'',pDolu.length?`${pDolu.length} ayda puantaj kaydı (${pDolu.map(d=>ayAdi(d.id)).join(', ')})`:'',aDolu.length?`${aDolu.length} onaylı ay`:''].filter(Boolean).join(', ');
-      geri(`${esc(subeAdi(id))} şubesinde ${esc(n)} var, silinemez: silinirse geçmiş kayıtlar ve ödemeler kaybolur. Kullanılmayacaksa kullanıcıların şube atamasını kaldırın.`);return;}
-    // Boş kayıtlar şubeyle birlikte silinir (en çok 450'şerlik paketler).
-    const bos=[...hf.docs,...pt.docs,...ay.docs,...du.docs].map(d=>d.ref);for(let i=0;i<bos.length;i+=450){const bb=writeBatch(db);bos.slice(i,i+450).forEach(r=>bb.delete(r));await bb.commit();}
+  if(!isIsveren())return;const ad=subeAdi(id);
+  const pSil=S.personel.filter(p=>p.anaSube===id);const pBag=S.personel.filter(p=>p.anaSube!==id&&(p.sgkSube===id||(p.ekSubeler||[]).includes(id)||(p.gorunurSubeler||[]).includes(id)||Object.values(p.maasSubeGecmis||{}).includes(id)));
+  if(!btn.dataset.ok){btn.dataset.ok='1';btn.textContent='Evet, her şeyiyle sil';
+    W.innerHTML=`<div class="confirm bad"><b>${esc(ad)} şubesi bütün verisiyle silinecek. Geri alınamaz.</b><br>Silinecekler: çizelgeler ve mesailer, hafta kapatmaları, ay onayları, puantaj (ödemeler, veri girişi), net maaşlar, şubenin işçilik rakamları ve ${pSil.length} personel (çalıştığı şube ${esc(ad)} olanlar)${pBag.length?`. Diğer şubelerdeki ${pBag.length} kişiden bu şubeye bağ (SGK şubesi, diğer çalıştığı şube, maaş şubesi) kaldırılır`:''}. Önce Yönetim → Yedek'ten yedek almanız önerilir.</div>
+      <label class="field"><span>Onaylamak için şube adını yazın: ${esc(ad)}</span><input id="sSilAd" autocomplete="off"></label>`;return;}
+  const yazilan=(byId('sSilAd')||{}).value||'';if(isimAnahtar(yazilan)!==isimAnahtar(ad)){const e=byId('sSilAd');if(e)e.focus();toast('Şube adını aynen yazın.');return;}
+  btn.disabled=true;const geri=m=>{btn.disabled=false;btn.dataset.ok='';btn.textContent='Şubeyi sil';W.innerHTML=`<div class="confirm bad">${m}</div>`;};
+  const paket=async ops=>{for(let i=0;i<ops.length;i+=400){const bb=writeBatch(db);ops.slice(i,i+400).forEach(f=>f(bb));await bb.commit();}};
+  try{btn.textContent='Siliniyor…';
+    // 1) Ay durumları önce (kesin kapanmış aya değen hafta, ay silinmeden silinemez), sonra haftalar, durum, puantaj.
+    const ay=await getDocs(collection(db,'subeler',id,'aylar'));await paket(ay.docs.map(d=>bb=>bb.delete(d.ref)));
+    const [hf,du,pt]=await Promise.all([getDocs(collection(db,'subeler',id,'haftalar')),getDocs(collection(db,'subeler',id,'durum')),getDocs(collection(db,'puantaj',id,'aylar'))]);
+    await paket([...hf.docs,...du.docs,...pt.docs].map(d=>bb=>bb.delete(d.ref)));
+    // 2) Şubeler arası ay özetleri silinemez, boşaltılır. İşçilik kayıtlarından şube çıkarılır.
+    const oz=await getDocs(query(collection(db,'ozetler'),where('sube','==',id)));await paket(oz.docs.map(d=>bb=>bb.set(d.ref,{sube:id,ay:(d.data()||{}).ay||'',kisiler:{},veriGun:{},guncellendi:new Date().toISOString()})));
+    const isc=await getDocs(collection(db,'iscilik'));await paket(isc.docs.map(d=>bb=>bb.update(d.ref,d.id==='sabit'?{['lojman.'+id]:deleteField()}:{['hesap.'+id]:deleteField(),['subeler.'+id]:deleteField()})));
+    // 3) Personel: çalıştığı şube bu şube olanlar silinir; diğerlerinden bu şubeye bağ kaldırılır.
+    await paket([...pSil.map(p=>bb=>bb.delete(doc(db,'personel',p.id))),...pBag.map(p=>bb=>{const g={...(p.maasSubeGecmis||{})};Object.keys(g).forEach(k=>{if(g[k]===id)delete g[k];});
+      bb.update(doc(db,'personel',p.id),{...(p.sgkSube===id?{sgkSube:''}:{}),ekSubeler:(p.ekSubeler||[]).filter(x=>x!==id),gorunurSubeler:(p.gorunurSubeler||[]).filter(x=>x!==id),maasSubeGecmis:g,maasSubeleri:[...new Set(Object.values(g).filter(Boolean))]});})]);
+    // 4) Şube, listesi, maaşlar; kullanıcıların şube ataması.
     const b=writeBatch(db);b.delete(doc(db,'subeler',id));b.delete(doc(db,'ekPersonel',id));b.delete(doc(db,'maaslar',id));
     (S.users||[]).filter(u=>(u.subeler||[]).includes(id)).forEach(u=>b.update(doc(db,'kullanicilar',u.uid),{subeler:u.subeler.filter(x=>x!==id)}));
-    await b.commit();closeSheet();toast('Şube silindi.');
-  }catch(e){geri('Şube silinemedi: '+esc(e.message||e.code||''));}}
+    await b.commit();S.personel=S.personel.filter(p=>p.anaSube!==id);closeSheet();toast(`${ad} şubesi bütün verisiyle silindi.`);
+  }catch(e){console.error(e);geri('Şube silinemedi, bir kısmı silinmiş olabilir. Tekrar Şubeyi sil\'e basarak kalanları silebilirsiniz. ('+esc(e.message||e.code||'')+')');}}
 function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
   openSheet(`<h2>${id?'Şube ayarları':'Yeni şube'}</h2><div class="sub">Vardiya renkleri ve fazla mesai bu ayarlara göre hesaplanır.${id?` Mesai ve ücret ayarlarındaki değişiklik ${ayAdi(ayKey(today())<BASLANGIC_AY?BASLANGIC_AY:ayKey(today()))} ayından itibaren geçerli olur; önceki aylar eski ayarla kalır.`:''}</div>
    <label class="field"><span>Şube adı</span><input id="sAd" value="${esc(s.ad)}" placeholder="Altınkale"></label>
