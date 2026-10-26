@@ -85,7 +85,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=116;
+const APP_SURUM=117;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2086,9 +2086,11 @@ function iscAyi(){if(S.iscAy)return S.iscAy;const bu=ayKey(today());return today
 function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=esnaf?true:sol.maasBurada!==false;// esnaf kuryenin maliyeti çalıştığı (verisinin girildiği) şubede kalır, maaş şubesine taşınmaz
   const gun=burada&&!esnaf&&!sol.sgkYok?sayi(sol.gun):0;const resmi=r2(gun*iscGunluk(ayar));
   // Paket primi ayrı kalemdir (ödemeler listesindeki tutar olduğu gibi); bankaya yatan primden düşülmez, kuryenin sigortası da diğerleri gibi Resmi'ye girer.
-  const elden=r2(sayi(h.maasFarki)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));
-  const paket=r2(sayi(h.paketPrimi));
-  const banka=burada&&resmi<=0?r2(sayi(h.bankaya)):0;
+  let elden=r2(sayi(h.maasFarki)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));
+  let paket=r2(sayi(h.paketPrimi));
+  let banka=burada&&resmi<=0?r2(sayi(h.bankaya)):0;
+  // Esnaf kurye ayrı bir şirkettir: SGK / maaş yok, her şubede o şubede attığı paketin bedeli (paket sayısı × ücret + girilen paket primi) o şubenin paket primidir.
+  if(esnaf){paket=r2(sayi(h.paketHak)+sayi(h.paketPrimi));elden=r2(sayi(h.maasFarki)+sayi(h.bankaya)-sayi(h.paketHak)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));banka=0;}
   return{pid:x.pid,ad:sol.ad||'',grup:sol.grup||'K',gun,resmi,banka,elden,paket,toplam:r2(resmi+banka+elden+paket),burada};}
 const iscBekle=ms=>new Promise(r=>setTimeout(r,ms));
 async function iscilikHesapla(ak){if(!isIsveren()||S.iscCalisiyor)return;S.iscCalisiyor=true;const D0=S.iscDoc||{};const ayar=iscAyar(D0);
