@@ -85,7 +85,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=115;
+const APP_SURUM=116;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2083,7 +2083,7 @@ const iscAyar=D=>({...ISC_VARS,...((D&&D.ayar)||{})});
 const iscGunluk=a=>sayi(a.asgari)*(1+sayi(a.sgk)/100+sayi(a.issizlik)/100)/30;
 const r2=x=>Math.round((x||0)*100)/100;
 function iscAyi(){if(S.iscAy)return S.iscAy;const bu=ayKey(today());return today().getDate()<=15?ayKaydir(bu,-1):bu;}
-function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=sol.maasBurada!==false;
+function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=esnaf?true:sol.maasBurada!==false;// esnaf kuryenin maliyeti çalıştığı (verisinin girildiği) şubede kalır, maaş şubesine taşınmaz
   const gun=burada&&!esnaf&&!sol.sgkYok?sayi(sol.gun):0;const resmi=r2(gun*iscGunluk(ayar));
   // Paket primi ayrı kalemdir (ödemeler listesindeki tutar olduğu gibi); bankaya yatan primden düşülmez, kuryenin sigortası da diğerleri gibi Resmi'ye girer.
   const elden=r2(sayi(h.maasFarki)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));
@@ -2101,14 +2101,17 @@ async function iscilikHesapla(ak){if(!isIsveren()||S.iscCalisiyor)return;S.iscCa
       if(S.pt.sube!==sid||S.ay!==ak){hata.push(subeAdi(sid));continue;}
       const V=ptVerisi();const durum=V.kesin?'kesin':V.kilitli?'onayli':'tahmini';const kisi=[];
       V.satir.forEach(x=>{const k=iscKisi(x,ayar);if(!k.toplam&&!k.gun)return;
-        if(!k.burada){const p=S.personel.find(q=>q.id===x.pid);const hedef=p?odemeSubesi(p,ak):'';if(hedef&&hedef!==sid&&L.includes(hedef)){tasi.push({...k,hedef,kaynak:sid});return;}}
+        if(!k.burada){const p=S.personel.find(q=>q.id===x.pid);const hedef=p?odemeSubesi(p,ak):'';if(hedef&&hedef!==sid&&L.includes(hedef)){
+          // Paket primi girildiği şubede kalır; fazla mesai ve diğer kalemler maaşın ödendiği şubeye taşınır.
+          const paket=k.paket||0;if(paket)kisi.push({...k,resmi:0,banka:0,elden:0,gun:0,paket,toplam:paket,burada:true,ad:k.ad+' · paket'});
+          const tk={...k,paket:0,toplam:r2(k.toplam-paket),hedef,kaynak:sid};if(Math.abs(tk.toplam)>0.004||tk.gun)tasi.push(tk);return;}}
         kisi.push(k);});
       sonuc[sid]={durum,kisi,ozetHata:!!S.pt.ozetHata||gunHataVar()};}
     // Başka şubede yapılan fazla mesai: kişinin maaş şubesine
     tasi.forEach(k=>{const h=sonuc[k.hedef];if(!h)return;h.kisi.push({...k,ad:k.ad+' · '+subeAdi(k.kaynak)+' FM',burada:true});});
     const t=new Date().toISOString();const hesap={};
     Object.entries(sonuc).forEach(([sid,x])=>{const top=k=>r2(x.kisi.reduce((a,y)=>a+(y[k]||0),0));const gr={};x.kisi.forEach(y=>{gr[y.grup]=r2((gr[y.grup]||0)+y.toplam);});
-      hesap[sid]={fv:2,durum:x.durum,ozetHata:x.ozetHata,resmi:top('resmi'),banka:top('banka'),elden:top('elden'),paket:top('paket'),toplam:top('toplam'),kisiSay:x.kisi.filter(y=>!/ FM$/.test(y.ad)).length,gruplar:gr,kisi:x.kisi.map(y=>({ad:y.ad,grup:y.grup,gun:y.gun,resmi:y.resmi,banka:y.banka,elden:y.elden,paket:y.paket||0,toplam:y.toplam})),tarih:t};});
+      hesap[sid]={fv:2,durum:x.durum,ozetHata:x.ozetHata,resmi:top('resmi'),banka:top('banka'),elden:top('elden'),paket:top('paket'),toplam:top('toplam'),kisiSay:x.kisi.filter(y=>!/ (FM|paket)$/.test(y.ad)).length,gruplar:gr,kisi:x.kisi.map(y=>({ad:y.ad,grup:y.grup,gun:y.gun,resmi:y.resmi,banka:y.banka,elden:y.elden,paket:y.paket||0,toplam:y.toplam})),tarih:t};});
     await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar,hesap,hesapTarihi:t,hesaplayan:benAd()},{merge:true});
     toast(hata.length?`Hesaplandı; ${hata.length} şube yüklenemedi: ${hata.join(', ')}. Tekrar deneyin.`:'İşçilik hesaplandı.');}
   catch(e){console.error(e);yazmaHatasi(e);}
