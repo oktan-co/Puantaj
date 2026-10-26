@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=112;
+const APP_SURUM=113;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2133,7 +2133,7 @@ function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activ
     <tfoot><tr><td class="l"><b>Toplam</b></td><td><b>${tl0(tc)}</b></td><td>${tl0(tl_)}</td><td></td><td></td><td><b>${tl0(tt)}</b></td><td><b>${iscYuzde(iscOran(tt,tc))}</b></td></tr></tfoot></table></div>
     <p class="note">Ciro ve lojman yazıp başka alana geçince kaydedilir. Şube adına dokunun: kişi kişi döküm. Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. "Tahmini": ay henüz onaylanmadı, rakamlar değişebilir.</p>`;
   return view(h,()=>iscBagla(ak));}
-function iscBagla(ak){const p=byId('iPrev'),n=byId('iNext');if(p)p.onclick=()=>{S.iscAy=ayKaydir(ak,-1);render();};if(n)n.onclick=()=>{S.iscAy=ayKaydir(ak,1);render();};
+function iscBagla(ak){document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});const p=byId('iPrev'),n=byId('iNext');if(p)p.onclick=()=>{S.iscAy=ayKaydir(ak,-1);render();};if(n)n.onclick=()=>{S.iscAy=ayKaydir(ak,1);render();};
   const hb=byId('iHes');if(hb)hb.onclick=()=>iscilikHesapla(ak);
   const ak2=byId('iaK');if(ak2)ak2.onclick=async()=>{const a={asgari:sayi(byId('iaA').value),sgk:sayi(byId('iaS').value),issizlik:sayi(byId('iaI').value)};
     if(!(a.asgari>0)||!(a.sgk>=0&&a.sgk<100)||!(a.issizlik>=0&&a.issizlik<100)){toast('Ayar değerlerini kontrol edin.');return;}
