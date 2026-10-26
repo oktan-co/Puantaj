@@ -88,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=120;
+const APP_SURUM=121;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1424,7 +1424,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     const ka=byId('kesinAcB');if(ka)ka.onclick=()=>{if(!ka.dataset.ok){ka.dataset.ok='1';ka.textContent='Emin misiniz? Saklanan rakamlar yeniden hesaplanabilir hale gelir';return;}kesinAc();};});}
 /* ================= Excel tarzı sütun filtresi ================= */
 const BOS_V='(Boş)';
-function kfDurum(t){S.pt.kf=S.pt.kf||{};return S.pt.kf[t]=S.pt.kf[t]||{f:{},sort:null};}
+function kfDurum(t){const K=t==='isc'?(S.iscKf=S.iscKf||{}):(S.pt.kf=S.pt.kf||{});return K[t]=K[t]||{f:{},sort:null};}
 function kfDegerler(c,x){const v=c.vals?c.vals(x):[c.v(x)];return v.map(y=>y==null||y===''?BOS_V:String(y));}
 function kfUygula(t,cols,rows){const st=kfDurum(t);const hepsi=[];cols.forEach(c=>{hepsi.push(c);if(c.ek)hepsi.push(c.ek);});
   let R=rows.filter(x=>hepsi.every(c=>{const sel=st.f[c.k];if(!sel)return true;return kfDegerler(c,x).some(v=>sel.includes(v));}));
@@ -2134,6 +2134,14 @@ const iscYuzde=x=>x==null?'—':'%'+(Math.round(x*10)/10).toLocaleString('tr-TR'
 function iscSabitLoj(sid,ak){const m=(((S.iscSabit||{}).lojman)||{})[sid];if(!m||typeof m!=='object')return null;const k=Object.keys(m).filter(x=>x<=ak).sort().pop();return k?sayi(m[k]):null;}
 function iscLoj(D,ak,sid){const g=((D&&D.subeler)||{})[sid]||{};if(g.lojman!=null)return sayi(g.lojman);return iscSabitLoj(sid,ak)||0;}
 function iscLojSabitMi(D,ak,sid){const g=((D&&D.subeler)||{})[sid]||{};return g.lojman==null&&(iscSabitLoj(sid,ak)||0)>0;}
+// SGK bilgisi eksik ya da çelişkili personel (işçilik maliyetini yanlış etkileyebilir).
+function sgkSorunlari(ak){const o=[];S.personel.forEach(p=>{if(!aktifAyda(p,ak))return;const n=[];
+  if(!p.sgkSube)n.push('SGK şubesi seçilmemiş');
+  else if(p.sgkSube===SGK_YOK){if(p.giris||p.cikis&&false)n.push('SGK şubesi "Boş" ama SGK giriş tarihi yazılı');}
+  else{if(!p.giris)n.push('SGK şubesi var ama SGK giriş tarihi boş (ay boyu sigortalı sayılır)');}
+  if(p.giris&&p.cikis&&p.cikis<p.giris)n.push('SGK çıkış tarihi girişten önce');
+  if(n.length)o.push({ad:p.ad,sorun:n.join(' · '),sube:subeAdi(p.anaSube)});});return o;}
+function iscSgkSheet(ak){const L=sgkSorunlari(ak);openSheet(`<h2>SGK bilgisi kontrolü</h2><div class="sub">${ayAdi(ak)} · ${L.length} kişi</div>${L.length?`<div class="tk-wrap"><table class="tk"><thead><tr><th class="l">Kişi</th><th class="l">Şube</th><th class="l">Sorun</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${esc(adBuyuk(x.ad))}</td><td class="l">${esc(x.sube)}</td><td class="l">${esc(x.sorun)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="note">Sorun bulunmadı.</p>'}<div class="row2"><button class="btn grow" id="sgkK">Kapat</button></div>`,()=>{byId('sgkK').onclick=closeSheet;});}
 function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activeElement;if(ae&&ae.closest&&ae.closest('#iscAyarK')&&ae.tagName==='INPUT')return;
   const D=S.iscDoc;const ayar=iscAyar(D&&D.ayar?D:(S.iscOnce&&S.iscOnce.ayar?S.iscOnce:{}));const gir=(D&&D.subeler)||{};const hes=(D&&D.hesap)||{};const once=S.iscOnce||{};
   h+=`<div class="ptnav" style="justify-content:center"><div class="ptay"><button class="nav-arrow" id="iPrev" aria-label="Önceki ay">‹</button><div class="ttl">${ayAdi(ak)}</div><button class="nav-arrow" id="iNext" aria-label="Sonraki ay">›</button></div></div>`;
@@ -2143,21 +2151,32 @@ function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activ
     <div class="fgrid"><label class="field"><span>Asgari ücret (brüt)</span><input id="iaA" inputmode="decimal" value="${esc(tl(ayar.asgari))}"></label><label class="field"><span>İşveren SGK payı %</span><input id="iaS" inputmode="decimal" value="${esc(String(ayar.sgk).replace('.',','))}"></label><label class="field"><span>İşsizlik %</span><input id="iaI" inputmode="decimal" value="${esc(String(ayar.issizlik).replace('.',','))}"></label></div>
     <p class="note" style="margin:4px 0 0">30 günlük SGK'lı çalışanın resmi maliyeti: <b>${tl(iscGunluk(ayar)*30)} ₺</b> (bankaya yatan net maaş dahil); 1 günlük SGK'lı ${tl(iscGunluk(ayar))} ₺. ${D&&D.ayar?'':'Bu ay için henüz kaydedilmedi; önceki ayın ya da varsayılan değerler gösteriliyor.'}</p>
     <div class="row2" style="margin-top:8px"><button class="btn grow" id="iaK">Ayarı kaydet</button></div></div>`;
+  {const sn=sgkSorunlari(ak).length;if(sn)h+=`<div class="banner bad">${sn} kişinin SGK bilgisi eksik ya da çelişkili. <button class="mini" id="iSgk">Listeyi gör</button></div>`;}
   h+=`<div class="actions"><button class="btn primary grow" id="iHes" ${S.iscCalisiyor?'disabled':''}>${S.iscCalisiyor?esc(S.iscDurum||'Hesaplanıyor…'):(D&&D.hesapTarihi?'Yeniden hesapla':'Hesapla')}</button></div>`;
   if(D&&D.hesapTarihi)h+=`<p class="note" style="margin-top:0">Son hesap: ${tarihSaat(D.hesapTarihi)}${D.hesaplayan?' · '+esc(D.hesaplayan):''}. Puantajda değişiklik olduysa yeniden hesaplayın.</p>`;
   if(Object.values(hes).some(x=>x&&x.fv!==2))h+=`<div class="banner bad">Bu ay eski yöntemle hesaplanmış (paket primi Elden'in içinde, bankaya yatan primden düşülmüş). <b>Yeniden hesapla</b>'ya basın.</div>`;
-  let tc=0,tl_=0,tt=0,tr_=0,te=0,tp=0;const satir=S.subeIds.map(sid=>{const g=gir[sid]||{};const x=hes[sid];const c=sayi(g.ciro),lj=iscLoj(D,ak,sid);const top=x?r2(x.toplam+lj):null;if(top!=null){tc+=c;tl_+=lj;tt+=top;tr_+=x.resmi+x.banka;te+=x.elden;tp+=sayi(x.paket);}
-    const o=top!=null?iscOran(top,c):null;const og=((once.hesap||{})[sid]);const oc=sayi(((once.subeler||{})[sid]||{}).ciro);const oo=og?iscOran(og.toplam+iscLoj(once,ayKaydir(ak,-1),sid),oc):null;
+  const IR=S.subeIds.map(sid=>{const g=gir[sid]||{};const x=hes[sid];const c=sayi(g.ciro),lj=iscLoj(D,ak,sid);const top=x?r2(x.toplam+lj):null;
+    const o=top!=null?iscOran(top,c):null;const og=((once.hesap||{})[sid]);const oc=sayi(((once.subeler||{})[sid]||{}).ciro);const oo=og?iscOran(og.toplam+iscLoj(once,ayKaydir(ak,-1),sid),oc):null;return{sid,x,c,lj,top,o,oo};});
+  const nv=(f,k)=>r=>r.x?tl0(f(r)):'—';
+  const IK=[{k:'sube',ad:'Şube',v:r=>subeAdi(r.sid),l:1},{k:'resmi',ad:'Resmi (SGK + maaş)',v:r=>r.x?tl0(r.x.resmi+r.x.banka):'—',n:r=>r.x?r.x.resmi+r.x.banka:-1},{k:'elden',ad:'Elden',v:r=>r.x?tl0(r.x.elden):'—',n:r=>r.x?r.x.elden:-1},
+    {k:'paket',ad:'Paket primi',v:r=>r.x?tl0(sayi(r.x.paket)):'—',n:r=>r.x?sayi(r.x.paket):-1},{k:'top',ad:'Toplam işçilik',v:r=>r.top!=null?tl0(r.top):'—',n:r=>r.top!=null?r.top:-1},{k:'oran',ad:'Oran',v:r=>iscYuzde(r.o),n:r=>r.o==null?-1:r.o}];
+  S.iscKfSatir={cols:IK,rows:IR};
+  const IV=kfUygula('isc',IK,IR);const fa=kfAktifMi('isc');let tc=0,tl_=0,tt=0,tr_=0,te=0,tp=0;
+  IV.forEach(r=>{if(r.top!=null){tc+=r.c;tl_+=r.lj;tt+=r.top;tr_+=r.x.resmi+r.x.banka;te+=r.x.elden;tp+=sayi(r.x.paket);}});
+  const satir=IV.map(({sid,x,c,lj,top,o,oo})=>{
     const dz=x?{kesin:'<span class="chip ok">Kesin</span>',onayli:'<span class="chip ok">Onaylı</span>',tahmini:'<span class="chip warn">Tahmini</span>'}[x.durum]||'':'';
     return `<tr><td class="l"><button class="mini" data-isd="${esc(sid)}">${esc(subeAdi(sid))}</button> ${dz}<br><small class="mut">Ciro ${c?tl0(c):'girilmedi'}${lj?' · Lojman '+tl0(lj):''}</small></td>
       <td>${x?tl0(x.resmi+x.banka)+(x.gunTop?` <small>(${x.gunTop} gün)</small>`:''):'—'}</td><td>${x?tl0(x.elden):'—'}</td><td>${x?tl0(sayi(x.paket)):'—'}</td><td><b>${top!=null?tl0(top):'—'}</b></td>
       <td><b>${iscYuzde(o)}</b>${oo!=null?`<br><small class="mut">geçen ay ${iscYuzde(oo)}</small>`:''}</td></tr>`;}).join('');
-  h+=`<div class="tk-wrap" style="overflow-x:auto"><table class="tk" id="iscT"><thead><tr><th class="l">Şube</th><th>Resmi (SGK + maaş)</th><th>Elden</th><th>Paket primi</th><th>Toplam işçilik</th><th>Oran</th></tr></thead><tbody>${satir}</tbody>
-    <tfoot><tr><td class="l"><b>Toplam</b><br><small class="mut">Ciro ${tl0(tc)}${tl_?' · Lojman '+tl0(tl_):''}</small></td><td>${tl0(tr_)}</td><td>${tl0(te)}</td><td>${tl0(tp)}</td><td><b>${tl0(tt)}</b></td><td><b>${iscYuzde(iscOran(tt,tc))}</b></td></tr></tfoot></table></div>
+  if(fa)h+=`<div class="kfbar">Filtre açık · ${IV.length} / ${IR.length} şube gösteriliyor, toplamlar sadece görünenler için <button class="mini" id="kfHepsiI">Filtreleri kaldır</button></div>`;
+  h+=`<div class="tk-wrap" style="overflow-x:auto"><table class="tk" id="iscT"><thead><tr>${IK.map(c=>kfBaslik('isc',c,c.l?'l':'')).join('')}</tr></thead><tbody>${satir}</tbody>
+    <tfoot><tr><td class="l"><b>${fa?`Filtreli toplam · ${IV.length} / ${IR.length} şube`:'Toplam'}</b><br><small class="mut">Ciro ${tl0(tc)}${tl_?' · Lojman '+tl0(tl_):''}</small></td><td>${tl0(tr_)}</td><td>${tl0(te)}</td><td>${tl0(tp)}</td><td><b>${tl0(tt)}</b></td><td><b>${iscYuzde(iscOran(tt,tc))}</b></td></tr></tfoot></table></div>
     <p class="note">Şube adına dokunun: ciro, lojman ve kişi kişi döküm. Toplam işçilik lojman dahildir. Resmi: SGK günü × günlük resmi maliyet (bankaya yatan dahil). Elden: maaş farkı, fazla mesai, ciro primi, ek ödeme − kesinti. Paket primi ödemeler listesinden gelir. Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. "Tahmini": ay henüz onaylanmadı, rakamlar değişebilir.</p>`;
   return view(h,()=>iscBagla(ak));}
 function iscBagla(ak){document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});const p=byId('iPrev'),n=byId('iNext');if(p)p.onclick=()=>{S.iscAy=ayKaydir(ak,-1);render();};if(n)n.onclick=()=>{S.iscAy=ayKaydir(ak,1);render();};
+  const sg=byId('iSgk');if(sg)sg.onclick=()=>iscSgkSheet(ak);
   const hb=byId('iHes');if(hb)hb.onclick=()=>iscilikHesapla(ak);
+  if(S.iscKfSatir)kfBagla('isc',S.iscKfSatir.cols,S.iscKfSatir.rows);const kh=byId('kfHepsiI');if(kh)kh.onclick=()=>{const d=kfDurum('isc');d.f={};d.sort=null;render();};
   const ak2=byId('iaK');if(ak2)ak2.onclick=async()=>{const a={asgari:sayi(byId('iaA').value),sgk:sayi(byId('iaS').value),issizlik:sayi(byId('iaI').value)};
     if(!(a.asgari>0)||!(a.sgk>=0&&a.sgk<100)||!(a.issizlik>=0&&a.issizlik<100)){toast('Ayar değerlerini kontrol edin.');return;}
     try{await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar:a},{merge:true});toast('Ayar kaydedildi. Rakamlara yansıması için yeniden hesaplayın.');}catch(e){yazmaHatasi(e);}};
