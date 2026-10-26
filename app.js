@@ -30,7 +30,10 @@ function ayGit(ak,n){const y=ayKaydir(ak,n);if(y<BASLANGIC_AY){toast('Sistem Eyl
 const VERI_TUR=[{k:'R',ad:'Rapor',b:'gün',y:'sol'},{k:'UI',ad:'Ücretsiz izin',b:'gün',y:'sol'},{k:'YI',ad:'Yıllık izin',b:'gün',y:'sol'},{k:'B',ad:'Bayram',b:'gün',y:'sol'},{k:'PG',ad:'Part gün',b:'gün',y:'sol'},{k:'FM',ad:'Fazla mesai (saat)',b:'saat',y:'sol',gizli:true},
   {k:'BY',ad:'Bankaya yatan',b:'₺',y:'sag'},{k:'MF',ad:'Maaş farkı (+ / −)',b:'₺',y:'sag'},{k:'SA',ad:'Çalışılan saat',b:'saat',y:'sag'},{k:'FMT',ad:'Fazla mesai tutarı',b:'₺',y:'sag'},{k:'AV',ad:'Avans',b:'₺',y:'sag'},{k:'AO',ad:'Ara ödeme',b:'₺',y:'sag'},{k:'PS',ad:'Paket sayısı',b:'adet',y:'sag',gizli:true},{k:'PP',ad:'Paket primi',b:'₺',y:'sag'},{k:'CP',ad:'Ciro primi',b:'₺',y:'sag'},{k:'EK',ad:'Ek ödeme',b:'₺',y:'sag',gizli:true},{k:'KS',ad:'Kesinti',b:'₺',y:'sag',gizli:true}];
 const veriTur=k=>VERI_TUR.find(t=>t.k===k);
-function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||!v.pid||v.miktar===''||v.miktar==null)return;if(v.tarih&&S.ay&&v.tarih.slice(0,7)!==S.ay)return;const x=o[v.pid]=o[v.pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
+function veriOzet(veri){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||v.miktar===''||v.miktar==null)return;if(v.tarih&&S.ay&&v.tarih.slice(0,7)!==S.ay)return;
+  // Kayıt numarası boş ya da silinmiş/değişmiş kayda aitse isimle bul (yoksa tutar hiçbir satıra ulaşmaz).
+  let pid=v.pid;if(!pid||!S.personel.some(p=>p.id===pid)){const k=isimAnahtar(v.ad||'');const p=k?S.personel.find(p=>isimAnahtar(p.ad)===k):null;if(p)pid=p.id;else if(!pid)return;}
+  const x=o[pid]=o[pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
 // Aynı kişi birden fazla kayıtla (ör. iki şubede ayrı kayıt) olabilir; ödeme satırı isimle tek kayıtta birleşir.
 // Veri girişi satırları kayıt numarasıyla bağlıdır: satırın kaydı birleşen diğer kayıtsa, giriş aynı isimli satıra eklenir (yoksa tutarlar boş kalırdı).
 function ozBirlestir(oz,sol){const ad2pid={};Object.keys(sol||{}).forEach(pid=>{const p=S.personel.find(x=>x.id===pid);const k=isimAnahtar((sol[pid]&&sol[pid].ad)||(p&&p.ad)||'');if(k&&!ad2pid[k])ad2pid[k]=pid;});
@@ -85,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=117;
+const APP_SURUM=118;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
