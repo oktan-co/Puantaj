@@ -88,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=121;
+const APP_SURUM=122;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2135,7 +2135,7 @@ function iscSabitLoj(sid,ak){const m=(((S.iscSabit||{}).lojman)||{})[sid];if(!m|
 function iscLoj(D,ak,sid){const g=((D&&D.subeler)||{})[sid]||{};if(g.lojman!=null)return sayi(g.lojman);return iscSabitLoj(sid,ak)||0;}
 function iscLojSabitMi(D,ak,sid){const g=((D&&D.subeler)||{})[sid]||{};return g.lojman==null&&(iscSabitLoj(sid,ak)||0)>0;}
 // SGK bilgisi eksik ya da çelişkili personel (işçilik maliyetini yanlış etkileyebilir).
-function sgkSorunlari(ak){const o=[];S.personel.forEach(p=>{if(!aktifAyda(p,ak))return;const n=[];
+function sgkSorunlari(ak){const o=[];S.personel.forEach(p=>{if(!aktifAyda(p,ak)||p.sekil==='Esnaf kurye')return;/* esnaf kurye ayrı şirket: SGK uyarısı yok */const n=[];
   if(!p.sgkSube)n.push('SGK şubesi seçilmemiş');
   else if(p.sgkSube===SGK_YOK){if(p.giris||p.cikis&&false)n.push('SGK şubesi "Boş" ama SGK giriş tarihi yazılı');}
   else{if(!p.giris)n.push('SGK şubesi var ama SGK giriş tarihi boş (ay boyu sigortalı sayılır)');}
