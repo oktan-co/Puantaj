@@ -34,19 +34,49 @@ service cloud.firestore {
       allow write: if isveren();
     }
 
+    // Bölge müdürü: kendi şubelerindeki ŞUBE MÜDÜRLERİNİ yönetir (kullanıcının "bolgeler" listesinde bölge müdürünün uid'si bulunur;
+    // listeyi işveren uygulaması şube atamalarına göre senkronlar). Rol, bölge listesi ve işveren/bölge hesapları değiştirilemez.
+    function bolgeYonetir(d) {
+      return aktif() && ben().rol == 'bolge' && d.rol == 'sube' && request.auth.uid in d.get('bolgeler', []);
+    }
     match /kullanicilar/{uid} {
-      allow read: if girisli() && (request.auth.uid == uid || isveren());
+      allow get: if girisli() && (request.auth.uid == uid || isveren() || bolgeYonetir(resource.data));
+      allow list: if girisli() && (isveren() || (aktif() && ben().rol == 'bolge' && request.auth.uid in resource.data.bolgeler));
       allow create: if isveren()
         || (girisli() && request.auth.uid == uid && !kurulumYapildi()
-            && request.resource.data.rol == 'isveren' && request.resource.data.aktif == true);
-      allow update, delete: if isveren();
+            && request.resource.data.rol == 'isveren' && request.resource.data.aktif == true)
+        || (aktif() && ben().rol == 'bolge'
+            && request.resource.data.rol == 'sube' && request.resource.data.aktif == true
+            && request.resource.data.subeler.size() > 0 && ben().subeler.hasAll(request.resource.data.subeler)
+            && request.resource.data.olusturan == request.auth.uid
+            && request.resource.data.bolgeler == [request.auth.uid]
+            && request.resource.data.keys().hasOnly(['kullaniciAdi', 'adSoyad', 'rol', 'subeler', 'aktif', 'olusturma', 'olusturan', 'bolgeler']));
+      allow update: if isveren()
+        || (bolgeYonetir(resource.data)
+            && request.resource.data.rol == 'sube'
+            && request.resource.data.get('bolgeler', []) == resource.data.get('bolgeler', [])
+            && request.resource.data.subeler.size() > 0 && ben().subeler.hasAll(request.resource.data.subeler)
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['adSoyad', 'subeler', 'aktif']));
+      allow delete: if isveren() || bolgeYonetir(resource.data);
     }
 
     // Kullanıcı şifreleri: işveren görür ve değiştirir. Kullanıcı kendi şifresini değiştirince sadece kendi kaydını yazar (okuyamaz).
+    function bolgeHedef(uid) {
+      return aktif() && ben().rol == 'bolge'
+        && exists(/databases/$(database)/documents/kullanicilar/$(uid))
+        && bolgeYonetir(get(/databases/$(database)/documents/kullanicilar/$(uid)).data);
+    }
+    function bolgeHedefSonra(uid) {
+      return aktif() && ben().rol == 'bolge'
+        && exists(/databases/$(database)/documents/kullanicilar/$(uid))
+        && bolgeYonetir(getAfter(/databases/$(database)/documents/kullanicilar/$(uid)).data);
+    }
     match /sifreler/{uid} {
-      allow read, delete: if isveren();
+      allow read, delete: if isveren() || bolgeHedef(uid);
       allow create, update: if isveren()
         || (aktif() && request.auth.uid == uid
+            && request.resource.data.keys().hasOnly(['kullaniciAdi', 'sifre', 'guncellendi', 'guncelleyen']))
+        || (bolgeHedefSonra(uid)
             && request.resource.data.keys().hasOnly(['kullaniciAdi', 'sifre', 'guncellendi', 'guncelleyen']));
     }
 
@@ -54,11 +84,16 @@ service cloud.firestore {
     match /iscilik/{ay} {
       allow read, write: if isveren();
     }
+    // Bölge müdürünün kendi şubeleri için işçilik özeti (işveren uygulaması yazar; belge kimliği: ay__bölgeMüdürüUid). Sadece okunur.
+    match /iscilikBolge/{d} {
+      allow read: if aktif() && ben().rol == 'bolge' && d.matches('.*__' + request.auth.uid);
+      allow write: if isveren();
+    }
 
     // Yeni şifre isteği: işveren yazar; GitHub'daki "Kullanıcı işlemleri" otomasyonu (yönetici anahtarıyla) uygular ve siler.
     match /sifreIstek/{uid} {
-      allow read, delete: if isveren();
-      allow create, update: if isveren() && request.resource.data.isteyen == request.auth.uid
+      allow read, delete: if isveren() || bolgeHedef(uid);
+      allow create, update: if (isveren() || bolgeHedef(uid)) && request.resource.data.isteyen == request.auth.uid
         && request.resource.data.sifre is string && request.resource.data.sifre.size() >= 6;
     }
 

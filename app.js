@@ -88,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=124;
+const APP_SURUM=125;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -547,7 +547,14 @@ function subeleriDinle(){subs.subeDocs.forEach(u=>u());subs.subeDocs=[];
   personelDinle();
   subs.subeDocs.push(onSnapshot(doc(db,'sistem','subeAdlari'),s=>{S.subeAdlari=s.exists()?(s.data().adlar||{}):{};if(isIsveren())subeAdSenkron();},()=>{}));
   if(isSube())subs.subeDocs.push(onSnapshot(doc(db,'sistem','goc'),s=>{const v=!!(s.exists()&&s.data().v4);if(S.goc4!==v){S.goc4=v;render();}},()=>{}));
-  if(isIsveren()&&!subs.users){const u1=onSnapshot(collection(db,'kullanicilar'),s=>{S.users=s.docs.map(d=>({uid:d.id,...d.data()}));if(S.tab==='yonetim')render();});
+  // Bölge müdürü: sadece kendi yönettiği şube müdürleri ve onların şifre kayıtları (tek tek okunur).
+  if(isBolge()&&!subs.users){const buid=S.user.uid;const dk={};S.sifreler={};S.sifreIstek={};
+    const u1=onSnapshot(query(collection(db,'kullanicilar'),where('bolgeler','array-contains',buid)),s=>{S.users=s.docs.map(d=>({uid:d.id,...d.data()}));
+      s.docs.forEach(d=>{if(dk[d.id])return;dk[d.id]=[onSnapshot(doc(db,'sifreler',d.id),x=>{if(x.exists())S.sifreler[d.id]=x.data();else delete S.sifreler[d.id];if(S.tab==='yonetim')render();},()=>{}),
+        onSnapshot(doc(db,'sifreIstek',d.id),x=>{if(x.exists())S.sifreIstek[d.id]=x.data();else delete S.sifreIstek[d.id];if(S.tab==='yonetim')render();},()=>{})];});
+      if(S.tab==='yonetim')render();},e=>{console.error(e);S.users=[];S.kulHata=true;if(S.tab==='yonetim')render();});
+    subs.users=()=>{u1();Object.values(dk).forEach(a=>a.forEach(f=>f()));};}
+  if(isIsveren()&&!subs.users){const u1=onSnapshot(collection(db,'kullanicilar'),s=>{S.users=s.docs.map(d=>({uid:d.id,...d.data()}));bolgeSenkron();if(S.tab==='yonetim')render();});
     const u2=onSnapshot(collection(db,'sifreler'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreler=m;S.sifreHata=false;if(S.tab==='yonetim')render();},e=>{console.error(e);S.sifreler={};S.sifreHata=true;if(S.tab==='yonetim')render();});const u3=onSnapshot(collection(db,'sifreIstek'),s=>{const m={};s.docs.forEach(d=>m[d.id]=d.data());S.sifreIstek=m;if(S.tab==='yonetim')render();},()=>{S.sifreIstek={};});subs.users=()=>{u1();u2();u3();};}}
 // Personel şube şube tutulur: herkes sadece kendi şubelerinin listesini okur. Bölge müdürü ayrıca SGK'sı kendi şubelerinde olanları görür (puantaj için).
 function personelDinle(){const parca={};const yay=()=>{const m={};Object.values(parca).forEach(L=>L.forEach(p=>m[p.id]=p));S.personel=Object.values(m);S.loaded.personel=true;S.kuralHata=false;gocKontrol();render();};
@@ -559,6 +566,11 @@ function personelDinle(){const parca={};const yay=()=>{const m={};Object.values(
     // Bu şubede de çalışan (çalıştığı şubesi / SGK'sı başka yerde) kişiler: şubenin ek personel listesinden tek tek okunur.
     const tekil={};subs.subeDocs.push(onSnapshot(doc(db,'ekPersonel',sid),s=>{const L=Object.keys((s.exists()&&s.data().ids)||{});
       L.forEach(pid=>{if(tekil[pid])return;tekil[pid]=1;subs.subeDocs.push(onSnapshot(doc(db,'personel',pid),d=>{parca['e:'+pid]=d.exists()?[{id:d.id,...d.data()}]:[];yay();},()=>{parca['e:'+pid]=[];}));});},()=>{}));});}
+// Şube müdürlerinin "bolgeler" listesi (hangi bölge müdürleri yönetir): şube atamalarından hesaplanır; bölge müdürünün kuralları buna dayanır.
+let bsT;function bolgeSenkron(){clearTimeout(bsT);bsT=setTimeout(async()=>{if(!isIsveren()||!S.users||S.bsBusy)return;const bm=S.users.filter(u=>u.rol==='bolge'&&u.aktif!==false);const b=writeBatch(db);let n=0;
+  S.users.forEach(u=>{if(u.rol!=='sube')return;const hed=bm.filter(m=>(m.subeler||[]).some(x=>(u.subeler||[]).includes(x))).map(m=>m.uid).sort();const mev=(u.bolgeler||[]).slice().sort();
+    if(JSON.stringify(hed)!==JSON.stringify(mev)){b.update(doc(db,'kullanicilar',u.uid),{bolgeler:hed});n++;}});
+  if(!n)return;S.bsBusy=true;try{await b.commit();}catch(e){console.error(e);}finally{S.bsBusy=false;}},1200);}
 let senkronT;function subeAdSenkron(){clearTimeout(senkronT);senkronT=setTimeout(()=>{const adlar={};Object.entries(S.subeler).forEach(([id,v])=>adlar[id]=v.ad);
   const a=JSON.stringify(Object.entries(adlar).sort()),b=JSON.stringify(Object.entries(S.subeAdlari||{}).sort());if(a!==b&&Object.keys(adlar).length)setDoc(doc(db,'sistem','subeAdlari'),{adlar}).catch(()=>{});},800);}
 function tumSubeler(){const m={...S.subeAdlari};Object.entries(S.subeler).forEach(([id,v])=>m[id]=v.ad);return Object.entries(m).sort((a,b)=>String(a[1]).localeCompare(String(b[1]),'tr'));}
@@ -596,7 +608,7 @@ function view(html,after){const ap=document.querySelector('.app');if(ap)ap.class
 document.addEventListener('change',e=>{if(e.target&&e.target.id==='subeSecim'){selectSube(e.target.value);window.scrollTo(0,0);}});
 function top(eyebrow,title,right=''){byId('top').innerHTML=`<div class="top-row"><div class="grow"><div class="eyebrow">${eyebrow}</div><h1>${title}</h1></div>${right}</div>`;}
 function sekmeler(){if(!S.me)return[];const t=[['cizelge','Çizelge'],['personel','Personel']];
-  if(puantajYetki())t.push(['puantaj','Puantaj']);if(isIsveren())t.push(['yonetim','Yönetim']);return t;}
+  if(puantajYetki())t.push(['puantaj','Puantaj']);if(isIsveren()||isBolge())t.push(['yonetim','Yönetim']);return t;}
 function renderTabs(){const t=sekmeler();if(!t.some(x=>x[0]===S.tab))S.tab='cizelge';const n=byId('tabs');n.hidden=false;
   byId('tabsIn').innerHTML=t.map(([k,a])=>`<button data-tab="${k}" class="${S.tab===k?'on':''}">${a}</button>`).join('');
   n.querySelectorAll('button').forEach(b=>b.onclick=()=>{if(S.tab==='puantaj'&&S.pt.sube)veriBosTemizle();S.tab=b.dataset.tab;tryLS('pm.tab',S.tab);if(S.tab==='ay')S.ay=S.ay||gosterAy(S.hafta);if(S.tab==='puantaj'){S.pt.sube=null;if(S.subeId&&S.subeIds.includes(S.subeId)){S.ay=aktifAy('puantaj');puantajAc(S.subeId);}}render();window.scrollTo(0,0);});}
@@ -1921,20 +1933,22 @@ function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'p
    await yap();});}
 
 /* ================= Yönetim (işveren) ================= */
-function renderYonetim(){if(!isIsveren())return;const bolum=S.ynt||'subeler';
-  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="iscilik" class="${bolum==='iscilik'?'on':''}">İşçilik</button><button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button></div>`;
+function renderYonetim(){if(!isIsveren()&&!isBolge())return;const iv=isIsveren();let bolum=S.ynt||'subeler';if(!iv&&bolum==='yedek')bolum='subeler';
+  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="iscilik" class="${bolum==='iscilik'?'on':''}">İşçilik</button>${iv?`<button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button>`:''}</div>`;
   if(bolum==='yedek')return renderYedek(h);
   if(bolum==='iscilik')return renderIscilik(h);
   if(bolum==='subeler'){const hf=S.subeIds.filter(id=>sube(id).fmDonem==='hafta').length;
-    h+=`<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>
-     <div class="card" style="padding:12px;margin-bottom:10px"><span class="lbl" style="margin-top:0">Tüm şubelerde fazla mesai dönemi</span><div class="seg" id="yDon"><button data-v="hafta" class="${hf===S.subeIds.length?'on':''}">Haftalık (örn. Eylül: 7 Eyl – 4 Eki)</button><button data-v="ay" class="${hf===0?'on':''}">Takvim ayı</button></div>
-     <p class="note" style="margin-bottom:0">Şu an ${hf} / ${S.subeIds.length} şube haftalık. Seçince tüm şubelere uygulanır; tek tek şube ayarından da değiştirilebilir.</p></div>`;
-    h+=S.subeIds.length?`<div class="card list">${S.subeIds.map(id=>{const s=sube(id);return `<button class="row" data-sid="${esc(id)}"><div class="av">${esc(bas(s.ad))}</div><div class="m"><b>${esc(s.ad)}</b><span>${esc(s.acilis)}–${esc(s.kapanis)} · günlük ${fmt(s.gunluk)} sa · FM ${s.fmYontem==='maas'?'maaş ÷ 30 ÷ 9':tl0(s.fmUcret)+'/sa'}</span></div></button>`;}).join('')}</div>`:`<div class="empty-state"><b>Henüz şube yok</b>İlk şubeyi ekleyin.</div>`;}
-  else{h+=`<div class="actions"><button class="btn primary grow" id="yKulEkle">Kullanıcı ekle</button></div>`;
+    h+=`${iv?'<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>':'<p class="note" style="margin:0 0 8px">Şube ayarlarını işveren değiştirir.</p>'}
+     ${iv?`<div class="card" style="padding:12px;margin-bottom:10px"><span class="lbl" style="margin-top:0">Tüm şubelerde fazla mesai dönemi</span><div class="seg" id="yDon"><button data-v="hafta" class="${hf===S.subeIds.length?'on':''}">Haftalık (örn. Eylül: 7 Eyl – 4 Eki)</button><button data-v="ay" class="${hf===0?'on':''}">Takvim ayı</button></div>
+     <p class="note" style="margin-bottom:0">Şu an ${hf} / ${S.subeIds.length} şube haftalık. Seçince tüm şubelere uygulanır; tek tek şube ayarından da değiştirilebilir.</p></div>`:''}`;
+    h+=S.subeIds.length?`<div class="card list">${S.subeIds.map(id=>{const s=sube(id);return `<button class="row" ${iv?`data-sid="${esc(id)}"`:''}><div class="av">${esc(bas(s.ad))}</div><div class="m"><b>${esc(s.ad)}</b><span>${esc(s.acilis)}–${esc(s.kapanis)} · günlük ${fmt(s.gunluk)} sa · FM ${s.fmYontem==='maas'?'maaş ÷ 30 ÷ 9':tl0(s.fmUcret)+'/sa'}</span></div></button>`;}).join('')}</div>`:`<div class="empty-state"><b>Henüz şube yok</b>İlk şubeyi ekleyin.</div>`;}
+  else{h+=`<div class="actions"><button class="btn primary grow" id="yKulEkle">${iv?'Kullanıcı ekle':'Şube müdürü ekle'}</button></div>`;
     // Şifre listesi durumu: kurallar yayınlanmadıysa okunamaz; eski kullanıcıların şifresi kayıtlı değildir.
     if(S.sifreHata)h+=`<div class="banner bad"><b>Şifreler okunamıyor.</b> Firebase kuralları güncel değil: Firestore → Kurallar sekmesine GitHub'daki firestore.rules dosyasını yapıştırıp Yayınla'ya basın, sonra uygulamayı kapatıp açın.</div>`;
     else{const yok=(S.users||[]).filter(u=>!sifreOf(u.uid)&&!(S.sifreIstek||{})[u.uid]).length;if(yok)h+=`<div class="banner">${yok} kullanıcının şifresi kayıtlı değil (şifre kaydı eklenmeden önce açılmışlar). Kullanıcıya dokunup yeni şifre verin; eski şifreyi bilmeniz gerekmez.</div>`;
       const eski=Object.values(S.sifreIstek||{}).filter(x=>!x.hata&&x.t&&Date.now()-new Date(x.t).getTime()>20*60000).length;if(eski)h+=`<div class="banner bad">${eski} şifre isteği 20 dakikadır uygulanmadı. GitHub'daki "Kullanıcı işlemleri" otomasyonu kurulmamış olabilir (FIREBASE_SERVICE_ACCOUNT anahtarı).</div>`;}
+    if(!iv&&S.kulHata)h+=`<div class="banner bad">Kullanıcı listesi okunamadı. İşveren Firebase kurallarını güncellemeli (firestore.rules).</div>`;
+    if(!iv&&!S.users.length&&!S.kulHata)h+=`<p class="note">Henüz şube müdürü yok ya da işveren listeyi henüz eşlemedi (işveren uygulamayı bir kez açınca kendiliğinden eşlenir).</p>`;
     const us=S.users.slice().sort((a,b)=>['isveren','bolge','sube'].indexOf(a.rol)-['isveren','bolge','sube'].indexOf(b.rol)||String(a.adSoyad).localeCompare(String(b.adSoyad),'tr'));
     h+=`<div class="card list">${us.map(u=>`<button class="row" data-uid="${esc(u.uid)}"><div class="av">${esc(bas(u.adSoyad||u.kullaniciAdi))}</div><div class="m"><b>${esc(u.adSoyad||u.kullaniciAdi)}</b><span>${esc(u.kullaniciAdi)} · ${u.rol==='isveren'?'Tüm şubeler':(u.subeler||[]).map(s=>S.subeler[s]?S.subeler[s].ad:s).join(', ')||'Şube atanmamış'}</span></div>
       <span class="chip ${u.aktif===false?'mut':u.rol==='isveren'?'warn':u.rol==='bolge'?'ok':'mut'}">${u.aktif===false?'Pasif':ROL[u.rol]||u.rol}</span>${S.sifreHata||sifreOf(u.uid)?'':(S.sifreIstek||{})[u.uid]?'<span class="chip warn" title="Yeni şifre bekliyor">şifre bekliyor</span>':'<span class="chip mut" title="Şifre kayıtlı değil">şifre ?</span>'}</button>`).join('')}</div>`;}
@@ -2083,9 +2097,10 @@ async function veriKontrolu(){const P=new Map(S.personel.map(p=>[p.id,p]));const
    Paket primi: ödemeler listesindeki tutar, ayrı kalem; bankaya yatan primden düşülmez.
    Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. Lojman şube başına elle girilir. Ciro KDV dahil girilir.
    Hesap her şubenin puantajından (onaylı ayda kilitli rakamlar, kesin ayda saklanan rakamlar, açık ayda tahmini) yapılır ve iscilik/{ay} belgesine saklanır. */
-const ISC_VARS={asgari:33030,sgk:21.75,issizlik:2};
-const iscAyar=D=>({...ISC_VARS,...((D&&D.ayar)||{})});
-const iscGunluk=a=>sayi(a.asgari)*(1+sayi(a.sgk)/100+sayi(a.issizlik)/100)/30;
+const ISC_VARS={aylik:40874.63};// 30 günlük SGK'lı çalışanın aylık işveren maliyeti (bankaya yatan net maaş dahil)
+// Eski kayıtlar asgari/SGK/işsizlik ile saklanmış olabilir; onlar eski formülle okunur.
+const iscAyar=D=>{const a={...((D&&D.ayar)||{})};if(a.aylik==null&&a.asgari==null)a.aylik=ISC_VARS.aylik;return a;};
+const iscGunluk=a=>(a.aylik!=null&&sayi(a.aylik)>0?sayi(a.aylik):sayi(a.asgari)*(1+sayi(a.sgk)/100+sayi(a.issizlik)/100))/30;
 const r2=x=>Math.round((x||0)*100)/100;
 function iscAyi(){if(S.iscAy)return S.iscAy;const bu=ayKey(today());return today().getDate()<=15?ayKaydir(bu,-1):bu;}
 function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=esnaf?true:sol.maasBurada!==false;// esnaf kuryenin maliyeti çalıştığı (verisinin girildiği) şubede kalır, maaş şubesine taşınmaz
@@ -2125,11 +2140,21 @@ async function iscilikHesapla(ak){if(!isIsveren()||S.iscCalisiyor)return;S.iscCa
   finally{subs.detay.forEach(u=>u());subs.detay=[];S.pt.sube=null;S.pt.doc=null;S.ay=eskiAy;S.ayElle=eskiAyElle;if(eskiSube&&S.subeId!==eskiSube)selectSube(eskiSube);
     S.iscCalisiyor=false;S.iscDurum='';render();}}
 function iscDinle(ak){
+  // Bölge müdürü: işverenin yazdığı, sadece kendi şubelerini içeren özet belgeyi (iscilikBolge/{ay}__{uid}) okur.
+  if(isBolge()){const buid=S.user.uid;if(S.iscKey===ak)return;if(S.iscUnsub)S.iscUnsub();S.iscKey=ak;S.iscDoc=null;S.iscOnce=null;
+    S.iscUnsub=onSnapshot(doc(db,'iscilikBolge',ak+'__'+buid),s=>{const d=s.exists()?s.data():{};S.iscDoc=d;S.iscSabit={lojman:d.lojSabit||{}};S.iscHata=false;if(S.tab==='yonetim'&&S.ynt==='iscilik')render();},e=>{console.error(e);S.iscDoc={};S.iscHata=true;render();});
+    getDoc(doc(db,'iscilikBolge',ayKaydir(ak,-1)+'__'+buid)).then(s=>{if(S.iscKey!==ak)return;S.iscOnce=s.exists()?s.data():{};render();}).catch(()=>{S.iscOnce={};});return;}
   // Her ay aynı lojman tutarları (şube → {ay: tutar}); ayrı belgede tutulur, aya bağlı değildir.
-  if(!S.iscSabitUnsub)S.iscSabitUnsub=onSnapshot(doc(db,'iscilik','sabit'),s=>{S.iscSabit=s.exists()?s.data():{};if(S.tab==='yonetim'&&S.ynt==='iscilik')render();},e=>{console.error(e);S.iscSabit={};});
+  if(!S.iscSabitUnsub)S.iscSabitUnsub=onSnapshot(doc(db,'iscilik','sabit'),s=>{S.iscSabit=s.exists()?s.data():{};iscBolgeSenkron();if(S.tab==='yonetim'&&S.ynt==='iscilik')render();},e=>{console.error(e);S.iscSabit={};});
   if(S.iscKey===ak)return;if(S.iscUnsub)S.iscUnsub();S.iscKey=ak;S.iscDoc=null;S.iscOnce=null;
-  S.iscUnsub=onSnapshot(doc(db,'iscilik',ak),s=>{S.iscDoc=s.exists()?s.data():{};S.iscHata=false;if(S.tab==='yonetim'&&S.ynt==='iscilik')render();},e=>{console.error(e);S.iscDoc={};S.iscHata=true;render();});
-  getDoc(doc(db,'iscilik',ayKaydir(ak,-1))).then(s=>{if(S.iscKey!==ak)return;S.iscOnce=s.exists()?s.data():{};render();}).catch(()=>{S.iscOnce={};});}
+  S.iscUnsub=onSnapshot(doc(db,'iscilik',ak),s=>{S.iscDoc=s.exists()?s.data():{};S.iscHata=false;iscBolgeSenkron();if(S.tab==='yonetim'&&S.ynt==='iscilik')render();},e=>{console.error(e);S.iscDoc={};S.iscHata=true;render();});
+  getDoc(doc(db,'iscilik',ayKaydir(ak,-1))).then(s=>{if(S.iscKey!==ak)return;S.iscOnce=s.exists()?s.data():{};iscBolgeSenkron();render();}).catch(()=>{S.iscOnce={};});}
+// İşveren: her bölge müdürü için, sadece kendi şubelerinin işçilik özetini ayrı belgeye yazar (değişmediyse yazmaz).
+let ibT;function iscBolgeSenkron(){clearTimeout(ibT);ibT=setTimeout(()=>{if(!isIsveren()||!S.iscKey||S.iscDoc==null||S.iscSabit==null)return;const ak=S.iscKey;
+  const bm=(S.users||[]).filter(u=>u.rol==='bolge'&&u.aktif!==false);S.iscPub=S.iscPub||{};
+  [[ak,S.iscDoc],[ayKaydir(ak,-1),S.iscOnce]].forEach(([ay,D])=>{if(D==null)return;bm.forEach(u=>{const L=(u.subeler||[]).filter(x=>S.subeIds.includes(x));const pick=o=>{const r={};L.forEach(x=>{if(o&&o[x]!=null)r[x]=o[x];});return r;};
+    const veri={ay,bm:u.uid,ayar:D.ayar||null,hesapTarihi:D.hesapTarihi||null,hesaplayan:D.hesaplayan||'',subeler:pick(D.subeler),hesap:pick(D.hesap),lojSabit:pick((S.iscSabit||{}).lojman)};
+    const id=ay+'__'+u.uid,js=JSON.stringify(veri);if(S.iscPub[id]===js)return;S.iscPub[id]=js;setDoc(doc(db,'iscilikBolge',id),veri).catch(e=>{console.error(e);delete S.iscPub[id];});});});},1500);}
 const iscOran=(t,c)=>c>0?t/c*100:null;
 const iscYuzde=x=>x==null?'—':'%'+(Math.round(x*10)/10).toLocaleString('tr-TR');
 // Lojman: o ay için elle yazılmış tutar varsa o; yoksa "her ay aynı" olarak kaydedilen, o aya kadar geçerli son tutar.
@@ -2144,18 +2169,16 @@ function sgkSorunlari(ak){const o=[];S.personel.forEach(p=>{if(!aktifAyda(p,ak)|
   if(p.giris&&p.cikis&&p.cikis<p.giris)n.push('SGK çıkış tarihi girişten önce');
   if(n.length)o.push({ad:p.ad,sorun:n.join(' · '),sube:subeAdi(p.anaSube)});});return o;}
 function iscSgkSheet(ak){const L=sgkSorunlari(ak);openSheet(`<h2>SGK bilgisi kontrolü</h2><div class="sub">${ayAdi(ak)} · ${L.length} kişi</div>${L.length?`<div class="tk-wrap"><table class="tk"><thead><tr><th class="l">Kişi</th><th class="l">Şube</th><th class="l">Sorun</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${esc(adBuyuk(x.ad))}</td><td class="l">${esc(x.sube)}</td><td class="l">${esc(x.sorun)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="note">Sorun bulunmadı.</p>'}<div class="row2"><button class="btn grow" id="sgkK">Kapat</button></div>`,()=>{byId('sgkK').onclick=closeSheet;});}
-function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activeElement;if(ae&&ae.closest&&ae.closest('#iscAyarK')&&ae.tagName==='INPUT')return;
+function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activeElement;
   const D=S.iscDoc;const ayar=iscAyar(D&&D.ayar?D:(S.iscOnce&&S.iscOnce.ayar?S.iscOnce:{}));const gir=(D&&D.subeler)||{};const hes=(D&&D.hesap)||{};const once=S.iscOnce||{};
   h+=`<div class="ptnav" style="justify-content:center"><div class="ptay"><button class="nav-arrow" id="iPrev" aria-label="Önceki ay">‹</button><div class="ttl">${ayAdi(ak)}</div><button class="nav-arrow" id="iNext" aria-label="Sonraki ay">›</button></div></div>`;
   if(S.iscHata)h+=`<div class="banner bad">İşçilik verisi okunamıyor. Firebase kurallarını güncelleyin (firestore.rules).</div>`;
   if(D===null){return view(h+`<div class="empty-state"><b>Yükleniyor</b></div>`,()=>iscBagla(ak));}
-  h+=`<div class="card" style="padding:12px;margin-bottom:10px" id="iscAyarK"><span class="lbl" style="margin-top:0">Sigorta maliyeti (${ayAdi(ak)})</span>
-    <div class="fgrid"><label class="field"><span>Asgari ücret (brüt)</span><input id="iaA" inputmode="decimal" value="${esc(tl(ayar.asgari))}"></label><label class="field"><span>İşveren SGK payı %</span><input id="iaS" inputmode="decimal" value="${esc(String(ayar.sgk).replace('.',','))}"></label><label class="field"><span>İşsizlik %</span><input id="iaI" inputmode="decimal" value="${esc(String(ayar.issizlik).replace('.',','))}"></label></div>
-    <p class="note" style="margin:4px 0 0">30 günlük SGK'lı çalışanın resmi maliyeti: <b>${tl(iscGunluk(ayar)*30)} ₺</b> (bankaya yatan net maaş dahil); 1 günlük SGK'lı ${tl(iscGunluk(ayar))} ₺. ${D&&D.ayar?'':'Bu ay için henüz kaydedilmedi; önceki ayın ya da varsayılan değerler gösteriliyor.'}</p>
-    <div class="row2" style="margin-top:8px"><button class="btn grow" id="iaK">Ayarı kaydet</button></div></div>`;
-  {const sn=sgkSorunlari(ak).length;if(sn)h+=`<div class="banner bad">${sn} kişinin SGK bilgisi eksik ya da çelişkili. <button class="mini" id="iSgk">Listeyi gör</button></div>`;}
-  h+=`<div class="actions"><button class="btn primary grow" id="iHes" ${S.iscCalisiyor?'disabled':''}>${S.iscCalisiyor?esc(S.iscDurum||'Hesaplanıyor…'):(D&&D.hesapTarihi?'Yeniden hesapla':'Hesapla')}</button></div>`;
-  if(D&&D.hesapTarihi)h+=`<p class="note" style="margin-top:0">Son hesap: ${tarihSaat(D.hesapTarihi)}${D.hesaplayan?' · '+esc(D.hesaplayan):''}. Puantajda değişiklik olduysa yeniden hesaplayın.</p>`;
+  const iv=isIsveren();
+  if(iv)h+=`<p class="note" style="margin:0 0 6px">Günlük SGK maliyeti ${tl(iscGunluk(ayar))} ₺ (${tl(iscGunluk(ayar)*30)} ÷ 30) <button class="mini" id="iAyar">⚙ Ayarlar</button></p>`;
+  if(iv){const sn=sgkSorunlari(ak).length;if(sn)h+=`<div class="banner bad">${sn} kişinin SGK bilgisi eksik ya da çelişkili. <button class="mini" id="iSgk">Listeyi gör</button></div>`;}
+  if(iv)h+=`<div class="actions"><button class="btn primary grow" id="iHes" ${S.iscCalisiyor?'disabled':''}>${S.iscCalisiyor?esc(S.iscDurum||'Hesaplanıyor…'):(D&&D.hesapTarihi?'Yeniden hesapla':'Hesapla')}</button></div>`;
+  if(D&&D.hesapTarihi)h+=`<p class="note" style="margin-top:0">Son hesap: ${tarihSaat(D.hesapTarihi)}${D.hesaplayan?' · '+esc(D.hesaplayan):''}. ${iv?'Puantajda değişiklik olduysa yeniden hesaplayın.':'Hesabı işveren yapar.'}</p>`;
   if(Object.values(hes).some(x=>x&&x.fv!==2))h+=`<div class="banner bad">Bu ay eski yöntemle hesaplanmış (paket primi Elden'in içinde, bankaya yatan primden düşülmüş). <b>Yeniden hesapla</b>'ya basın.</div>`;
   const IR=S.subeIds.map(sid=>{const g=gir[sid]||{};const x=hes[sid];const c=sayi(g.ciro),lj=iscLoj(D,ak,sid);const top=x?r2(x.toplam+lj):null;
     const o=top!=null?iscOran(top,c):null;const og=((once.hesap||{})[sid]);const oc=sayi(((once.subeler||{})[sid]||{}).ciro);const oo=og?iscOran(og.toplam+iscLoj(once,ayKaydir(ak,-1),sid),oc):null;return{sid,x,c,lj,top,o,oo};});
@@ -2179,9 +2202,11 @@ function iscBagla(ak){document.querySelectorAll('#ySeg button').forEach(b=>b.onc
   const sg=byId('iSgk');if(sg)sg.onclick=()=>iscSgkSheet(ak);
   const hb=byId('iHes');if(hb)hb.onclick=()=>iscilikHesapla(ak);
   if(S.iscKfSatir)kfBagla('isc',S.iscKfSatir.cols,S.iscKfSatir.rows);const kh=byId('kfHepsiI');if(kh)kh.onclick=()=>{const d=kfDurum('isc');d.f={};d.sort=null;render();};
-  const ak2=byId('iaK');if(ak2)ak2.onclick=async()=>{const a={asgari:sayi(byId('iaA').value),sgk:sayi(byId('iaS').value),issizlik:sayi(byId('iaI').value)};
-    if(!(a.asgari>0)||!(a.sgk>=0&&a.sgk<100)||!(a.issizlik>=0&&a.issizlik<100)){toast('Ayar değerlerini kontrol edin.');return;}
-    try{await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar:a},{merge:true});toast('Ayar kaydedildi. Rakamlara yansıması için yeniden hesaplayın.');}catch(e){yazmaHatasi(e);}};
+  const ay=byId('iAyar');if(ay)ay.onclick=()=>{const D=S.iscDoc||{};const a=iscAyar(D&&D.ayar?D:(S.iscOnce&&S.iscOnce.ayar?S.iscOnce:{}));
+    openSheet(`<h2>İşçilik ayarı</h2><div class="sub">${ayAdi(ak)}</div><label class="field"><span>30 günlük SGK'lı çalışanın aylık maliyeti (₺)</span><input id="iaM" inputmode="decimal" value="${esc(tl(iscGunluk(a)*30))}"></label>
+     <p class="note">Bankaya yatan net maaş dahil toplam işveren maliyeti. Günlük maliyet bunun 30'a bölünmesiyle bulunur.</p><div class="row2"><button class="btn grow" id="iaN">Vazgeç</button><button class="btn primary grow" id="iaK">Kaydet</button></div>`,()=>{
+      byId('iaN').onclick=closeSheet;byId('iaK').onclick=async()=>{const m=sayi(byId('iaM').value);if(!(m>0)){toast('Tutarı kontrol edin.');return;}
+        try{await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar:{aylik:m}},{merge:true});closeSheet();toast('Kaydedildi. Rakamlara yansıması için yeniden hesaplayın.');}catch(e){yazmaHatasi(e);}};});};
   document.querySelectorAll('[data-isd]').forEach(b=>b.onclick=()=>iscSube(ak,b.dataset.isd));}
 // Şube penceresi: ciro ve lojman girişi + kişi kişi döküm.
 function iscSube(ak,sid){const D=S.iscDoc||{};const x=(D.hesap||{})[sid];const g=(D.subeler||{})[sid]||{};const c=sayi(g.ciro),lj=iscLoj(D,ak,sid),sab=iscLojSabitMi(D,ak,sid);const top=x?r2(x.toplam+lj):null;
@@ -2194,10 +2219,10 @@ function iscSube(ak,sid){const D=S.iscDoc||{};const x=(D.hesap||{})[sid];const g
    <p class="note">Oran <b>${iscYuzde(iscOran(top,c))}</b>. Resmi: SGK günü × günlük resmi maliyet (bankaya yatan dahil); SGK'sız ve esnaf kuryede bankaya yatan. Elden: maaş farkı, fazla mesai, ciro primi, ek ödeme − kesinti. Paket primi ödemeler listesinden gelir.</p>`;}
   else dok=`<p class="note">Bu ay henüz hesaplanmadı. İşçilik ekranında Hesapla'ya basın.</p>`;
   openSheet(`<h2>${esc(subeAdi(sid))} · İşçilik</h2><div class="sub">${ayAdi(ak)}${x?' · '+(x.durum==='kesin'?'kesin':x.durum==='onayli'?'onaylı':'tahmini')+' · '+x.kisiSay+' kişi':''}</div>
-   <div class="fgrid"><label class="field"><span>Ciro (KDV dahil, ₺)</span><input id="icC" inputmode="decimal" value="${c?esc(tl(c)):''}" placeholder="0"></label><label class="field"><span>Lojman (₺)</span><input id="icL" inputmode="decimal" value="${lj?esc(tl(lj)):''}" placeholder="Yok"></label></div>
+   ${isIsveren()?`   <div class="fgrid"><label class="field"><span>Ciro (KDV dahil, ₺)</span><input id="icC" inputmode="decimal" value="${c?esc(tl(c)):''}" placeholder="0"></label><label class="field"><span>Lojman (₺)</span><input id="icL" inputmode="decimal" value="${lj?esc(tl(lj)):''}" placeholder="Yok"></label></div>
    <label class="check" style="margin:2px 0 8px"><input type="checkbox" id="icS" ${sab?'checked':''}> Lojman her ay aynı (bu aydan itibaren)</label>
    <p class="note" style="margin-top:0">Her ay aynı işaretliyse tutar sonraki aylara da geçer; değişirse yeni tutarı o ay işaretli kaydedin. Lojmanı kaldırmak için işaretli bırakıp boş kaydedin.</p>
-   <div class="row2"><button class="btn grow" id="icK">Kaydet</button>${sn?`<button class="btn primary grow" id="icN">Kaydet, sonraki şube ›</button>`:''}</div>
+   <div class="row2"><button class="btn grow" id="icK">Kaydet</button>${sn?`<button class="btn primary grow" id="icN">Kaydet, sonraki şube ›</button>`:''}</div>`:`<p class="note">Ciro ${c?tl0(c):'girilmedi'} · Lojman ${lj?tl0(lj):'yok'} (işveren girer)</p>`}
    ${dok}<div class="row2"><button class="btn grow" id="iDK">Kapat</button></div>`,()=>{
     byId('iDK').onclick=closeSheet;
     const kaydet=async()=>{const cv=byId('icC').value.trim()?sayi(byId('icC').value):0;const lv=byId('icL').value.trim()?sayi(byId('icL').value):0;const sb=byId('icS').checked;
@@ -2207,7 +2232,7 @@ function iscSube(ak,sid){const D=S.iscDoc||{};const x=(D.hesap||{})[sid];const g
         else yaz.lojman=lv;
         await setDoc(doc(db,'iscilik',ak),{ay:ak,subeler:{[sid]:yaz}},{merge:true});return true;}
       catch(e){yazmaHatasi(e);return false;}};
-    byId('icK').onclick=async()=>{if(await kaydet()){toast('Kaydedildi.');closeSheet();}};
+    const kb=byId('icK');if(kb)kb.onclick=async()=>{if(await kaydet()){toast('Kaydedildi.');closeSheet();}};
     const nb=byId('icN');if(nb)nb.onclick=async()=>{if(await kaydet()){toast('Kaydedildi.');iscSube(ak,sn);}};});}
 function renderYedek(h){const son=tryLS('pm.sonYedek');const gun=son?Math.floor((Date.now()-Date.parse(son))/86400000):null;
   h+=`<div class="card" style="padding:14px">
@@ -2273,14 +2298,14 @@ function girisKarti(u,ben){const sf=sifreOf(u.uid);const ist=(S.sifreIstek||{})[
    <label class="field"><span>Yeni şifre (en az 6)</span><input id="uYP" type="text" autocomplete="off" autocapitalize="none" autocorrect="off"></label>
    <div class="row2"><button class="btn grow" id="uSfB">${sf?'Şifreyi değiştir':'Şifreyi ayarla'}</button></div>
    ${sf?'':'<p class="note">Eski şifreyi bilmeniz gerekmez. Yeni şifreyi yazıp "Şifreyi ayarla" deyin; birkaç dakika içinde geçerli olur ve burada görünür. Bundan sonra şifreyi her zaman burada görür ve anında değiştirirsiniz.</p>'}
-   <label class="field"><span>Yeni kullanıcı adı</span><input id="uYK" autocapitalize="none" autocorrect="off" placeholder="${esc(u.kullaniciAdi)}"></label>
+   ${isIsveren()?`<label class="field"><span>Yeni kullanıcı adı</span><input id="uYK" autocapitalize="none" autocorrect="off" placeholder="${esc(u.kullaniciAdi)}"></label>
    <div class="row2"><button class="btn grow" id="uKB">Kullanıcı adını değiştir</button></div>
-   <p class="note" style="margin-bottom:0">Değişiklikten sonra kullanıcı yeni bilgilerle giriş yapar; açık oturumu kapanır.</p>`}<div id="uGErr"></div></div>`;}
+   <p class="note" style="margin-bottom:0">Değişiklikten sonra kullanıcı yeni bilgilerle giriş yapar; açık oturumu kapanır.</p>`:''}`}<div id="uGErr"></div></div>`;}
 function kullaniciPanel(uid){const u=uid?S.users.find(x=>x.uid===uid):{kullaniciAdi:'',adSoyad:'',rol:'sube',subeler:[],aktif:true};if(!u)return;const ben=uid===S.user.uid;
   openSheet(`<h2>${uid?'Kullanıcıyı düzenle':'Yeni kullanıcı'}</h2><div class="sub">${uid?(u.aktif===false?'Pasif · giriş yapamaz':'Aktif'):'Kullanıcı bu ad ve şifreyle giriş yapar.'}</div>
    <label class="field"><span>Ad soyad</span><input id="uAd" value="${esc(u.adSoyad||'')}"></label>
    ${uid?'':`<div class="fgrid"><label class="field"><span>Kullanıcı adı</span><input id="uK" autocapitalize="none" autocorrect="off" placeholder="ornek: ayse.bucak"></label><label class="field"><span>Şifre (en az 6)</span><input id="uP" type="text" autocomplete="new-password"></label></div>`}
-   <span class="lbl">Rol</span><div class="seg" id="uRol">${['sube','bolge','isveren'].map(r=>`<button data-v="${r}" class="${u.rol===r?'on':''}" ${ben?'disabled':''}>${ROL[r]}</button>`).join('')}</div>
+   <span class="lbl">Rol</span><div class="seg" id="uRol">${(isIsveren()?['sube','bolge','isveren']:['sube']).map(r=>`<button data-v="${r}" class="${u.rol===r?'on':''}" ${ben?'disabled':''}>${ROL[r]}</button>`).join('')}</div>
    <div id="uSubW"><span class="lbl">Şubeler</span><div class="checks">${S.subeIds.map(id=>`<label class="check" style="margin:0"><input type="checkbox" value="${esc(id)}" ${(u.subeler||[]).includes(id)?'checked':''}> ${esc(S.subeler[id].ad)}</label>`).join('')||'<span class="note">Önce şube ekleyin.</span>'}</div></div>
    <div id="uErr"></div><div class="row2"><button class="btn grow" id="uNo">Vazgeç</button><button class="btn primary grow" id="uOk">${uid?'Kaydet':'Kullanıcıyı oluştur'}</button></div>
    ${uid?girisKarti(u,ben):''}
@@ -2307,11 +2332,11 @@ function kullaniciPanel(uid){const u=uid?S.users.find(x=>x.uid===uid):{kullanici
      if(!adSoyad){E.innerHTML='<div class="confirm">Ad soyad gerekli.</div>';return;}if(r!=='isveren'&&!subeler.length){E.innerHTML='<div class="confirm">En az bir şube seçin.</div>';return;}
      if(r==='sube'&&subeler.length>1&&!E.dataset.ok){E.dataset.ok='1';E.innerHTML='<div class="confirm">Şube müdürüne birden fazla şube seçtiniz. Doğruysa tekrar basın.</div>';return;}
      const btn=byId('uOk');btn.disabled=true;
-     try{if(uid){const body={adSoyad,rol:r,subeler:r==='isveren'?[]:subeler};await updateDoc(doc(db,'kullanicilar',uid),body);closeSheet();toast('Kullanıcı güncellendi.');}
+     try{if(uid){const body=isIsveren()?{adSoyad,rol:r,subeler:r==='isveren'?[]:subeler}:{adSoyad,subeler};await updateDoc(doc(db,'kullanicilar',uid),body);closeSheet();toast('Kullanıcı güncellendi.');}
        else{const k=kadiNorm(byId('uK').value),p=byId('uP').value;if(k.length<3){E.innerHTML='<div class="confirm">Kullanıcı adı en az 3 karakter olmalı (harf, rakam, nokta).</div>';btn.disabled=false;return;}
          if(p.length<6){E.innerHTML='<div class="confirm">Şifre en az 6 karakter olmalı.</div>';btn.disabled=false;return;}
          const a2=ikincilAuth();await ikincilCikis();const cred=await createUserWithEmailAndPassword(a2,eposta(k),p);const nuid=cred.user.uid;await signOut(a2);
-         await setDoc(doc(db,'kullanicilar',nuid),{kullaniciAdi:k,adSoyad,rol:r,subeler:r==='isveren'?[]:subeler,aktif:true,olusturma:new Date().toISOString(),olusturan:S.user.uid});
+         await setDoc(doc(db,'kullanicilar',nuid),{kullaniciAdi:k,adSoyad,rol:isIsveren()?r:'sube',subeler:r==='isveren'&&isIsveren()?[]:subeler,aktif:true,olusturma:new Date().toISOString(),olusturan:S.user.uid,...(isIsveren()?{}:{bolgeler:[S.user.uid]})});
          let sfOk=true;try{await sifreKaydet(nuid,k,p);}catch(e){sfOk=false;console.error(e);}
          closeSheet();toast(`${adSoyad} oluşturuldu. Kullanıcı adı: ${k}${sfOk?'':' (şifre listeye kaydedilemedi: Firebase kurallarını güncelleyin)'}`);}}
      catch(e){btn.disabled=false;const c=e.code||'';E.innerHTML=`<div class="confirm bad">${c.includes('email-already-in-use')?'Bu kullanıcı adı alınmış.':c.includes('weak-password')?'Şifre çok zayıf.':'Kaydedilemedi: '+esc(e.message)}</div>`;}};});}
