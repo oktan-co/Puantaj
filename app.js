@@ -60,7 +60,8 @@ function veriUygula(sol,oz){Object.entries(oz).forEach(([pid,e])=>{const r=sol[p
   if(r.maasBurada!==false||r.muhBurada){r.rapor=(r.rapor||0)+n('R');r.ucretsiz=(r.ucretsiz||0)+n('UI');r.yillik=(r.yillik||0)+n('YI');r.bayram=(r.bayram||0)+n('B');
     r.partGun=Math.round(((r.partGun||0)+n('PG'))*100)/100;const T=r.gunTaban;const vE=n('R')+n('UI');
     if(r.sekil==='Part'||r.partGun>0)r.gun=r.partGun;else if(vE)r.gun=T?sgkGunSayisi(T.ist,T.takvim,T.e+vE):Math.max(0,(r.gun||0)-vE);
-    if(r.hakGun!=null&&vE)r.hakGun=T?sgkGunSayisi(T.istF,T.takvim,T.eH+vE):Math.max(0,r.hakGun-vE);}
+    if(r.hakGun!=null&&vE)r.hakGun=T?sgkGunSayisi(T.istF,T.takvim,T.eH+vE):Math.max(0,r.hakGun-vE);
+    if(r.iscGun!=null&&vE&&T&&T.iS!=null)r.iscGun=sgkGunSayisi(T.iS,T.takvim,T.eS+vE);}
   r.fmSaat=Math.round(((r.fmSaat||0)+n('FM'))*100)/100;if(['R','UI','YI','B','PG','FM'].some(k=>e[k]))r.elle=true;});return sol;}
 function gorevBul(ad){return GOREVLER.find(g=>g.ad===ad)||null;}
 function gorevTahmin(p){const g=String(p.gorev||'').toLocaleUpperCase('tr-TR');if(gorevBul(p.gorev))return p.gorev;
@@ -389,11 +390,13 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
     let tH={R:0,UI:0};
     if(kaynak.length){const bl=gunBirlestir(kaynak,sgkVar(p)?(d=>sgkli(p,parse(d))):null);t.R=bl.say.R;t.UI=bl.say.UI;t.YI=bl.say.YI;t.B=bl.say.B;t.cakisma=gunBirlestir(kaynak).cakisma;
       tH=fiiliGrup.length?gunBirlestir(kaynak,d=>fiiliGrup.some(x=>employed(x,parse(d)))).say:t;}
-    let ist=0,istF=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(p.sgkSube!==SGK_YOK&&!sgkYansiKayit(p)&&sgkli(p,d))ist++;/* SGK şubesi 'Boş' ise SGK günü yok */if(fiiliGrup.length?fiiliGrup.some(x=>employed(x,d)):employed(p,d))istF++;}
-    const gun=sgkGunSayisi(ist,last.getDate(),t.R+t.UI);const hakGun=sgkGunSayisi(istF,last.getDate(),tH.R+tH.UI);const part=p.sekil==='Part';
+    // SGK şubesi ay içinde değişen kişi: işçilikte iki kaydın SGK günleri maaş şubesinde birlikte sayılır, tek kayıt gibi en çok 30 (31 günlük maaş yok).
+    const tgS=tg.filter(x=>!sgkYansiKayit(x));let ist=0,istF=0,istS=0;for(let d=new Date(y,m-1,1);d<=last;d=addDays(d,1)){if(p.sgkSube!==SGK_YOK&&!sgkYansiKayit(p)&&sgkli(p,d))ist++;/* SGK şubesi 'Boş' ise SGK günü yok */if(fiiliGrup.length?fiiliGrup.some(x=>employed(x,d)):employed(p,d))istF++;if(tgS.some(x=>sgkli(x,d)))istS++;}
+    const eS=tg.length?(()=>{const b=kaynak.length?gunBirlestir(kaynak,d=>tgS.some(x=>sgkli(x,parse(d)))).say:t;return(b.R||0)+(b.UI||0);})():0;
+    const gun=sgkGunSayisi(ist,last.getDate(),t.R+t.UI);const hakGun=sgkGunSayisi(istF,last.getDate(),tH.R+tH.UI);const part=p.sekil==='Part';const iscGun=tg.length&&maasBurada&&!part?sgkGunSayisi(istS,last.getDate(),eS):null;
     out[pid]={ad:p.ad,maasBurada,sgkSube:p.sgkSube===SGK_YOK?'':p.sgkSube?subeAdi(p.sgkSube):subeAdi(p.anaSube),sekil:p.sekil||'Tam',gorev:p.gorev||'',grup:p.grup||'K',giris:p.giris||'',cikis:p.cikis||'',
       rapor:tumGun?t.R:0,ucretsiz:tumGun?t.UI:0,yillik:tumGun?t.YI:0,bayram:tumGun?t.B:0,muhBurada,odemeSube:subeAdi(odemeSid),odemeSid,partGun:0,// part gün elle, veri girişinden
-      gunTaban:{ist,istF,takvim:last.getDate(),e:t.R+t.UI,eH:tH.R+tH.UI},// veri girişindeki rapor / ücretsiz izin gün sayısını aynı kuralla düşürmek için
+      gunTaban:{ist,istF,takvim:last.getDate(),e:t.R+t.UI,eH:tH.R+tH.UI,...(iscGun!=null?{iS:istS,eS}:{})},...(iscGun!=null?{iscGun}:{}),// veri girişindeki rapor / ücretsiz izin gün sayısını aynı kuralla düşürmek için
       muhSekil:p.sekil||'Tam',
       fmSaat:o.fm,calisilanSaat:o.saat,gun:tumGun&&!part?gun:0,hakGun:tumGun?hakGun:0,// part: bordro günü = part gün (veri girişinden)
       baslama:p.baslama&&p.baslama<(p.giris||'9')?p.baslama:'',sgkDisi:sgkDisi?1:0,bosGun:o.bos,baska:t.baska,cakisma:t.cakisma,sgkYok:p.sgkSube===SGK_YOK};});
@@ -2163,7 +2166,7 @@ const iscGunluk=a=>(a.aylik!=null&&sayi(a.aylik)>0?sayi(a.aylik):sayi(a.asgari)*
 const r2=x=>Math.round((x||0)*100)/100;
 function iscAyi(){if(S.iscAy)return S.iscAy;const bu=ayKey(today());return today().getDate()<=15?ayKaydir(bu,-1):bu;}
 function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=esnaf?true:sol.maasBurada!==false;// esnaf kuryenin maliyeti çalıştığı (verisinin girildiği) şubede kalır, maaş şubesine taşınmaz
-  const gun=burada&&!esnaf&&!sol.sgkYok?sayi(sol.gun):0;const resmi=r2(gun*iscGunluk(ayar));
+  const gun=burada&&!esnaf&&!sol.sgkYok?sayi(sol.iscGun!=null?sol.iscGun:sol.gun):0;/* SGK şubesi değişen kişide iki kaydın günleri (en çok 30) */const resmi=r2(gun*iscGunluk(ayar));
   // Paket primi ayrı kalemdir (ödemeler listesindeki tutar olduğu gibi); bankaya yatan primden düşülmez, kuryenin sigortası da diğerleri gibi Resmi'ye girer.
   let elden=r2(sayi(h.maasFarki)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));
   let paket=r2(sayi(h.paketPrimi));
