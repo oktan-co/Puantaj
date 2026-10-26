@@ -88,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=118;
+const APP_SURUM=119;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2116,7 +2116,7 @@ async function iscilikHesapla(ak){if(!isIsveren()||S.iscCalisiyor)return;S.iscCa
     tasi.forEach(k=>{const h=sonuc[k.hedef];if(!h)return;h.kisi.push({...k,ad:k.ad+' · '+subeAdi(k.kaynak)+' FM',burada:true});});
     const t=new Date().toISOString();const hesap={};
     Object.entries(sonuc).forEach(([sid,x])=>{const top=k=>r2(x.kisi.reduce((a,y)=>a+(y[k]||0),0));const gr={};x.kisi.forEach(y=>{gr[y.grup]=r2((gr[y.grup]||0)+y.toplam);});
-      hesap[sid]={fv:2,durum:x.durum,ozetHata:x.ozetHata,resmi:top('resmi'),banka:top('banka'),elden:top('elden'),paket:top('paket'),toplam:top('toplam'),kisiSay:x.kisi.filter(y=>!/ (FM|paket)$/.test(y.ad)).length,gruplar:gr,kisi:x.kisi.map(y=>({ad:y.ad,grup:y.grup,gun:y.gun,resmi:y.resmi,banka:y.banka,elden:y.elden,paket:y.paket||0,toplam:y.toplam})),tarih:t};});
+      hesap[sid]={fv:2,durum:x.durum,ozetHata:x.ozetHata,resmi:top('resmi'),gunTop:top('gun'),banka:top('banka'),elden:top('elden'),paket:top('paket'),toplam:top('toplam'),kisiSay:x.kisi.filter(y=>!/ (FM|paket)$/.test(y.ad)).length,gruplar:gr,kisi:x.kisi.map(y=>({ad:y.ad,grup:y.grup,gun:y.gun,resmi:y.resmi,banka:y.banka,elden:y.elden,paket:y.paket||0,toplam:y.toplam})),tarih:t};});
     await setDoc(doc(db,'iscilik',ak),{ay:ak,ayar,hesap,hesapTarihi:t,hesaplayan:benAd()},{merge:true});
     toast(hata.length?`Hesaplandı; ${hata.length} şube yüklenemedi: ${hata.join(', ')}. Tekrar deneyin.`:'İşçilik hesaplandı.');}
   catch(e){console.error(e);yazmaHatasi(e);}
@@ -2150,7 +2150,7 @@ function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activ
     const o=top!=null?iscOran(top,c):null;const og=((once.hesap||{})[sid]);const oc=sayi(((once.subeler||{})[sid]||{}).ciro);const oo=og?iscOran(og.toplam+iscLoj(once,ayKaydir(ak,-1),sid),oc):null;
     const dz=x?{kesin:'<span class="chip ok">Kesin</span>',onayli:'<span class="chip ok">Onaylı</span>',tahmini:'<span class="chip warn">Tahmini</span>'}[x.durum]||'':'';
     return `<tr><td class="l"><button class="mini" data-isd="${esc(sid)}">${esc(subeAdi(sid))}</button> ${dz}<br><small class="mut">Ciro ${c?tl0(c):'girilmedi'}${lj?' · Lojman '+tl0(lj):''}</small></td>
-      <td>${x?tl0(x.resmi+x.banka):'—'}</td><td>${x?tl0(x.elden):'—'}</td><td>${x?tl0(sayi(x.paket)):'—'}</td><td><b>${top!=null?tl0(top):'—'}</b></td>
+      <td>${x?tl0(x.resmi+x.banka)+(x.gunTop?` <small>(${x.gunTop} gün)</small>`:''):'—'}</td><td>${x?tl0(x.elden):'—'}</td><td>${x?tl0(sayi(x.paket)):'—'}</td><td><b>${top!=null?tl0(top):'—'}</b></td>
       <td><b>${iscYuzde(o)}</b>${oo!=null?`<br><small class="mut">geçen ay ${iscYuzde(oo)}</small>`:''}</td></tr>`;}).join('');
   h+=`<div class="tk-wrap" style="overflow-x:auto"><table class="tk" id="iscT"><thead><tr><th class="l">Şube</th><th>Resmi (SGK + maaş)</th><th>Elden</th><th>Paket primi</th><th>Toplam işçilik</th><th>Oran</th></tr></thead><tbody>${satir}</tbody>
     <tfoot><tr><td class="l"><b>Toplam</b><br><small class="mut">Ciro ${tl0(tc)}${tl_?' · Lojman '+tl0(tl_):''}</small></td><td>${tl0(tr_)}</td><td>${tl0(te)}</td><td>${tl0(tp)}</td><td><b>${tl0(tt)}</b></td><td><b>${iscYuzde(iscOran(tt,tc))}</b></td></tr></tfoot></table></div>
@@ -2165,11 +2165,11 @@ function iscBagla(ak){document.querySelectorAll('#ySeg button').forEach(b=>b.onc
 // Şube penceresi: ciro ve lojman girişi + kişi kişi döküm.
 function iscSube(ak,sid){const D=S.iscDoc||{};const x=(D.hesap||{})[sid];const g=(D.subeler||{})[sid]||{};const c=sayi(g.ciro),lj=iscLoj(D,ak,sid),sab=iscLojSabitMi(D,ak,sid);const top=x?r2(x.toplam+lj):null;
   const L=S.subeIds,sn=L[L.indexOf(sid)+1]||null;let dok='';
-  if(x){const grup=k=>x.kisi.filter(y=>y.grup===k);const satir=y=>`<tr><td class="l">${esc(adBuyuk(y.ad))}</td><td>${y.gun||'—'}</td><td>${tl0(y.resmi+y.banka)}</td><td>${tl0(y.elden)}</td><td>${tl0(sayi(y.paket))}</td><td><b>${tl0(y.toplam)}</b></td></tr>`;
+  if(x){const grup=k=>x.kisi.filter(y=>y.grup===k);const satir=y=>`<tr><td class="l">${esc(adBuyuk(y.ad))}</td><td>${y.gun||'—'}</td><td>${tl0(y.resmi+y.banka)}${y.gun?` <small>(${y.gun} gün)</small>`:''}</td><td>${tl0(y.elden)}</td><td>${tl0(sayi(y.paket))}</td><td><b>${tl0(y.toplam)}</b></td></tr>`;
     const bolum=GRUP_SIRA.filter(k=>grup(k).length).map(k=>`<tr><td class="l" colspan="5"><b>${GRUP[k]}</b> · ${grup(k).length} kişi</td><td><b>${tl0(x.gruplar[k]||0)}</b></td></tr>`+grup(k).map(satir).join('')).join('');
     dok=`${x.fv!==2?'<div class="banner bad">Bu ay eski yöntemle hesaplanmış. İşçilik ekranında Yeniden hesapla\'ya basın.</div>':''}${x.ozetHata?'<div class="banner bad">Diğer şubelerin özetleri okunamadı; rakamlar eksik olabilir. Yeniden hesaplayın.</div>':''}
    <div class="tk-wrap" style="overflow-x:auto"><table class="tk"><thead><tr><th class="l">Kişi</th><th>SGK gün</th><th>Resmi</th><th>Elden</th><th>Paket primi</th><th>Toplam</th></tr></thead><tbody>${bolum}</tbody>
-   <tfoot><tr><td class="l">Lojman</td><td></td><td></td><td></td><td></td><td>${tl0(lj)}</td></tr><tr><td class="l"><b>Toplam işçilik</b></td><td></td><td>${tl0(x.resmi+x.banka)}</td><td>${tl0(x.elden)}</td><td>${tl0(sayi(x.paket))}</td><td><b>${tl0(top)}</b></td></tr></tfoot></table></div>
+   <tfoot><tr><td class="l">Lojman</td><td></td><td></td><td></td><td></td><td>${tl0(lj)}</td></tr><tr><td class="l"><b>Toplam işçilik</b></td><td></td><td>${tl0(x.resmi+x.banka)}${x.gunTop?` <small>(${x.gunTop} gün)</small>`:''}</td><td>${tl0(x.elden)}</td><td>${tl0(sayi(x.paket))}</td><td><b>${tl0(top)}</b></td></tr></tfoot></table></div>
    <p class="note">Oran <b>${iscYuzde(iscOran(top,c))}</b>. Resmi: SGK günü × günlük resmi maliyet (bankaya yatan dahil); SGK'sız ve esnaf kuryede bankaya yatan. Elden: maaş farkı, fazla mesai, ciro primi, ek ödeme − kesinti. Paket primi ödemeler listesinden gelir.</p>`;}
   else dok=`<p class="note">Bu ay henüz hesaplanmadı. İşçilik ekranında Hesapla'ya basın.</p>`;
   openSheet(`<h2>${esc(subeAdi(sid))} · İşçilik</h2><div class="sub">${ayAdi(ak)}${x?' · '+(x.durum==='kesin'?'kesin':x.durum==='onayli'?'onaylı':'tahmini')+' · '+x.kisiSay+' kişi':''}</div>
