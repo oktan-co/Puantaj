@@ -122,11 +122,22 @@ service cloud.firestore {
 
     // Kişinin gün gün hangi şubede ne yazıldığı (aynı gün tek şube kuralı ve başka şubede çalıştığı günler için).
     // Sadece saat ve izin kodu tutulur; ücret bilgisi yoktur. Kişinin şubelerinden birine yetkisi olan okur ve yazar.
+    // Yetki, belgedeki (eskiyebilen) "subeler" listesine değil, kişinin personel kaydındaki GÜNCEL şubelerine de bağlıdır:
+    // kişiyi personel listesinde görebilen kullanıcı gün kayıtlarını da görür. Böylece şube sonradan eklense bile kayıtlar kaybolmaz.
+    function kisiyiGorur(d) {
+      return d.get('pid', '') != ''
+        && exists(/databases/$(database)/documents/personel/$(d.get('pid', '')))
+        && (subede(get(/databases/$(database)/documents/personel/$(d.get('pid', ''))).data.get('anaSube', ''))
+          || subede(get(/databases/$(database)/documents/personel/$(d.get('pid', ''))).data.get('sgkSube', ''))
+          || ben().subeler.hasAny(get(/databases/$(database)/documents/personel/$(d.get('pid', ''))).data.get('gorunurSubeler', [])));
+    }
     match /gunler/{d} {
-      allow read: if aktif() && (ben().rol == 'isveren' || ben().subeler.hasAny(resource.data.get('subeler', [])));
+      allow read: if aktif() && (ben().rol == 'isveren'
+        || ben().subeler.hasAny(resource.data.get('subeler', []))
+        || kisiyiGorur(resource.data));
       allow write: if aktif() && request.resource != null
-        && (ben().rol == 'isveren' || ben().subeler.hasAny(request.resource.data.subeler))
-        && (resource == null || ben().rol == 'isveren' || ben().subeler.hasAny(resource.data.get('subeler', [])));
+        && (ben().rol == 'isveren' || ben().subeler.hasAny(request.resource.data.subeler) || kisiyiGorur(request.resource.data))
+        && (resource == null || ben().rol == 'isveren' || ben().subeler.hasAny(resource.data.get('subeler', [])) || kisiyiGorur(resource.data));
     }
 
     // Şubelerin aylık saat/izin özeti (maaşın ödendiği şubenin puantajı diğer şubelerdeki izinleri buradan toplar).

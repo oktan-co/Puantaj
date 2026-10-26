@@ -80,7 +80,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=111;
+const APP_SURUM=112;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -267,7 +267,10 @@ function subedeAktif(p,sid){return p.anaSube===sid||p.sgkSube===sid||ekSubeleri(
 // Şubeden çıkarılmış ama geçmiş haftaları için görünen kişi: yeni haftaya önerilmez, kopyalanmaz.
 function subedenCikti(p,sid=S.subeId){return !!p&&!subedeAktif(p,sid)&&(p.gorunurSubeler||[]).includes(sid);}
 function gunDoc(pid,ak){const k=pid+'__'+ak;if(!(k in S.gunler)){S.gunler[k]=null;
-    subs.gun.push(onSnapshot(doc(db,'gunler',k),s=>{S.gunler[k]=s.exists()?s.data():{};gunRender();},()=>{S.gunler[k]={};}));}return S.gunler[k];}
+    // Okunamayan gün kaydı sessizce "boş gün" sayılmaz: hata işaretlenir, ekranda uyarı çıkar (gunHataVar).
+    subs.gun.push(onSnapshot(doc(db,'gunler',k),s=>{S.gunler[k]=s.exists()?s.data():{};if(S.gunHata)delete S.gunHata[k];gunRender();},e=>{console.error(e);S.gunler[k]={};(S.gunHata=S.gunHata||{})[k]=1;gunRender();}));}return S.gunler[k];}
+const gunHataVar=()=>!!S.gunHata&&Object.keys(S.gunHata).length>0;
+const GUN_HATA_YAZI='Bazı kişilerin başka şubedeki çalışma günleri okunamadı; o günler boş görünüyor ve fazla mesai / eksik gün yanlış çıkabilir. Sayfayı yenileyin; düzelmezse işverene haber verin, düzelmeden onaylamayın.';
 let gunT;function gunRender(){clearTimeout(gunT);gunT=setTimeout(render,60);}
 // Kişinin o gün diğer şubelerdeki kaydı {şube: değer} (bu şube hariç); yoksa null.
 function digerGunler(p,d,sid=S.subeId){if(!p||!cokSubeli(p))return null;const ds=typeof d==='string'?d:ymd(d);const D=gunDoc(p.id,ds.slice(0,7));
@@ -277,11 +280,13 @@ function gunCakisir(yeni,diger){if(!yeni||!diger)return null;const IZ=['R','UI',
   for(const[s,v]of Object.entries(diger)){if(isShift(yeni)&&(isShift(v)||IZ.includes(v)))return{s,v};if(IZ.includes(yeni)&&isShift(v))return{s,v};}return null;}
 function cakismaMesaj(p,ds,c){const d=parse(ds);return `${kisaAd(p.ad)} ${d.getDate()} ${AY[d.getMonth()]} günü ${subeAdi(c.s)} şubesinde ${isShift(c.v)?c.v.replace('-',' – '):KOD[c.v]?KOD[c.v].ad.toLocaleLowerCase('tr-TR'):c.v} yazılı. Bir kişi aynı gün tek şubede çalışır; o gün nerede başladıysa oraya yazın.`;}
 // Gün kaydını şubeler arası ortak belgeye yazar. Çakışma varsa yazmaz, çakışmayı döner.
-async function gunYaz(p,ds,val,sid){gerekliSube(sid);const ak=ds.slice(0,7);const ref=doc(db,'gunler',p.id+'__'+ak);const subeler=[...new Set([...kisiSubeleri(p),sid])];
+async function gunYaz(p,ds,val,sid){gerekliSube(sid);const ak=ds.slice(0,7);const ref=doc(db,'gunler',p.id+'__'+ak);
   return runTransaction(db,async tr=>{const s=await tr.get(ref);const g=(s.exists()&&s.data().g&&s.data().g[ds])||{};const o={};Object.entries(g).forEach(([x,v])=>{if(x!==sid&&v)o[x]=v;});
     const c=gunCakisir(val,o);if(c)return c;
+    // Şube listesi eskisinin üstüne eklenir, hiç küçülmez (eski ekranda yazılan kayıt başka şubenin yetkisini düşürmesin).
+    const subeler=[...new Set([...((s.exists()&&Array.isArray(s.data().subeler))?s.data().subeler:[]),...kisiSubeleri(p),sid])];
     tr.set(ref,{pid:p.id,ay:ak,subeler,g:{[ds]:{[sid]:val?val:deleteField()}}},{merge:true});return null;});}
-async function gunleriYukle(kisiler,aylar){const L=[];kisiler.filter(cokSubeli).forEach(p=>aylar.forEach(ak=>{const k=p.id+'__'+ak;if(!S.gunler[k])L.push(getDoc(doc(db,'gunler',k)).then(s=>{if(!S.gunler[k])S.gunler[k]=s.exists()?s.data():{};}).catch(()=>{}));gunDoc(p.id,ak);}));await Promise.all(L);}
+async function gunleriYukle(kisiler,aylar){const L=[];kisiler.filter(cokSubeli).forEach(p=>aylar.forEach(ak=>{const k=p.id+'__'+ak;if(!S.gunler[k])L.push(getDoc(doc(db,'gunler',k)).then(s=>{if(!S.gunler[k])S.gunler[k]=s.exists()?s.data():{};}).catch(e=>{console.error(e);(S.gunHata=S.gunHata||{})[k]=1;}));gunDoc(p.id,ak);}));await Promise.all(L);}
 function kisaSubeAd(s){const a=subeAdi(s)||'';const p=a.split(/\s+/);return p.length>1&&/^(ankara|antalya|isparta|burdur)$/i.test(ascii(p[0]))?p.slice(1).join(' '):a;}
 function kadroDoc(wid,H=S.haftalar){const w=H[wid];if(!w){const k=H===S.haftalar&&((S.haftaDurum.w||{})[wid]||{}).k;return Array.isArray(k)&&k.length?k:null;}if(Array.isArray(w.kadro))return w.kadro;const c=Object.keys(w.cells||{});return c.length?c:null;}
 function kadroOf(wid){const k=S.haftalar[wid]&&kadroDoc(wid);if(k)return{ids:k,oneri:false};const ds=weekDays(wid);
@@ -630,6 +635,7 @@ function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=wee
   else if(Math.abs(sb.haftalik-6*sb.gunluk)>0.01)h+=`<div class="banner bad">Şube ayarlarında haftalık mesai ${fmt(sb.haftalik)} saat; günlük ${fmt(sb.gunluk)} × 6 = ${fmt(6*sb.gunluk)} olmalı. İzinsiz çalışılan haftanın fazla mesaisi bu yüzden yanlış çıkar. ${isIsveren()?'Yönetim → Şubeler\'den düzeltin.':'İşverene haber verin.'}</div>`;
   if(isSube()&&S.goc4===false)h+=`<div class="banner">Sistem güncelleniyor. İşveren uygulamayı bir kez açınca önceki haftalar yeniden görünecek.</div>`;
   h+=haftaBandi(wid);
+  if(gunHataVar())h+=`<div class="banner bad">${GUN_HATA_YAZI}</div>`;
   if(isSube()&&haftaDurumu(wid)!=='acik')return view(h+kapaliHaftaKart(wid),bindWeek);
   if(ds.some(kesinAy))h+=`<div class="banner">Bu haftanın ${ds.every(kesinAy)?'tamamı':'bir kısmı'} kesin kapanmış aya ait; o günler kimse tarafından değiştirilemez.</div>`;
   else if(ds.some(d=>locked(d)))h+=`<div class="banner">${isSube()?'Bu haftanın bir kısmı kapatılmış aya ait, o günler düzenlenemez.':'Bu haftanın bir kısmı kapatılmış aya ait. Yaptığınız değişiklik onaylanmış puantajı değiştirmez.'}</div>`;
@@ -1336,6 +1342,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   if(sb.fmDonem==='hafta')h+=`<div class="banner ok">Fazla mesai dönemi: ${fmDonemYazi(ak,sb)} (haftalık). Rapor, izin ve bordro günü takvim ayına göre.</div>`;
   else if(fmDonemYazi(ak,sb))h+=`<div class="banner ok">Fazla mesai dönemi: ${fmDonemYazi(ak,sb)}. Önceki günler ${ayAdi(ayKaydir(ak,-1))} haftalık döneminde ödendi. Rapor, izin ve bordro günü takvim ayına göre.</div>`;
   if(S.pt.ozetHata)h+=`<div class="banner bad">Diğer şubelerin bu ayki özetleri okunamadı; başka şubelerdeki izin ve saatler eksik görünebilir. Sayfayı yenileyin, düzelmeden onaylamayın.</div>`;
+  if(gunHataVar())h+=`<div class="banner bad">${GUN_HATA_YAZI}</div>`;
   const HD=ayHaftaDurumu(ak);if(!onayli(durum)){const yz=[HD.say.onay?`${HD.say.onay} onaylı`:'',HD.say.kapali?`${HD.say.kapali} onay bekliyor`:'',HD.say.acik?`${HD.say.acik} açık`:''].filter(Boolean).join(', ');
     h+=HD.tamam?`<div class="banner ok">Bu ayın ${HD.L.length} haftası da onaylandı. Puantajı kontrol edip onaylayabilirsiniz.</div>`:`<div class="banner">Bu ayın haftaları: ${yz||'çizelge yok'}. Rakamlar çizelge değiştikçe güncellenir; bütün haftalar onaylanınca ay onaylanabilir. <button class="hgit" id="ptHaftalar">Haftalar ›</button></div>`;}
   if(durum==='geri')h+=`<div class="banner bad">Şubeye geri gönderildi${ad.not?': "'+esc(ad.not)+'"':''}.</div>`;
@@ -2087,7 +2094,7 @@ async function iscilikHesapla(ak){if(!isIsveren()||S.iscCalisiyor)return;S.iscCa
       V.satir.forEach(x=>{const k=iscKisi(x,ayar);if(!k.toplam&&!k.gun)return;
         if(!k.burada){const p=S.personel.find(q=>q.id===x.pid);const hedef=p?odemeSubesi(p,ak):'';if(hedef&&hedef!==sid&&L.includes(hedef)){tasi.push({...k,hedef,kaynak:sid});return;}}
         kisi.push(k);});
-      sonuc[sid]={durum,kisi,ozetHata:!!S.pt.ozetHata};}
+      sonuc[sid]={durum,kisi,ozetHata:!!S.pt.ozetHata||gunHataVar()};}
     // Başka şubede yapılan fazla mesai: kişinin maaş şubesine
     tasi.forEach(k=>{const h=sonuc[k.hedef];if(!h)return;h.kisi.push({...k,ad:k.ad+' · '+subeAdi(k.kaynak)+' FM',burada:true});});
     const t=new Date().toISOString();const hesap={};
