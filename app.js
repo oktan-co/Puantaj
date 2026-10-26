@@ -88,7 +88,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=122;
+const APP_SURUM=123;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2138,7 +2138,7 @@ function iscLojSabitMi(D,ak,sid){const g=((D&&D.subeler)||{})[sid]||{};return g.
 function sgkSorunlari(ak){const o=[];S.personel.forEach(p=>{if(!aktifAyda(p,ak)||p.sekil==='Esnaf kurye')return;/* esnaf kurye ayrı şirket: SGK uyarısı yok */const n=[];
   if(!p.sgkSube)n.push('SGK şubesi seçilmemiş');
   else if(p.sgkSube===SGK_YOK){if(p.giris||p.cikis&&false)n.push('SGK şubesi "Boş" ama SGK giriş tarihi yazılı');}
-  else{if(!p.giris)n.push('SGK şubesi var ama SGK giriş tarihi boş (ay boyu sigortalı sayılır)');}
+  else{if(!p.giris){const d=S.personel.filter(x=>x.id!==p.id&&ayniKisi(x,p)&&x.giris&&sgkVar(x));n.push(d.length?'SGK şubesi var ama giriş boş; aynı kişinin '+d.map(x=>subeAdi(x.sgkSube)+' kaydında SGK girişi '+trTarih(x.giris)+(x.cikis?' – çıkış '+trTarih(x.cikis):'')).join(', ')+' var → çift SGK sayılıyor olabilir':'SGK şubesi var ama SGK giriş tarihi boş (ay boyu sigortalı sayılır)');}}
   if(p.giris&&p.cikis&&p.cikis<p.giris)n.push('SGK çıkış tarihi girişten önce');
   if(n.length)o.push({ad:p.ad,sorun:n.join(' · '),sube:subeAdi(p.anaSube)});});return o;}
 function iscSgkSheet(ak){const L=sgkSorunlari(ak);openSheet(`<h2>SGK bilgisi kontrolü</h2><div class="sub">${ayAdi(ak)} · ${L.length} kişi</div>${L.length?`<div class="tk-wrap"><table class="tk"><thead><tr><th class="l">Kişi</th><th class="l">Şube</th><th class="l">Sorun</th></tr></thead><tbody>${L.map(x=>`<tr><td class="l">${esc(adBuyuk(x.ad))}</td><td class="l">${esc(x.sube)}</td><td class="l">${esc(x.sorun)}</td></tr>`).join('')}</tbody></table></div>`:'<p class="note">Sorun bulunmadı.</p>'}<div class="row2"><button class="btn grow" id="sgkK">Kapat</button></div>`,()=>{byId('sgkK').onclick=closeSheet;});}
