@@ -434,3 +434,8 @@ table.vg2 td.vakt{outline:2.5px solid #2f6fdb;outline-offset:-2px;position:relat
 table.pt tr.oto.bekle td{background:var(--warn-bg)}
 table.pt tr.oto.red td:not(:first-child){color:var(--mut);text-decoration:line-through}
 table.pt select.otoSec{font:inherit;font-size:12px;padding:2px 4px;border:1px solid var(--line);border-radius:6px;background:var(--surface)}
+/* Açıklamalar: üstteki ? ile açılır */
+.note.yardim{display:none}
+body.yardim-acik .note.yardim{display:block}
+.yardim-btn{font-weight:800;font-size:17px;line-height:1}
+.yardim-btn.on{background:rgba(255,255,255,.25)}

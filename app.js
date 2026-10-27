@@ -12,9 +12,9 @@ const GUNU=['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Paz
 const GRUP={M:'Müdür',K:'Mutfak',S:'Kurye'}; const GRUP_SIRA=['M','K','S'];
 const KOD={HT:{ad:'Haftalık izin',kisa:'İZİN'},R:{ad:'Rapor',kisa:'RAPOR'},UI:{ad:'Ücretsiz izin',kisa:'ÜCR.<br>İZİN'},YI:{ad:'Yıllık izin',kisa:'YILLIK'},B:{ad:'Bayram',kisa:'BAYR.'},D:{ad:'Diğer',kisa:'DİĞER'},CG:{ad:'Çalışma günü değil',kisa:'ÇAL. GÜNÜ<br>DEĞİL'}};
 // CG: sadece part-time personelde seçilir; ücrete, SGK gününe ve fazla mesaiye etkisi yok, sadece günün boş sayılmasını önler. Lejantta gösterilmez.
-const KOD_SIRA=['HT','R','UI','YI','B','D'];
+const KOD_SIRA=['HT','R','UI','YI','B'];// 'D' (Diğer) kaldırıldı: eski kayıtlarda görünür, yeni seçilemez
 // Excel'deki koşullu biçim renkleri: [zemin, yazı]
-const KOD_RENK={HT:['#1c1c1c','#ffffff'],R:['#c6e3ab','#24401a'],UI:['#1f3864','#ffffff'],YI:['#4f6a2a','#ffffff'],B:['#e9edf3','#33415a'],D:['#e01e1e','#ffffff'],CG:['#eef0f3','#5b6472']};
+const KOD_RENK={HT:['#1c1c1c','#ffffff'],R:['#c6e3ab','#24401a'],UI:['#1f3864','#ffffff'],YI:['#4f6a2a','#ffffff'],B:['#e9edf3','#33415a'],D:['#9aa3af','#ffffff'],CG:['#e01e1e','#ffffff']};
 const BOS_RENK='#fde2e2';
 const kodStil=k=>{const r=KOD_RENK[k];return r?`style="background:${r[0]};border-color:${r[0]};color:${r[1]}"`:'';};
 const SEKILLER=['Tam','Part','Esnaf kurye'];
@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=157;
+const APP_SURUM=160;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -572,7 +572,7 @@ function setWeek(wid,cells,kadro,pushUndo=true){const DEL_ALAN=deleteField();con
 const RED_NEDEN='şube saatleri dışında, yarım saat değil ya da kişi o gün başka şubede';
 
 /* ================= Başlangıç ve oturum ================= */
-function bootstrap(){
+function bootstrap(){if(tryLS('pm.yardim')==='1')document.body.classList.add('yardim-acik');
   if(!ayarliMi){view(`<div class="login"><div class="card"><h2>Kurulum gerekli</h2><p class="note" style="margin:6px 0 0">config.js dosyasına Firebase proje bilgilerini yapıştırın.</p></div></div>`);top('Puantaj Merkezi','Kurulum');return;}
   S.hafta=mondayOf(today());S.tab=tryLS('pm.tab')||'cizelge';
   try{const g=JSON.parse(tryLS('pm.gor')||'null');if(g){if(g.tk==='ay'||g.tk==='hafta')S.tkGorunum=g.tk;S.ptGeri=g.pt||null;}
@@ -690,8 +690,9 @@ function renderTop(){const sb=S.subeId?sube():null;const ak=S.tab==='ay'?aktifAy
   const d=S.aylar[ak];const chip=sb&&S.tab!=='puantaj'&&S.tab!=='yonetim'?`<span class="chip on-navy">${AYK[+ak.slice(5)-1]} · ${(DURUM[d&&d.durum]||DURUM.taslak).ad}</span>`:'';
   const subeTxt=S.tab==='puantaj'||S.tab==='yonetim'?esc(ROL[rol()]+' · '+(S.me.adSoyad||S.me.kullaniciAdi)):sb?`${esc(sb.ad)} · ${esc(sb.acilis)}–${esc(sb.kapanis)}${S.subeIds.length>1?' ▾':''}`:'Şube yok';
   byId('top').innerHTML=`<div class="top-row"><div class="grow"><button class="sube-btn eyebrow" id="subeBtn">${subeTxt}</button><h1>${baslik}</h1></div>${chip}
+   <button class="icon-btn yardim-btn ${document.body.classList.contains('yardim-acik')?'on':''}" id="yardimBtn" aria-label="Açıklamalar" title="Açıklamaları göster / gizle">?</button>
    <button class="icon-btn" id="hesapBtn" aria-label="Hesap"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="4"/><path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6"/></svg></button></div>`;
-  byId('subeBtn').onclick=()=>{if(S.tab!=='puantaj'&&S.tab!=='yonetim'&&S.subeIds.length>1)subeSec();};byId('hesapBtn').onclick=hesapPanel;}
+  byId('subeBtn').onclick=()=>{if(S.tab!=='puantaj'&&S.tab!=='yonetim'&&S.subeIds.length>1)subeSec();};byId('hesapBtn').onclick=hesapPanel;byId('yardimBtn').onclick=()=>{const a=!document.body.classList.contains('yardim-acik');document.body.classList.toggle('yardim-acik',a);tryLS('pm.yardim',a?'1':'0');renderTop();};}
 function render(){if(!S.me||S.me.aktif!==true)return;if(S.eskiSurum)return eskiSurumEkrani();tryLS('pm.gor',JSON.stringify({d:ymd(today()),hafta:S.hafta,ay:S.ay,ayElle:!!S.ayElle,tk:S.tkGorunum,pt:S.pt.sube||null}));renderTabs();renderTop();
   if(S.ptGeri&&S.tab==='puantaj'&&puantajYetki()&&S.subeIds.includes(S.ptGeri)){const id=S.ptGeri;S.ptGeri=null;S.ay=aktifAy('puantaj');return puantajAc(id);}
   if(S.kuralHata)return view(`<div class="banner bad">Personel listesi okunamadı. Firebase kuralları güncel değil. ${isIsveren()?'Firestore → Rules sekmesine son firestore.rules dosyasını yapıştırıp Publish\'e basın.':'İşverene haber verin.'}</div>`);
@@ -754,10 +755,10 @@ function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=wee
       h+=`<div class="fmc">${fmH[0]}</div><div class="fmc ay">${fmH[1]}</div>`;});});
   h+=`</div>`;
   if(!kisiler.length)h+=`<div class="empty-state"><b>Bu haftanın listesi boş</b>Gruplardaki "+ ekle" ile personel listesinden kişi seçin ya da "Geçen haftayı kopyala"ya basın.</div>`;
-  h+=`<div class="legend"><span><i style="background:var(--open)"></i>Açılış saati</span><span><i style="background:var(--close)"></i>Kapanış saati</span>${KOD_SIRA.filter(k=>k!=='B').map(k=>`<span><i style="background:${KOD_RENK[k][0]}"></i>${KOD[k].ad}</span>`).join('')}<span><i style="background:${BOS_RENK}"></i>Boş gün</span><span><i class="lg-baska"></i>Başka şubede çalıştığı gün</span><span><i class="lg-pay"></i>Erken çağrılma / geç çıkış</span><span>— İşe giriş öncesi / çıkış sonrası</span></div>
-   <p class="note"><b>Kopyala-yapıştır:</b> Bilgisayarda hücreleri fareyle sürükleyerek seçin, Ctrl+C ile kopyalayıp hedef hücrede Ctrl+V yapın; Excel'den kopyaladığınız saatler de yapıştırılır. Delete ile silin, çift tıklayarak düzenleyin. Telefonda hücreye ya da isme basılı tutun.</p>
-   <p class="note">İsim altında haftanın toplam saati. En sağda: haftanın fazla mesaisi ve ayın toplam fazla mesaisi${sb.fmDonem==='hafta'?` (fazla mesai dönemi ${fmDonemYazi(akF,sb)})`:''}. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); izin günü kullanılmadan 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa. Başka şubede çalıştığı günler bu şubede hesaba girmez; o günün mesaisi çalıştığı şubede.</p>
-   <p class="note"><b>Saatler:</b> yarım saatlik seçilir. İleri tarihli günlerde ${saatYaz(saatAraligi(sb).n0)} – ${saatYaz(saatAraligi(sb).n1)} arası; bugün ve geçmiş günlerde düzeltme için iki uçta birer saat daha (erken çağrılma, geç çıkış).</p>`;
+  h+=`<div class="legend"><span><i style="background:var(--open)"></i>Açılış saati</span><span><i style="background:var(--close)"></i>Kapanış saati</span>${KOD_SIRA.filter(k=>k!=='B').map(k=>`<span><i style="background:${KOD_RENK[k][0]}"></i>${KOD[k].ad}</span>`).join('')}${kisiler.some(p=>p.sekil==='Part')?`<span><i style="background:${KOD_RENK.CG[0]}"></i>${KOD.CG.ad} (part)</span>`:''}<span><i style="background:${BOS_RENK}"></i>Boş gün</span><span><i class="lg-baska"></i>Başka şubede çalıştığı gün</span><span><i class="lg-pay"></i>Erken çağrılma / geç çıkış</span><span>— İşe giriş öncesi / çıkış sonrası</span></div>
+   <p class="note yardim"><b>Kopyala-yapıştır:</b> Bilgisayarda hücreleri fareyle sürükleyerek seçin, Ctrl+C ile kopyalayıp hedef hücrede Ctrl+V yapın; Excel'den kopyaladığınız saatler de yapıştırılır. Delete ile silin, çift tıklayarak düzenleyin. Telefonda hücreye ya da isme basılı tutun.</p>
+   <p class="note yardim">İsim altında haftanın toplam saati. En sağda: haftanın fazla mesaisi ve ayın toplam fazla mesaisi${sb.fmDonem==='hafta'?` (fazla mesai dönemi ${fmDonemYazi(akF,sb)})`:''}. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); izin günü kullanılmadan 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa. Başka şubede çalıştığı günler bu şubede hesaba girmez; o günün mesaisi çalıştığı şubede.</p>
+   <p class="note yardim"><b>Saatler:</b> yarım saatlik seçilir. İleri tarihli günlerde ${saatYaz(saatAraligi(sb).n0)} – ${saatYaz(saatAraligi(sb).n1)} arası; bugün ve geçmiş günlerde düzeltme için iki uçta birer saat daha (erken çağrılma, geç çıkış).</p>`;
   if(MOD)h+=`<div class="modbar"><span>${MOD.tip==='hucre'?`<b>${esc(degerYazi(MOD.val))}</b> kopyalandı. Yapıştırmak için hücrelere dokunun.`:`<b>${esc(kisaAd((S.personel.find(p=>p.id===MOD.pid)||{}).ad))}</b> haftası kopyalandı. Hedef kişinin adına dokunun.`}</span><button class="btn small primary" id="modB">Bitti</button></div>`;
   view(h,()=>{bindWeek();gridBagla();selCiz();const mb=byId('modB');if(mb)mb.onclick=()=>{MOD=null;render();};});}
 function degerYazi(v){return isShift(v)?v.replace('-',' – '):v&&KOD[v]?KOD[v].ad:'Boş';}
@@ -1059,8 +1060,17 @@ function bilgiKaydet(p,f,v){const ek={};const iz=f.k==='iban'&&p.iban&&p.iban!==
 function ibanDegisim(p){const z=p.ibanZaman;return z&&typeof z.toDate==='function'?ymd(z.toDate()):(p.ibanTarih||'');}
 /* İşverene IBAN listesi: seçilen ayda SGK girişi olanlar + IBAN'ı o ay değişenler. Tüm şubeler tek listede; IBAN bitişik yazılır. Sadece bölge müdürü ve işveren. */
 function ibanAyi(){const bu=ayKey(today());return S.ibanAy||(today().getDate()<=15?ayKaydir(bu,-1):bu);}
-function ibanListe(ak){const g=[],u=[];S.personel.forEach(p=>{if(p.giris&&p.giris.slice(0,7)===ak&&p.sgkSube!==SGK_YOK)g.push(p);else if(p.iban&&ibanDegisim(p).slice(0,7)===ak)u.push(p);});
-  const o=(a,b)=>String(subeAdi(maasSubesi(a))).localeCompare(String(subeAdi(maasSubesi(b))),'tr')||String(a.ad).localeCompare(String(b.ad),'tr');return{g:g.sort(o),u:u.sort(o)};}
+// O ay ücretsiz izinle SGK günü 0'a düşen kişi (ör. 30 gün ücretsiz izin): bankaya maaş yatmaz, IBAN istenmez.
+// Gün sayıları şubelerin ay özetlerinden (çizelge + veri girişi) okunur; özet yüklenene kadar kişi listede kalır.
+function ibanOzetYukle(ak){S.ibanOzet=S.ibanOzet||{};if(S.ibanOzet[ak])return;S.ibanOzet[ak]={yuk:true};
+  getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{const ui={};const ekle=(pid,n)=>{ui[pid]=(ui[pid]||0)+n;};
+    q.docs.forEach(d=>{const x=d.data()||{};Object.entries(x.kisiler||{}).forEach(([pid,k])=>{if(k&&k.UI)ekle(pid,sayi(k.UI));});
+      Object.entries(x.veriGun||{}).forEach(([pid,k])=>{Object.values((k&&k.g)||{}).forEach(t=>{if(t&&t.UI)ekle(pid,sayi(t.UI));});});});
+    S.ibanOzet[ak]={ui};if(S.tab==='personel')render();}).catch(e=>{console.error(e);S.ibanOzet[ak]={ui:{},hata:true};});}
+function ibanSgkGunuYok(p,ak){const o=S.ibanOzet&&S.ibanOzet[ak];if(!o||!o.ui)return false;const n=o.ui[p.id]||0;if(!n)return false;
+  const[y,m]=ak.split('-').map(Number);const last=new Date(y,m,0).getDate();let ist=0;for(let d=1;d<=last;d++)if(sgkli(p,new Date(y,m-1,d)))ist++;return ist>0&&sgkGunSayisi(ist,last,n)===0;}
+function ibanListe(ak){ibanOzetYukle(ak);const g=[],u=[],n=[];S.personel.forEach(p=>{if(p.giris&&p.giris.slice(0,7)===ak&&p.sgkSube!==SGK_YOK){(ibanSgkGunuYok(p,ak)?n:g).push(p);}else if(p.iban&&ibanDegisim(p).slice(0,7)===ak)u.push(p);});
+  const o=(a,b)=>String(subeAdi(maasSubesi(a))).localeCompare(String(subeAdi(maasSubesi(b))),'tr')||String(a.ad).localeCompare(String(b.ad),'tr');return{g:g.sort(o),u:u.sort(o),n:n.sort(o)};}
 function ibanMetin(ak){const L=ibanListe(ak);const s=p=>`${adBuyuk(p.ad)} | ${tcOf(p)||'TC yok'} | ${p.iban||'IBAN yok'}`;
   let t=`${ayAdi(ak)} · yeni girenler (${L.g.length})\n`+L.g.map(s).join('\n');if(L.u.length)t+=`\n\nIBAN'ı güncellenenler (${L.u.length})\n`+L.u.map(s).join('\n');return t;}
 async function panoyaYaz(t){try{await navigator.clipboard.writeText(t);return true;}catch(e){try{const a=document.createElement('textarea');a.value=t;a.style.position='fixed';a.style.opacity='0';document.body.appendChild(a);a.select();const ok=document.execCommand('copy');a.remove();return ok;}catch(_){return false;}}}
@@ -1073,7 +1083,8 @@ function ibanKutusu(){if(!puantajYetki())return'';const bu=ayKey(today());const 
   if(acik){tcYukle(hepsi);const aylar=[...new Set([ak,...[0,1,2,3,4,5].map(i=>ayKaydir(bu,-i))])].sort().reverse();
     const satir=(p,gun,guncel)=>{const ib=p.iban||'';const tc=tcOf(p);return `<div class="ibr ${ib?'':'eks'}"><div class="n"><b>${esc(adBuyuk(p.ad))}</b><i>${esc(gorevTahmin(p)||'')} · ${esc(subeAdi(maasSubesi(p)))} · ${gun}</i></div><div class="v"><span class="mono">${ib?esc(ib):'IBAN girilmemiş'}</span><span>TC ${tc?esc(tc):'—'}${guncel&&p.ibanEski?' · eski: '+esc(p.ibanEski):''}</span></div></div>`;};
     h+=`<div class="ibk-t"><label>Ay <select id="ibanAy">${aylar.map(a=>`<option value="${a}" ${a===ak?'selected':''}>${ayAdi(a)}</option>`).join('')}</select></label><span>Tüm şubeler tek listede</span></div>
-     <div class="ibk-s"><span>Yeni girenler · ${L.g.length}</span><span>SGK girişi bu ay</span></div>${L.g.length?L.g.map(p=>satir(p,'giriş '+trTarih(p.giris),false)).join(''):'<div class="ibr"><div class="n"><i>Bu ay SGK girişi olan yok.</i></div></div>'}
+     <div class="ibk-s"><span>Yeni girenler · ${L.g.length}</span><span>SGK girişi bu ay</span></div>${L.g.length?L.g.map(p=>satir(p,'giriş '+trTarih(p.giris),false)).join(''):L.n.length?'':'<div class="ibr"><div class="n"><i>Bu ay SGK girişi olan yok.</i></div></div>'}
+     ${L.n.map(p=>`<div class="ibr"><div class="n"><b>${esc(adBuyuk(p.ad))}</b><i>${esc(gorevTahmin(p)||'')} · ${esc(subeAdi(maasSubesi(p)))} · giriş ${trTarih(p.giris)}</i></div><div class="v"><span class="chip">SGK günü 0 · IBAN gerekmiyor</span><span>Bu ay ücretsiz izinde; listeye ve Excel'e girmez</span></div></div>`).join('')}
      <div class="ibk-s"><span>IBAN'ı güncellenenler · ${L.u.length}</span><span>Bu ay değişen</span></div>${L.u.length?L.u.map(p=>satir(p,'değişiklik '+trTarih(ibanDegisim(p)),true)).join(''):'<div class="ibr"><div class="n"><i>Bu ay IBAN değişikliği yok.</i></div></div>'}
      <div class="ibk-f"><button class="btn primary grow" id="ibanKop">WhatsApp için kopyala</button><button class="btn grow" id="ibanXls">Excel indir</button></div>`;}
   return h+'</div>';}
@@ -1385,7 +1396,7 @@ function renderTakip(){takipDinle();const L=takipHaftalari();
   h+=`</tbody></table></div>`;
   h+=`<div class="legend">${['kapali','gecikti','acik','geri','onay'].map(k=>`<span><i class="tkl ${TK[k][1]}"></i>${TK[k][2]}${say[k]?` · ${say[k]}`:''}</span>`).join('')}</div>`;
   if(bekleyen.length)h+=`<div class="actions" style="margin-top:12px"><button class="btn primary grow" id="tkHepsi">Onay bekleyen ${bekleyen.length} haftayı onayla</button></div>`;
-  h+=`<p class="note">Hafta bitince şube müdürünün ${KAPATMA_GUN} günü var. Kapatılan hafta şube müdürüne kapanır ve burada onayınızı bekler. Hücreye dokunup çizelgeyi açın, onaylayın, geri gönderin ya da kilidini açın; şube adına da kapatabilirsiniz.</p>`;
+  h+=`<p class="note yardim">Hafta bitince şube müdürünün ${KAPATMA_GUN} günü var. Kapatılan hafta şube müdürüne kapanır ve burada onayınızı bekler. Hücreye dokunup çizelgeyi açın, onaylayın, geri gönderin ya da kilidini açın; şube adına da kapatabilirsiniz.</p>`;
   return h;}
 function takipBagla(){const p=byId('tkPrev'),n=byId('tkNext');if(p)p.onclick=()=>{S.tkKay=(S.tkKay||0)+TK_HAFTA;render();};if(n)n.onclick=()=>{S.tkKay=Math.max(0,(S.tkKay||0)-TK_HAFTA);render();};
   document.querySelectorAll('[data-tks]').forEach(b=>b.onclick=()=>takipPanel(b.dataset.tks,b.dataset.tkw));
@@ -1514,7 +1525,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     LS.forEach(({pid,sol})=>{const fo=sol.maasBurada===false&&!sol.muhBurada;h+=`<tr class="click ${cikisMi(sol)?'cikis':''}" data-mpid="${esc(pid)}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.muhBurada&&sol.maasBurada===false?` <span class="tag">ödemesi ${esc(sol.odemeSube)}</span>`:''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.cakisma&&sol.cakisma.length?` <span class="tag warn">${sol.cakisma.length} gün çakışma</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}${sol.sekil==='Part'&&!sol.partGun?' <span class="tag warn">part gün girilmedi</span>':''}</td><td>${esc(muhGorev(sol))}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${fo?'—':(sol.bayram>0?`${sol.gun}+${fmt(sol.bayram)} bayram`:sol.gun)}</td></tr>`;});
     h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Gün sayısı = tam ay 30; rapor/ücretsiz izin varsa ayın takvim günü − rapor − ücretsiz izin, en çok 30 (ay ortasında giriş/çıkışta çalışılan takvim günü); part çalışanlarda gün sayısı = part gün</span></div>
     ${gizli.length?`<p class="note"><b>Muhasebede gösterilmeyen ${gizli.length} kişi</b> (SGK'sı başka şubede, SGK'sı yok ya da bu ay SGK girişi yok): ${gizli.map(x=>esc(x.sol.ad)).join(', ')}. Bu kişiler sadece Ödemeler tarafında.</p>`:''}
-    <p class="note">Maaş, rapor ve izinler kişinin SGK şubesinde. Fazla mesai muhasebeye gitmez; Ödemeler tarafında, çalıştığı her şubede ayrı hesaplanır. Diğer şubelerdeki izin günleri o şubeler ayı kapattıkça eklenir. "+ şube adı" etiketi o şubeden gelen günlerin eklendiğini gösterir.</p>`;
+    <p class="note yardim">Maaş, rapor ve izinler kişinin SGK şubesinde. Fazla mesai muhasebeye gitmez; Ödemeler tarafında, çalıştığı her şubede ayrı hesaplanır. Diğer şubelerdeki izin günleri o şubeler ayı kapattıkça eklenir. "+ şube adı" etiketi o şubeden gelen günlerin eklendiğini gösterir.</p>`;
     h+=`<div class="actions" style="margin-top:12px"><button class="btn grow" id="pdfB">Muhasebe çıktısı · PDF / fotoğraf / WhatsApp</button></div>`;}
   else if(S.pt.gorunum==='veri')h+=veriGirisiHtml(V);
   else{
@@ -1674,13 +1685,13 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
      <td class="l dur">${k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:''}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Satırı sil">✕</button>`}</td></tr>`;});
   if(!V.kesin)h+=`<tr class="ekle"><td colspan="7"><button class="mini ekleB" id="vSatir">+ Satır ekle</button><button class="mini ekleB" id="vSatir10">+ 10 satır</button></td></tr></tbody></table></div>
    <datalist id="vKisiL">${kL.map(([id,ad])=>`<option value="${esc(adBuyuk(ad))}">`).join('')}</datalist>
-   <p class="note">Çizelgedeki gibi: hücreye tıklayıp seçin, sürükleyerek ya da Shift ile aralık seçin; çift tıklayarak ya da yazmaya başlayarak düzenleyin. Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır. Excel'deki satırları (TARİH · ŞUBE · AD SOYAD · VERİ TÜRÜ · MİKTAR · AÇIKLAMA) kopyalayıp seçili hücreye yapıştırın (seçim yoksa ilk boş satıra); satırlar kendiliğinden eklenir, şube sütunu atlanır. Yazdıklarınız anında kaydedilir. İsmi ya da türü tutmayan satırlar kırmızı görünür ve hesaba katılmaz.${V.kilitli?' Ay onaylandığı için gün türleri (rapor, izin, part gün) eklenemez; onaydan sonra eklenen kişiye de giriş yapılamaz. Düzeltme için kilidi açıp yeniden onaylayın.':''} Rapor, izin ve part gün hangi şubede girilirse girilsin kişinin SGK şubesinde ve maaş şubesinde sayılır.</p>`;
+   <p class="note yardim">Çizelgedeki gibi: hücreye tıklayıp seçin, sürükleyerek ya da Shift ile aralık seçin; çift tıklayarak ya da yazmaya başlayarak düzenleyin. Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır. Excel'deki satırları (TARİH · ŞUBE · AD SOYAD · VERİ TÜRÜ · MİKTAR · AÇIKLAMA) kopyalayıp seçili hücreye yapıştırın (seçim yoksa ilk boş satıra); satırlar kendiliğinden eklenir, şube sütunu atlanır. Yazdıklarınız anında kaydedilir. İsmi ya da türü tutmayan satırlar kırmızı görünür ve hesaba katılmaz.${V.kilitli?' Ay onaylandığı için gün türleri (rapor, izin, part gün) eklenemez; onaydan sonra eklenen kişiye de giriş yapılamaz. Düzeltme için kilidi açıp yeniden onaylayın.':''} Rapor, izin ve part gün hangi şubede girilirse girilsin kişinin SGK şubesinde ve maaş şubesinde sayılır.</p>`;
   // Çizelgeden gelen fazla mesai / saat: açık ayda onaylanmadan hesaba girmez (sagHesap kapısı). Onay kutusu ve "Hepsini onayla".
   const onayAcik=otoKapi(V.ak,V.kilitli,V.kesin);const satirM=new Map(V.satir.map(x=>[x.pid,x]));
   const bekliyor=v=>{const x=satirM.get(v.pid);const b=x&&x.hes.otoBekle;return !!(b&&b[v.on]!=null);};const reddi=v=>{const x=satirM.get(v.pid);const r=x&&x.hes.otoRed;return !!(r&&r[v.on]);};
   const bekSay=onayAcik?oto.filter(v=>v.on&&bekliyor(v)).length:0;S.pt._otoBek=bekSay;
   if(oto.length){const ac=S.pt.otoAcik??(bekSay>0);h+=`<button class="btn" id="vOto" style="width:100%;margin-top:6px">${ac?'Otomatik gelenleri gizle':'Çizelgeden ve devirden otomatik gelenler'} · ${oto.length}${bekSay?` · <b style="color:var(--warn)">${bekSay} onay bekliyor</b>`:''}</button>`;
-    if(ac&&bekSay)h+=`<div class="actions" style="margin-top:6px"><button class="btn primary grow" id="vOtoHepsi">Çizelgeden gelenlerin hepsini onayla · ${bekSay}</button></div><p class="note" style="margin:4px 0 0">Onay bekleyen ve reddedilen fazla mesai / saat ödemelere girmez; onay bekleyen varken ay onaylanamaz. Ödemeyeceğiniz küçük mesaileri "Reddedildi" yapın. Çizelge değişirse o satır yeniden karar bekler.</p>`;
+    if(ac&&bekSay)h+=`<div class="actions" style="margin-top:6px"><button class="btn primary grow" id="vOtoHepsi">Çizelgeden gelenlerin hepsini onayla · ${bekSay}</button></div><p class="note yardim" style="margin:4px 0 0">Onay bekleyen ve reddedilen fazla mesai / saat ödemelere girmez; onay bekleyen varken ay onaylanamaz. Ödemeyeceğiniz küçük mesaileri "Reddedildi" yapın. Çizelge değişirse o satır yeniden karar bekler.</p>`;
     if(ac)h+=`<div class="tbl-wrap" style="margin-top:8px"><table class="pt"><thead><tr><th>Kaynak</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th></tr></thead><tbody>${oto.map(v=>{const t=veriTur(v.tur);const mk=v.miktar==null?'—':t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'');
       const dr=bekliyor(v)?'bek':reddi(v)?'red':'on';const kutu=onayAcik&&v.on&&satirM.has(v.pid)?`<select class="otoSec" data-oto="${esc(v.pid)}|${v.on}" title="Onaylanan ödemelere girer, reddedilen girmez">${[['bek','Onay bekliyor'],['on','Onaylandı'],['red','Reddedildi']].map(([k,t])=>`<option value="${k}" ${dr===k?'selected':''}>${t}</option>`).join('')}</select> `:'';
       return`<tr class="oto ${onayAcik&&v.on?(dr==='bek'?'bekle':dr==='red'?'red':''):''}"><td>${kutu}<span class="tag">${v.kaynak||(v.tur==='AV'?'devir':'çizelge')}</span></td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${mk}</td><td class="l">${esc(v.aciklama||'Mesai çizelgesinden')}</td></tr>`;}).join('')}</tbody></table></div>`;}
@@ -1897,7 +1908,7 @@ function odemePanel(pid){if(kilitEngel()||kesinEngel())return;const V=ptVerisi()
    ${!esnaf&&V.sb.fmYontem==='maas'?`<div id="oFmW" style="grid-column:1/-1" ${tip==='maas'?'':'hidden'}><span class="lbl">Fazla mesai</span><div class="seg" id="oFmS"><button data-v="maas" class="${fmModD==='elle'?'':'on'}">Maaşına göre</button><button data-v="elle" class="${fmModD==='elle'?'on':''}">Elle yaz</button></div><div id="oFmTW" ${fmModD==='elle'?'':'hidden'}>${inp('oFmT','Fazla mesai saat ücreti (₺)',s.fmBirim||'','örn. 220')}</div><p class="note" id="oFmH" style="margin-top:4px"></p></div>`:''}
    ${!esnaf&&V.sb.fmYontem!=='maas'?`<div id="oFoW" style="grid-column:1/-1" ${tip==='maas'?'':'hidden'}>${inp('oFo',`Özel fazla mesai saat ücreti (₺) · ${ayAdi(V.ak)} ayından itibaren`,us0.fmOzel||'','boşsa şube ücreti: '+(sayi(V.sb.fmUcret)||'-'))}<p class="note" style="margin-top:0">Sadece bu kişi için. Boş bırakırsanız şubenin sabit ücreti uygulanır; bu ay ve sonrası için geçerli olur, önceki aylar değişmez.${ucretGecmisi('fmOzelGecmis',pid)?' Geçmiş: '+esc(ucretGecmisi('fmOzelGecmis',pid)):''}</p></div>`:''}
    ${inp('oCiro','Ciro primi ekle (₺)','')}
-   <p class="note" style="grid-column:1/-1;margin-top:0">Buraya yazdığınız ciro primi veri girişine ayın son günü tarihli satır olarak eklenir. Paket primi, avans ve ara ödemeyi veri girişinden girin.${ekToplam('PP')||ekToplam('CP')?` Bu ay girilmiş: ${ekToplam('PP')?'paket primi '+ekToplam('PP'):''}${ekToplam('PP')&&ekToplam('CP')?', ':''}${ekToplam('CP')?'ciro primi '+ekToplam('CP'):''}.`:''}</p>
+   <p class="note yardim" style="grid-column:1/-1;margin-top:0">Buraya yazdığınız ciro primi veri girişine ayın son günü tarihli satır olarak eklenir. Paket primi, avans ve ara ödemeyi veri girişinden girin.${ekToplam('PP')||ekToplam('CP')?` Bu ay girilmiş: ${ekToplam('PP')?'paket primi '+ekToplam('PP'):''}${ekToplam('PP')&&ekToplam('CP')?', ':''}${ekToplam('CP')?'ciro primi '+ekToplam('CP'):''}.`:''}</p>
    ${msSecHtml}
    <label class="field"><span>TC kimlik no (bordro eşleşmesi için)</span><input id="oTc" inputmode="numeric" maxlength="11" value="${esc(tc)}"></label></div>
    <div class="calc" id="oCalc"></div><div id="oErr"></div><div class="row2"><button class="btn grow" id="oNo">Vazgeç</button><button class="btn primary grow" id="oOk">Kaydet</button></div>`,sh=>{
@@ -2048,7 +2059,7 @@ function muhasebeCiktisi(V){let tur=tryLS('pm.muhTur')||'pdf';const baslik=muhBa
    <div class="seg" id="mTur" style="margin-bottom:10px"><button data-v="pdf" class="${tur==='pdf'?'on':''}">PDF</button><button data-v="png" class="${tur==='png'?'on':''}">Fotoğraf</button></div>
    <img class="share-prev" id="mImg" alt="Puantaj önizleme">
    <div class="row2"><button class="btn grow" id="mIndir">İndir</button><button class="btn primary grow" id="mPay">WhatsApp / Paylaş</button></div>
-   <p class="note">Paylaş'a basınca telefonun paylaşım menüsü açılır, WhatsApp'ı seçin; açıklama "${esc(baslik)}" olarak eklenir. Bilgisayarda dosya indirilir ve WhatsApp açılır, dosyayı sohbete sürükleyin.</p>`,async()=>{
+   <p class="note yardim">Paylaş'a basınca telefonun paylaşım menüsü açılır, WhatsApp'ı seçin; açıklama "${esc(baslik)}" olarak eklenir. Bilgisayarda dosya indirilir ve WhatsApp açılır, dosyayı sohbete sürükleyin.</p>`,async()=>{
    const cv=await muhasebeGorseli(V);byId('mImg').src=cv.toDataURL('image/png');
    byId('mTur').querySelectorAll('button').forEach(b=>b.onclick=()=>{tur=b.dataset.v;tryLS('pm.muhTur',tur);byId('mTur').querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));});
    const indir=f=>{const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);};
@@ -2489,7 +2500,7 @@ function renderIscilik(h){const ak=iscAyi();iscDinle(ak);const ae=document.activ
   if(fa)h+=`<div class="kfbar">Filtre açık · ${IV.length} / ${IR.length} şube gösteriliyor, toplamlar sadece görünenler için <button class="mini" id="kfHepsiI">Filtreleri kaldır</button></div>`;
   h+=`<div class="tk-wrap" style="overflow-x:auto"><table class="tk" id="iscT"><thead><tr>${IK.map(c=>kfBaslik('isc',c,c.l?'l':'')).join('')}</tr></thead><tbody>${satir}</tbody>
     <tfoot><tr><td class="l"><b>${fa?`Filtreli toplam · ${IV.length} / ${IR.length} şube`:'Toplam'}</b><br><small class="mut">Ciro ${tl0(tc)}${tl_?' · Lojman '+tl0(tl_):''}</small></td><td>${tl0(tr_)}</td><td>${tl0(te)}</td><td>${tl0(tp)}</td><td><b>${tl0(tt)}</b></td><td><b>${iscYuzde(iscOran(tt,tc))}</b></td></tr></tfoot></table></div>
-    <p class="note">Şube adına dokunun: ciro, lojman ve kişi kişi döküm. Toplam işçilik lojman dahildir. Resmi: SGK günü × günlük resmi maliyet (bankaya yatan dahil). Elden: maaş farkı, fazla mesai, ciro primi, ek ödeme − kesinti. Paket primi ödemeler listesinden gelir. Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. "Tahmini": ay henüz onaylanmadı, rakamlar değişebilir.</p>`;
+    <p class="note yardim">Şube adına dokunun: ciro, lojman ve kişi kişi döküm. Toplam işçilik lojman dahildir. Resmi: SGK günü × günlük resmi maliyet (bankaya yatan dahil). Elden: maaş farkı, fazla mesai, ciro primi, ek ödeme − kesinti. Paket primi ödemeler listesinden gelir. Maaş, SGK ve fazla mesai kişinin maaşının ödendiği şubeye yazılır. "Tahmini": ay henüz onaylanmadı, rakamlar değişebilir.</p>`;
   return view(h,()=>iscBagla(ak));}
 function iscBagla(ak){document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});const p=byId('iPrev'),n=byId('iNext');if(p)p.onclick=()=>{S.iscAy=ayKaydir(ak,-1);render();};if(n)n.onclick=()=>{S.iscAy=ayKaydir(ak,1);render();};
   const sg=byId('iSgk');if(sg)sg.onclick=()=>iscSgkSheet(ak);
