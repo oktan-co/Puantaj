@@ -296,6 +296,15 @@ table.vg2 td.vsel{background:var(--navy-soft)!important;box-shadow:inset 0 0 0 1
 button.kchip{cursor:pointer}button.kchip:hover{border-color:var(--accent-ink);color:var(--accent-ink)}
 .kt.kirmizi .kchip{background:var(--bad-bg);border-color:transparent;color:var(--bad)}
 label.kchip{cursor:pointer}label.kchip.on{background:var(--ok-bg);color:var(--ok);border-color:transparent}label.kchip input{width:15px;height:15px}
+/* Onay öncesi kontrol (bölge müdürü): satır satır, tam ad, büyük yazı */
+.bkl{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:8px;margin-top:10px}
+.bkl label{display:flex;align-items:flex-start;gap:12px;padding:12px 14px;border-radius:12px;background:var(--soft);border:1px solid var(--line);cursor:pointer}
+.bkl label.on{background:var(--ok-bg);border-color:transparent}
+.bkl input{width:22px;height:22px;flex:none;margin-top:2px}
+.bkl .ad{display:block;font-size:15px;font-weight:700;color:var(--ink)}
+.bkl .nt{display:block;font-size:15px;margin-top:3px;color:var(--ink)}.bkl .nt em{font-style:normal;font-weight:700}
+.bkl .alt{display:block;font-size:12.5px;color:var(--mut);margin-top:2px}
+.bkl label.on .ad,.bkl label.on .nt{color:var(--ok)}
 /* Personel · çalışma bilgileri: sade tablo (bilgisayar) + liste (telefon) */
 table.bl.cal td.bi>select{-webkit-appearance:none;appearance:none;border:0 none!important;box-shadow:none;background:transparent url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%23667287'/%3E%3C/svg%3E") no-repeat right 4px center;padding-right:16px;min-width:0}
 table.bl.cal td.bi>select{background-image:none}table.bl.cal td.bi>select:hover,table.bl.cal td.bi>select:focus{-webkit-appearance:none;appearance:none;background-color:var(--soft);background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='5'%3E%3Cpath d='M0 0h8L4 5z' fill='%23667287'/%3E%3C/svg%3E")}
