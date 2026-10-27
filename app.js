@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=145;
+const APP_SURUM=146;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1212,48 +1212,74 @@ function eskiKartListesi(){const list=sirala(subePersoneli());const td=ymd(today
   if(cikan.length)h+=`<div class="sec">Çıkış yapanlar · ${cikan.length}</div><div class="card list">${cikan.map(row).join('')}</div>`;
   view(h,()=>{personelModBagla();byId('addP').onclick=()=>personelPanel(null);document.querySelectorAll('.row[data-id]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.id));});}
 // Kişi kartındaki geçmiş: aynı kişinin tüm kayıtları (çalışma dönemleri), görev geçmişi ve (yetkisi olana) maaş geçmişi.
-function personelGecmisHtml(p){const td=ymd(today());const K=S.personel.filter(x=>x.id===p.id||ayniKisi(x,p)).sort((a,b)=>String(ilkGun(a)||'').localeCompare(String(ilkGun(b)||'')));
+function personelGecmisHtml(p,yaz=false,gayOpt=''){const K=S.personel.filter(x=>x.id===p.id||ayniKisi(x,p)).sort((a,b)=>String(ilkGun(a)||'').localeCompare(String(ilkGun(b)||'')));
   const don=K.map(x=>{const sgk=x.sgkSube&&x.sgkSube!==SGK_YOK?x.sgkSube:'';const ana=x.anaSube||'';const yer=esc(subeAdi(ana)||subeAdi(sgk)||'—')+(sgk&&sgk!==ana?` <small>(SGK ${esc(subeAdi(sgk))})</small>`:'');
-    return `<div class="gcr"><span>${esc(trTarih(ilkGun(x))||'?')} – ${x.cikis?esc(trTarih(x.cikis)):'devam'}</span><span>${yer} · ${esc(gorevTahmin(x)||'—')}</span>${x.id===p.id?'<i>bu kayıt</i>':`<button class="mini" data-gk="${esc(x.id)}">Aç</button>`}</div>`;}).join('');
-  const gg=gorevGecmisYazi(p);
-  return `<div class="field gcm"><span>Geçmiş</span><div class="gcb"><b>Çalışma dönemleri</b>${don}</div>
-    <div class="gcb"><b>Görev</b><div class="gcr"><span>${gg?esc(gg):esc(gorevTahmin(p)||'—')+(p.sekil&&p.sekil!=='Tam'?' ('+esc(p.sekil)+')':'')+' · değişiklik yok'}</span></div></div>
-    ${isSube()?'':'<div class="gcb"><b>Maaş</b><div class="gcr" id="pMaasG"><span class="note" style="margin:0">Yükleniyor…</span></div></div>'}</div>`;}
+    return `<div class="gcr"><div><b>${esc(trTarih(ilkGun(x))||'?')} – ${x.cikis?esc(trTarih(x.cikis)):'devam'}</b><small>${yer} · ${esc(gorevTahmin(x)||'—')}</small></div>${x.id===p.id?'<i>bu kayıt</i>':`<button class="btn small" data-gk="${esc(x.id)}">Aç</button>`}</div>`;}).join('');
+  const gorevOpt=GOREVLER.map(g=>`<option value="${esc(g.ad)}">${esc(g.ad)}</option>`).join('');
+  return `<div class="gcm"><div class="gcb"><div class="gch">Çalışma dönemleri</div>${don}</div>
+    <div class="gcb"><div class="gch">Görev</div><div id="pGorevG">${gorevGecmisSatirlari(p)}</div>
+      ${yaz?`<button class="btn small" id="pGdAc" style="margin-top:8px">+ Görev değişikliği ekle</button>
+      <div id="pGdW" hidden><label class="field"><span>Yeni görev</span><select id="pGdG"><option value="">Seçin</option>${gorevOpt}</select></label>
+        <div id="pGdSW"><span class="lbl" style="margin-top:12px">Çalışma şekli</span><div class="seg" id="pGdS">${['Tam','Part'].map(x=>`<button data-v="${x}" class="${(p.sekil==='Part'?'Part':'Tam')===x?'on':''}">${x}</button>`).join('')}</div></div>
+        <label class="field"><span>Hangi aydan itibaren</span><select id="pGdA">${gayOpt}</select></label>
+        <p class="note" style="margin:4px 0 0">Önceki aylar eski görevle kalır.</p>
+        <div class="row2" style="margin-top:8px"><button class="btn grow" id="pGdNo">Vazgeç</button><button class="btn primary grow" id="pGdOk">Değişikliği kaydet</button></div></div>`:''}</div>
+    ${isSube()?'':'<div class="gcb"><div class="gch">Maaş</div><div id="pMaasG"><span class="note" style="margin:0">Yükleniyor…</span></div></div>'}</div>`;}
+function gorevGecmisSatirlari(p){const g=(p&&p.gorevGecmis)||{};const ks=Object.keys(g).filter(k=>g[k]&&g[k].gorev).sort();
+  if(!ks.length)return `<div class="gcr"><div><b>${esc(gorevTahmin(p)||'—')}${p.sekil&&p.sekil!=='Tam'?' · '+esc(p.sekil):''}</b><small>değişiklik yok</small></div></div>`;
+  return ks.map((k,i)=>`<div class="gcr"><div><b>${esc(g[k].gorev)}${g[k].sekil&&g[k].sekil!=='Tam'?' · '+esc(g[k].sekil):''}</b><small>${esc(ayAdi(k))}${i===ks.length-1?' → bugün':ayKaydir(ks[i+1],-1)===k?'':' – '+esc(ayAdi(ayKaydir(ks[i+1],-1)))}</small></div></div>`).join('');}
+// Geçmiş sekmesi: "Görev değişikliği ekle" (terfi) — hemen kaydedilir; sonra Bilgiler sekmesindeki görev kutusu yenilenir.
+function gorevDegisimBagla(p,yaz,sonra){const ac=byId('pGdAc'),W=byId('pGdW');if(!ac||!W||!yaz)return;const G=byId('pGdG');
+  const tog=()=>{const g=gorevBul(G.value);byId('pGdSW').hidden=!!(g&&g.sekil);};G.onchange=tog;
+  W.querySelectorAll('#pGdS button').forEach(bt=>bt.onclick=()=>{W.querySelectorAll('#pGdS button').forEach(x=>x.classList.toggle('on',x===bt));});
+  ac.onclick=()=>{W.hidden=false;ac.hidden=true;};byId('pGdNo').onclick=()=>{W.hidden=true;ac.hidden=false;};
+  byId('pGdOk').onclick=()=>{const g=gorevBul(G.value);if(!g){toast('Yeni görevi seçin.');return;}const sekil=g.sekil||(W.querySelector('#pGdS .on')||{dataset:{v:'Tam'}}).dataset.v;const ak=byId('pGdA').value;
+    const y=gorevGecmisYama(p,{gorev:g.ad,grup:g.grup,sekil},ak);if(!y){toast('Bu ayda görev zaten bu.');return;}
+    const b2=personelYaz(p.id,{...p},y);Object.assign(p,b2);byId('pGorevG').innerHTML=gorevGecmisSatirlari(p);W.hidden=true;ac.hidden=false;sonra&&sonra();
+    toast(`${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren ${g.ad}; önceki aylar değişmedi.`);};}
 async function personelMaasGecmisi(p){document.querySelectorAll('[data-gk]').forEach(b=>b.onclick=()=>{closeSheet();personelPanel(b.dataset.gk);});
   const el=byId('pMaasG');if(!el)return;const K=S.personel.filter(x=>x.id===p.id||ayniKisi(x,p));const ay={};let once=null;
   for(const x of K){const subs=[...new Set([...Object.values(x.maasSubeGecmis||{}),odemeSubesiEski(x)].filter(Boolean))];
     for(const sid of subs){try{const d=await getDoc(doc(db,'maaslar',sid));const m=d.exists()?d.data():{};const g=(m.netGecmis||{})[x.id]||{};Object.entries(g).forEach(([k,v])=>{if(sayi(v))ay[k]=sayi(v);});const n=sayi((m.net||{})[x.id]);if(n&&once==null)once=n;}catch(e){}}}
   if(!byId('pMaasG'))return;const ks=Object.keys(ay).sort();const L=ks.filter((k,i)=>i===0||ay[k]!==ay[ks[i-1]]).map(k=>`${ayAdi(k)}: ${tl0(ay[k])}`);
   if(once!=null&&(!ks.length||(ks[0]>BASLANGIC_AY&&once!==ay[ks[0]])))L.unshift(`${ks.length?'Önce':'Kayıtlı'}: ${tl0(once)}`);// ilk kayıt başlangıç ayındaysa eski değer hiçbir aya uygulanmaz
-  byId('pMaasG').innerHTML=`<span>${L.length?esc(L.join(' · ')):'Maaş girilmemiş'}</span>`;}
+  byId('pMaasG').innerHTML=L.length?L.map(x=>{const[a,b]=x.split(': ');return `<div class="gcr"><div><b>${esc(b)}</b><small>${esc(a)}</small></div></div>`;}).join(''):'<span class="note" style="margin:0">Maaş girilmemiş</span>';}
 function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x=>x.id===opt.eski):null;// yeniden işe giriş: eski kaydın bilgileriyle yeni kayıt
   const p=id?S.personel.find(x=>x.id===id):eskiK?{ad:eskiK.ad,grup:eskiK.grup||'K',gorev:eskiK.gorev||'',sekil:eskiK.sekil||'Tam',giris:ymd(today()),cikis:'',anaSube:eskiK.anaSube||S.subeId,sgkSube:eskiK.sgkSube||''}:{ad:'',grup:gr||'K',gorev:'',sekil:'Tam',giris:ymd(today()),cikis:'',anaSube:S.subeId};if(!p)return;
-  const yaz=personelYazabilir(p);const gv=id||eskiK?gorevTahmin(p):'';const sgk=p.sgkSube||'';const subeler=tumSubeler();
+  const yaz=personelYazabilir(p);let gv=id||eskiK?gorevTahmin(p):'';const sgk=p.sgkSube||'';const subeler=tumSubeler();
   const anaSec=(isIsveren()?S.subeIds:(S.me.subeler||[])).filter(x=>S.subeler[x]);
   const gorevOpt=GOREVLER.filter(g=>id||!gr||g.grup===gr).map(g=>`<option value="${esc(g.ad)}" ${gv===g.ad?'selected':''}>${esc(g.ad)}</option>`).join('');
   const buAy=ayKey(today());const gayOpt=(()=>{const L=[];for(let k=BASLANGIC_AY;k<=buAy;k=ayKaydir(k,1))L.push(k);return L.reverse().map(k=>`<option value="${k}" ${k===buAy?'selected':''}>${esc(ayAdi(k))}</option>`).join('');})();
   openSheet(`<h2>${id?'Personeli düzenle':eskiK?'Yeniden işe giriş':'Yeni personel · '+GRUP[gr||'K']}</h2><div class="sub">${yaz?'İsim puantaj ve bordro eşleşmesinde kullanılır, bordrodaki gibi yazın.':'Bu kişi başka bir şubeye kayıtlı; bilgilerini o şube düzenler.'}</div>
-   <label class="field"><span>Ad soyad (büyük harf)</span><input id="pAd" value="${esc(adBuyuk(p.ad))}" autocomplete="off" autocapitalize="characters" ${yaz?'':'disabled'}></label>${id?'':'<div id="pEski"></div>'}
-   <label class="field"><span>Görev</span><select id="pGorev" ${yaz?'':'disabled'}><option value="">Seçin</option>${gorevOpt}</select></label>
-   <div id="pSekilW"><span class="lbl">Çalışma şekli</span><div class="seg" id="pSekil">${['Tam','Part'].map(x=>`<button data-v="${x}" class="${(p.sekil==='Part'?'Part':'Tam')===x?'on':''}" ${yaz?'':'disabled'}>${x}</button>`).join('')}</div></div>
-   ${id&&yaz?`<label class="field" id="pGayW" hidden><span>Yeni görev / şekil hangi aydan geçerli</span><select id="pGay">${gayOpt}</select><small class="note" style="margin:4px 0 0;display:block">Önceki aylar eski görevle kalır. Yanlış girilmiş görevi düzeltiyorsanız ${esc(ayAdi(BASLANGIC_AY))} seçin.</small></label>`:''}
-   <label class="field"><span>SGK şubesi (maaşı bu şubenin puantajında)</span><select id="pSgk" ${yaz?'':'disabled'}><option value="" ${!sgk?'selected':''}>Seçin</option><option value="${SGK_YOK}" ${sgk===SGK_YOK?'selected':''}>Boş (SGK şubesi yok)</option>${subeler.map(([sid,ad])=>`<option value="${esc(sid)}" ${sgk===sid?'selected':''}>${esc(ad)}</option>`).join('')}</select></label>
+   ${id?'<div class="seg ptab" id="pTab"><button data-t="b" class="on">Bilgiler</button><button data-t="g">Geçmiş</button></div>':''}
+   <div id="pTabB">
+   <div class="lbl">Kişi</div>
+   <label class="field" style="margin-top:0"><span>Ad soyad (büyük harf)</span><input id="pAd" value="${esc(adBuyuk(p.ad))}" autocomplete="off" autocapitalize="characters" ${yaz?'':'disabled'}></label>${id?'':'<div id="pEski"></div>'}
+   <label class="field"><span>Görev</span><select id="pGorev" ${yaz?'':'disabled'}><option value="">Seçin</option>${gorevOpt}</select>${id&&yaz?'<small class="note" style="margin:4px 0 0;display:block">Terfi ya da görev değişikliği için <b>Geçmiş</b> sekmesi. Buradan değiştirmek yanlış girilmiş görevi düzeltir.</small>':''}</label>
+   <div id="pSekilW"><span class="lbl" style="margin-top:12px">Çalışma şekli</span><div class="seg" id="pSekil">${['Tam','Part'].map(x=>`<button data-v="${x}" class="${(p.sekil==='Part'?'Part':'Tam')===x?'on':''}" ${yaz?'':'disabled'}>${x}</button>`).join('')}</div></div>
+   <div class="lbl">Şube</div>
+   <label class="field" style="margin-top:0"><span>SGK şubesi (maaşı bu şubenin puantajında)</span><select id="pSgk" ${yaz?'':'disabled'}><option value="" ${!sgk?'selected':''}>Seçin</option><option value="${SGK_YOK}" ${sgk===SGK_YOK?'selected':''}>Boş (SGK şubesi yok)</option>${subeler.map(([sid,ad])=>`<option value="${esc(sid)}" ${sgk===sid?'selected':''}>${esc(ad)}</option>`).join('')}</select></label>
    <label class="field"><span>Çalıştığı şube (çizelgesinde göründüğü)</span><select id="pAna" ${yaz?'':'disabled'}>${(anaSec.includes(p.anaSube||S.subeId)?anaSec:[p.anaSube||S.subeId,...anaSec]).map(x=>`<option value="${esc(x)}" ${(p.anaSube||S.subeId)===x?'selected':''}>${esc(subeAdi(x))}</option>`).join('')}</select></label>
-   <div class="fgrid"><label class="field"><span>SGK giriş</span><input id="pGiris" type="date" value="${esc(p.giris||'')}" ${yaz?'':'disabled'}></label><label class="field"><span>Çıkış (boşsa çalışıyor)</span><input id="pCikis" type="date" value="${esc(p.cikis||'')}" ${yaz?'':'disabled'}></label></div>
-   <label class="field"><span>Deneme başlangıcı (SGK'dan önce çalıştığı ilk gün, boşsa SGK girişi)</span><input id="pBas" type="date" value="${esc(p.baslama||'')}" ${yaz?'':'disabled'}></label>
    ${id&&!isSube()?(()=>{const ek=ekSubeleri(p);return `<div class="field"><span>Diğer çalıştığı şubeler</span><div class="ekbox">${ek.length?ek.map(x=>`<span class="pch e"><b>${esc(subeAdi(x))}</b></span>`).join(''):'<span class="note" style="margin:0">Yok</span>'}${ekYetkiVar()?'<button class="btn small" id="pEk">Değiştir</button>':''}</div></div>`;})():''}
    ${id&&!isSube()?(()=>{const ak=ayKey(today());const ms=odemeSubesi(p,ak);const ids=[...new Set([p.anaSube||S.subeId,sgk!==SGK_YOK?sgk:'',...ekSubeleri(p),ms].filter(Boolean))];const gy=maasSubeGecmisYazi(p);
-     return `<label class="field"><span>Maaşın ödendiği şube · ${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren</span><select id="pMs" ${yaz?'':'disabled'}>${ids.map(i=>`<option value="${esc(i)}" ${i===ms?'selected':''}>${esc(subeAdi(i))}</option>`).join('')}</select></label><p class="note" style="margin-top:-4px">Önceki aylar değişmez. Muhasebe SGK şubesinde kalır.${gy?' Geçmiş: '+esc(gy):''}</p>`;})():''}
-   ${id&&!p.cikis&&yaz?'<button class="btn" id="pOut" style="margin-top:8px;width:100%">Bugün itibarıyla çıkış ver</button>':''}
-   ${id&&p.cikis&&p.cikis<ymd(today())&&!S.personel.some(x=>x.id!==p.id&&ayniKisi(x,p)&&!(x.cikis&&x.cikis<ymd(today())))?'<button class="btn" id="pYeni" style="margin-top:8px;width:100%">Yeniden işe al</button>':''}
-   ${id?personelGecmisHtml(p):''}
+     const farkli=ms!==maasSubesi(p)||Object.values(p.maasSubeGecmis||{}).some(x=>x&&x!==maasSubesi(p));
+     return `${farkli?'':'<button class="lnk" id="pMsAc">+ Maaşı farklı şubede ödeniyor</button>'}<div id="pMsW" ${farkli?'':'hidden'}><label class="field"><span>Maaşın ödendiği şube · ${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren</span><select id="pMs" ${yaz?'':'disabled'}>${ids.map(i=>`<option value="${esc(i)}" ${i===ms?'selected':''}>${esc(subeAdi(i))}</option>`).join('')}</select></label><p class="note" style="margin-top:4px">Önceki aylar değişmez. Muhasebe SGK şubesinde kalır.${gy?' Geçmiş: '+esc(gy):''}</p></div>`;})():''}
+   <div class="lbl">Tarihler</div>
+   <div class="fgrid"><label class="field" style="margin-top:0"><span>SGK giriş</span><input id="pGiris" type="date" value="${esc(p.giris||'')}" ${yaz?'':'disabled'}></label><label class="field" style="margin-top:0"><span>Çıkış (boşsa çalışıyor)${id&&!p.cikis&&yaz?' · <button class="lnk" id="pOut" type="button">bugün</button>':''}</span><input id="pCikis" type="date" value="${esc(p.cikis||'')}" ${yaz?'':'disabled'}></label></div>
+   ${p.baslama?'':'<button class="lnk" id="pBasAc">+ Deneme başlangıcı ekle (SGK girişinden önce çalıştıysa)</button>'}<div id="pBasW" ${p.baslama?'':'hidden'}><label class="field"><span>Deneme başlangıcı (SGK'dan önce çalıştığı ilk gün, boşsa SGK girişi)</span><input id="pBas" type="date" value="${esc(p.baslama||'')}" ${yaz?'':'disabled'}></label></div>
+   ${id&&yaz&&p.cikis&&p.cikis<ymd(today())&&!S.personel.some(x=>x.id!==p.id&&ayniKisi(x,p)&&!(x.cikis&&x.cikis<ymd(today())))?'<button class="btn" id="pYeni" style="margin-top:10px;width:100%">Yeniden işe al</button>':''}
+   </div>
+   ${id?`<div id="pTabG" hidden>${personelGecmisHtml(p,yaz,gayOpt)}</div>`:''}
    <div id="pWarn"></div><div class="row2">${id&&(isIsveren()||(isBolge()&&(S.me.subeler||[]).includes(p.anaSube)))?'<button class="btn danger" id="pDel">Personeli sil</button>':''}<button class="btn grow" id="pNo">${yaz?'Vazgeç':'Kapat'}</button>${yaz?'<button class="btn primary grow" id="pOk">Kaydet</button>':''}</div>`,sh=>{
    sh.querySelectorAll('#pSekil button').forEach(bt=>bt.onclick=()=>{sh.querySelectorAll('#pSekil button').forEach(x=>x.classList.remove('on'));bt.classList.add('on');});
-   const G=byId('pGorev');const gayW=byId('pGayW');const sekilSec=()=>{const g=gorevBul(G.value);return g&&g.sekil?g.sekil:sh.querySelector('#pSekil .on').dataset.v;};
+   const G=byId('pGorev');const sekilSec=()=>{const g=gorevBul(G.value);return g&&g.sekil?g.sekil:sh.querySelector('#pSekil .on').dataset.v;};
    const gorevDeg=()=>{const g=gorevBul(G.value);return !!g&&(g.ad!==gv||sekilSec()!==(p.sekil||'Tam'));};
-   const tog=()=>{const g=gorevBul(G.value);byId('pSekilW').hidden=!!(g&&g.sekil);if(gayW)gayW.hidden=!gorevDeg();};G.onchange=tog;tog();sh.querySelectorAll('#pSekil button').forEach(bt=>bt.addEventListener('click',tog));
-   const py=byId('pYeni');if(py)py.onclick=()=>{closeSheet();personelPanel(null,null,{eski:p.id});};if(id)personelMaasGecmisi(p);
-   const po=byId('pOut');if(po)po.onclick=()=>{byId('pCikis').value=ymd(today());po.hidden=true;};byId('pNo').onclick=closeSheet;const pe=byId('pEk');if(pe)pe.onclick=()=>ekSubePanel(p);const W=byId('pWarn');if(!yaz)return;
+   const tog=()=>{const g=gorevBul(G.value);byId('pSekilW').hidden=!!(g&&g.sekil);};G.onchange=tog;tog();
+   sh.querySelectorAll('#pTab button').forEach(bt=>bt.onclick=()=>{sh.querySelectorAll('#pTab button').forEach(x=>x.classList.toggle('on',x===bt));byId('pTabB').hidden=bt.dataset.t!=='b';byId('pTabG').hidden=bt.dataset.t!=='g';});
+   const ac=(b,w)=>{const B=byId(b);if(B)B.onclick=()=>{byId(w).hidden=false;B.hidden=true;};};ac('pMsAc','pMsW');ac('pBasAc','pBasW');
+   const py=byId('pYeni');if(py)py.onclick=()=>{closeSheet();personelPanel(null,null,{eski:p.id});};
+   if(id){personelMaasGecmisi(p);gorevDegisimBagla(p,yaz,()=>{gv=gorevTahmin(p);G.value=gv;sh.querySelectorAll('#pSekil button').forEach(x=>x.classList.toggle('on',x.dataset.v===(p.sekil==='Part'?'Part':'Tam')));tog();});}
+   const po=byId('pOut');if(po)po.onclick=e=>{e.preventDefault();byId('pCikis').value=ymd(today());};byId('pNo').onclick=closeSheet;const pe=byId('pEk');if(pe)pe.onclick=()=>ekSubePanel(p);const W=byId('pWarn');if(!yaz)return;
    byId('pAd').oninput=e=>{const el=e.target,a=el.selectionStart,b=el.selectionEnd;el.value=el.value.toLocaleUpperCase('tr-TR');try{el.setSelectionRange(a,b);}catch(_){}};
    let eskiB=null;if(eskiK){const o={},liste=[];BILGI.forEach(f=>{const v=f.k==='tc'?tcOf(eskiK):eskiK[f.k];if(v){o[f.k]=v;liste.push(f.ad);}});eskiB={o,liste:liste.length?liste:['kayıtlı bilgi yok']};}
    if(!id){const E=byId('pEski');const td0=ymd(today());
@@ -1274,7 +1300,8 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
      const sekil=g.sekil||sh.querySelector('#pSekil .on').dataset.v;const ana=byId('pAna').value||S.subeId;
      const bas=byId('pBas').value;if(bas&&giris&&bas>giris){W.innerHTML='<div class="confirm">Deneme başlangıcı SGK girişinden sonra olamaz.</div>';return;}
      const body={ad,gorev:g.ad,grup:g.grup,sekil,giris,cikis,baslama:bas,sgkSube:sgkV,anaSube:ana,...bilgi};
-     if(id){if(gorevDeg()){const y=gorevGecmisYama(p,{gorev:g.ad,grup:g.grup,sekil},byId('pGay')?byId('pGay').value:buAy);if(y)Object.assign(body,y);else Object.assign(body,{gorev:p.gorev,grup:p.grup,sekil:p.sekil});}else if(p.gorevGecmis){Object.assign(body,{gorev:p.gorev,grup:p.grup,sekil:p.sekil});}}
+     // Bilgiler sekmesinden görev değişimi düzeltmedir: geçmişi olmayan kişide tüm aylar, geçmişi olanda en son kayıt (güncel görev) düzelir. Terfi Geçmiş sekmesinden.
+     if(id){const gk=Object.keys(p.gorevGecmis||{}).filter(k=>p.gorevGecmis[k]&&p.gorevGecmis[k].gorev).sort();if(gk.length){if(gorevDeg()){const y=gorevGecmisYama(p,{gorev:g.ad,grup:g.grup,sekil},gk[gk.length-1]);Object.assign(body,y||{gorev:p.gorev,grup:p.grup,sekil:p.sekil});}else Object.assign(body,{gorev:p.gorev,grup:p.grup,sekil:p.sekil});}}
      if(id){const akM=ayKey(today());const msEl=byId('pMs');const ms0=odemeSubesi(p,akM);const ym=msEl&&msEl.value!==ms0?maasGecmisYama(p,msEl.value,akM):maasGecmisYama(p,{anaSube:ana,sgkSube:sgkV},akM);if(ym)Object.assign(body,ym);}if(p.sira!=null)body.sira=p.sira;const pid=id||(slug(ad)+'-'+Math.random().toString(36).slice(2,6));
      const p0={...p};const body2=personelYaz(pid,id?p0:{},body);if(!id)S.personel.push({id:pid,...body2});else Object.assign(p,body2);closeSheet();
      const ilkHafta=mondayOf(giris&&parse(giris)>today()?parse(giris):today());
