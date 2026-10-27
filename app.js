@@ -60,7 +60,8 @@ function ozBirlestir(oz,sol){const satirlar=Object.keys(sol||{}).map(pid=>({pid,
 function veriUygula(sol,oz){Object.entries(oz).forEach(([pid,e])=>{const r=sol[pid];if(!r)return;const n=k=>e[k]||0;
   if(r.maasBurada!==false||r.muhBurada){r.rapor=(r.rapor||0)+n('R');r.ucretsiz=(r.ucretsiz||0)+n('UI');r.yillik=(r.yillik||0)+n('YI');r.bayram=(r.bayram||0)+n('B');
     r.partGun=Math.round(((r.partGun||0)+n('PG'))*100)/100;const T=r.gunTaban;const vE=n('R')+n('UI');
-    if(r.sekil==='Part'||r.partGun>0)r.gun=r.partGun;else if(vE)r.gun=T?sgkGunSayisi(T.ist,T.takvim,T.e+vE):Math.max(0,(r.gun||0)-vE);
+    // Part gün girilmemiş part-time: gün sayısı tam zamanlı gibi (ay − rapor − ücretsiz izin)
+    if(r.partGun>0)r.gun=r.partGun;else if(vE)r.gun=T?sgkGunSayisi(T.ist,T.takvim,T.e+vE):Math.max(0,(r.gun||0)-vE);
     if(r.hakGun!=null&&vE)r.hakGun=T?sgkGunSayisi(T.istF,T.takvim,T.eH+vE):Math.max(0,r.hakGun-vE);
     if(r.iscGun!=null&&vE&&T&&T.iS!=null)r.iscGun=sgkGunSayisi(T.iS,T.takvim,T.eS+vE);}
   r.fmSaat=Math.round(((r.fmSaat||0)+n('FM'))*100)/100;if(['R','UI','YI','B','PG','FM'].some(k=>e[k]))r.elle=true;});return sol;}
@@ -108,7 +109,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=146;
+const APP_SURUM=148;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -431,7 +432,7 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
       rapor:tumGun?t.R:0,ucretsiz:tumGun?t.UI:0,yillik:tumGun?t.YI:0,bayram:tumGun?t.B:0,muhBurada,odemeSube:subeAdi(odemeSid),odemeSid,partGun:0,// part gün elle, veri girişinden
       gunTaban:{ist,istF,takvim:last.getDate(),e:t.R+t.UI,eH:tH.R+tH.UI,...(iscGun!=null?{iS:istS,eS}:{})},...(iscGun!=null?{iscGun}:{}),// veri girişindeki rapor / ücretsiz izin gün sayısını aynı kuralla düşürmek için
       muhSekil:p.sekil||'Tam',
-      fmSaat:o.fm,calisilanSaat:o.saat,gun:tumGun&&!part?gun:0,hakGun:tumGun?hakGun:0,// part: bordro günü = part gün (veri girişinden)
+      fmSaat:o.fm,calisilanSaat:o.saat,gun:tumGun?gun:0,hakGun:tumGun?hakGun:0,// part: bordro günü = part gün (veri girişinden); girilmemişse normal gün
       baslama:p.baslama&&p.baslama<(p.giris||'9')?p.baslama:'',sgkDisi:sgkDisi?1:0,bosGun:o.bos,baska:t.baska,cakisma:t.cakisma,sgkYok:p.sgkSube===SGK_YOK};});
   return out;}
 // Muhasebeye giden tarafta sadece SGK'sı bu şubede olanlar; başka şubenin SGK'lısı ve SGK'sı olmayanlar sadece ödemelerde.
@@ -1642,18 +1643,18 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   S.pt._vvis=VIS.map(x=>x.i);S.pt._vkf={cols:VC,rows:tumR};
   let h=`${V.kesin?'':'<div class="actions" style="margin-top:0"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>'}${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}${uyariSay?`<div class="banner">${uyariSay} satırda uyarı var (sarı). Satırdaki yazıyı okuyun: rapor / izin aynı gün çizelgede ya da başka şubede de yazılmış (iki kez sayılır) veya kişinin o ay çalıştığı günden fazla rapor / izin girilmiş olabilir.</div>`:''}
    ${kfAktifMi('veri')?`<div class="kfbar">Filtre açık · ${VIS.length} / ${veri.length} satır gösteriliyor <button class="mini" id="kfHepsiV">Filtreleri kaldır</button></div>`:''}
-   <div class="tbl-wrap"><table class="pt vt vg2" id="vGrid"><thead><tr>${VC.map(c=>kfBaslik('veri',c,c.l?'l':'')).join('')}<th></th></tr></thead><tbody>`;
+   <div class="tbl-wrap"><table class="pt vt vg2" id="vGrid" tabindex="0"><thead><tr>${VC.map(c=>kfBaslik('veri',c,c.l?'l':'')).join('')}<th></th></tr></thead><tbody>`;
   VIS.forEach((x,r)=>{const v=x.v;const k=x.k;const kil=V.kesin||(V.kilitli&&veriTur(v.tur)&&veriTur(v.tur).y==='sol'&&!k.gecersiz);
     h+=`<tr data-vid="${esc(v.id)}" data-r="${r}" class="${k.gecersiz?'hata':''}">
-     <td class="bi"><input data-c="0" value="${esc(v.tarih?trTarih(v.tarih):'')}" placeholder="gg.aa.yyyy" ${kil?'disabled':''}></td>
-     <td class="bi l"><input data-c="1" list="vKisiL" value="${esc(v.ad!=null?v.ad:adBuyuk(adOf(v.pid)))}" autocomplete="off" ${kil?'disabled':''}></td>
+     <td class="bi"><input data-c="0" readonly value="${esc(v.tarih?trTarih(v.tarih):'')}" placeholder="gg.aa.yyyy" ${kil?'disabled':''}></td>
+     <td class="bi l"><input data-c="1" readonly list="vKisiL" value="${esc(v.ad!=null?v.ad:adBuyuk(adOf(v.pid)))}" autocomplete="off" ${kil?'disabled':''}></td>
      <td class="bi l"><select data-c="2" ${kil?'disabled':''}>${opt('',v.turYazi&&!veriTur(v.tur)?v.turYazi+' ?':'Seçin',!veriTur(v.tur))}${turlar.map(t=>opt(t.k,t.ad,v.tur===t.k)).join('')}${veriTur(v.tur)&&veriTur(v.tur).gizli?opt(v.tur,veriTur(v.tur).ad,true):''}</select></td>
-     <td class="bi"><input data-c="3" value="${esc(v.miktar==null||v.miktar===''?'':fmt(sayi(v.miktar)))}" inputmode="decimal" style="text-align:right" ${kil?'disabled':''}></td>
-     <td class="bi l"><input data-c="4" value="${esc(v.aciklama||'')}" ${kil?'disabled':''}></td>
+     <td class="bi"><input data-c="3" readonly value="${esc(v.miktar==null||v.miktar===''?'':fmt(sayi(v.miktar)))}" inputmode="decimal" style="text-align:right" ${kil?'disabled':''}></td>
+     <td class="bi l"><input data-c="4" readonly value="${esc(v.aciklama||'')}" ${kil?'disabled':''}></td>
      <td class="l dur">${k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:''}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Satırı sil">✕</button>`}</td></tr>`;});
   if(!V.kesin)h+=`<tr class="ekle"><td colspan="7"><button class="mini ekleB" id="vSatir">+ Satır ekle</button><button class="mini ekleB" id="vSatir10">+ 10 satır</button></td></tr></tbody></table></div>
    <datalist id="vKisiL">${kL.map(([id,ad])=>`<option value="${esc(adBuyuk(ad))}">`).join('')}</datalist>
-   <p class="note">Excel'deki satırları (TARİH · ŞUBE · AD SOYAD · VERİ TÜRÜ · MİKTAR · AÇIKLAMA) kopyalayıp tablodaki herhangi bir hücreye ya da sayfaya yapıştırın; satırlar kendiliğinden eklenir, şube sütunu atlanır. Yazdıklarınız anında kaydedilir. İsmi ya da türü tutmayan satırlar kırmızı görünür ve hesaba katılmaz.${V.kilitli?' Ay onaylandığı için gün türleri (rapor, izin, part gün) eklenemez; onaydan sonra eklenen kişiye de giriş yapılamaz. Düzeltme için kilidi açıp yeniden onaylayın.':''} Rapor, izin ve part gün hangi şubede girilirse girilsin kişinin SGK şubesinde ve maaş şubesinde sayılır.</p>`;
+   <p class="note">Çizelgedeki gibi: hücreye tıklayıp seçin, sürükleyerek ya da Shift ile aralık seçin; çift tıklayarak ya da yazmaya başlayarak düzenleyin. Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır. Excel'deki satırları (TARİH · ŞUBE · AD SOYAD · VERİ TÜRÜ · MİKTAR · AÇIKLAMA) kopyalayıp seçili hücreye yapıştırın (seçim yoksa ilk boş satıra); satırlar kendiliğinden eklenir, şube sütunu atlanır. Yazdıklarınız anında kaydedilir. İsmi ya da türü tutmayan satırlar kırmızı görünür ve hesaba katılmaz.${V.kilitli?' Ay onaylandığı için gün türleri (rapor, izin, part gün) eklenemez; onaydan sonra eklenen kişiye de giriş yapılamaz. Düzeltme için kilidi açıp yeniden onaylayın.':''} Rapor, izin ve part gün hangi şubede girilirse girilsin kişinin SGK şubesinde ve maaş şubesinde sayılır.</p>`;
   if(oto.length){const ac=S.pt.otoAcik;h+=`<button class="btn" id="vOto" style="width:100%;margin-top:6px">${ac?'Otomatik gelenleri gizle':'Çizelgeden ve devirden otomatik gelenler'} · ${oto.length}</button>`;
     if(ac)h+=`<div class="tbl-wrap" style="margin-top:8px"><table class="pt"><thead><tr><th>Kaynak</th><th class="l">Ad soyad</th><th class="l">Veri türü</th><th>Miktar</th><th class="l">Açıklama</th></tr></thead><tbody>${oto.map(v=>{const t=veriTur(v.tur);const mk=v.miktar==null?'—':t&&t.b==='₺'?tl(sayi(v.miktar)):fmt(sayi(v.miktar))+' '+(t?t.b:'');
       return`<tr class="oto"><td><span class="tag">${v.kaynak||(v.tur==='AV'?'devir':'çizelge')}</span></td><td class="l"><b>${esc(adBuyuk(adOf(v.pid)))}</b></td><td class="l">${esc(t?t.ad:v.tur)}</td><td>${mk}</td><td class="l">${esc(v.aciklama||'Mesai çizelgesinden')}</td></tr>`;}).join('')}</tbody></table></div>`;}
@@ -1701,13 +1702,32 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
   const grid=byId('vGrid');
   const durumGuncelle=(tr,v)=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);tr.classList.toggle('hata',!!k.gecersiz);tr.querySelector('.dur').innerHTML=k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:'';};
   const hucreYaz=(v,c,val)=>{if(c===0){const d=trTarihCoz(val);v.tarih=d||'';v._tarihYazi=d?'':val;}else if(c===1){v.ad=adBuyuk(val);v.pid='';}else if(c===2){const t=veriTur(val)?val:turCoz(val);v.tur=t||'';v.turYazi=t?'':val;}else if(c===3)v.miktar=String(val).trim()===''?'':sayi(val);else if(c===4)v.aciklama=String(val).trim();return temiz(v);};
+  // Hücreler çizelgedeki gibi: tıkla seç, sürükle / Shift ile aralık, çift tıkla (ya da Enter / F2 / yazmaya başla) düzenle.
+  // Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır; yapıştırma seçili hücreden başlar, seçim yoksa ilk boş satıra.
+  const hucreEl=(r,c)=>grid.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);
+  const aralik=()=>{const A=S.pt.vsel;if(!A)return null;return{r0:Math.min(A.r0,A.r1),r1:Math.max(A.r0,A.r1),c0:Math.min(A.c0,A.c1),c1:Math.max(A.c0,A.c1)};};
+  const satirSay=()=>grid.querySelectorAll('tr[data-vid]').length;
+  const selCiz=()=>{grid.querySelectorAll('td.vsel,td.vakt').forEach(t=>t.classList.remove('vsel','vakt'));const A=aralik();if(!A)return;
+    for(let r=A.r0;r<=A.r1;r++)for(let c=A.c0;c<=A.c1;c++){const e=hucreEl(r,c);const t=e&&e.closest('td');if(t)t.classList.add('vsel');}
+    const a=hucreEl(S.pt.vsel.r1,S.pt.vsel.c1);if(a&&a.closest('td'))a.closest('td').classList.add('vakt');};
+  const sec=(r,c,uzat)=>{const n=satirSay();if(!n)return;r=Math.max(0,Math.min(n-1,r));c=Math.max(0,Math.min(4,c));
+    S.pt.vsel=uzat&&S.pt.vsel?{...S.pt.vsel,r1:r,c1:c}:{r0:r,c0:c,r1:r,c1:c};selCiz();const e=hucreEl(r,c);if(e&&e.scrollIntoView)e.scrollIntoView({block:'nearest',inline:'nearest'});};
+  const duzenleniyor=()=>{const a=document.activeElement;return !!(a&&grid.contains(a)&&a.matches('[data-c]')&&(a.tagName==='SELECT'||!a.readOnly));};
+  const duzenle=(r,c,ilk)=>{const el=hucreEl(r,c);if(!el||el.disabled)return;sec(r,c);
+    if(el.tagName==='SELECT'){el.focus();try{el.showPicker&&el.showPicker();}catch(_){}return;}
+    el.readOnly=false;el.focus();if(ilk!=null){el.value=c===1?ilk.toLocaleUpperCase('tr-TR'):ilk;try{el.setSelectionRange(el.value.length,el.value.length);}catch(_){}}else{try{el.select();}catch(_){}}};
+  const bitir=el=>{if(el.tagName!=='SELECT')el.readOnly=true;grid.focus({preventScroll:true});};
   grid.querySelectorAll('tr[data-vid]').forEach(tr=>{const id=tr.dataset.vid;
     tr.querySelectorAll('[data-c]').forEach(el=>{const c=+el.dataset.c;
       if(c===1)el.oninput=()=>{const a=el.selectionStart,b=el.selectionEnd;el.value=el.value.toLocaleUpperCase('tr-TR');try{el.setSelectionRange(a,b);}catch(_){}};
-      el.onchange=()=>{const L=veri0().map(v=>v.id===id?hucreYaz({...v},c,el.value):v);const v=L.find(x=>x.id===id);if(c===0&&v.tarih)el.value=trTarih(v.tarih);if(c===3&&v.miktar!=='')el.value=fmt(v.miktar);durumGuncelle(tr,v);ayarla(L,false);};
-      el.onkeydown=e=>{if(e.key==='Enter'||e.key==='ArrowDown'||e.key==='ArrowUp'){if(el.tagName==='SELECT'&&e.key!=='Enter')return;e.preventDefault();el.onchange&&el.dispatchEvent(new Event('change'));
-        const r=+tr.dataset.r+(e.key==='ArrowUp'?-1:1);const n=grid.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);if(n){n.focus();n.select&&n.select();}else if(e.key==='Enter'){S.pt.odak={c};ayarla([...veri0(),yeniSatir()],true);}}};
-      el.onpaste=e=>{const t=(e.clipboardData||window.clipboardData).getData('text');if(!/[\t\n]/.test(t.trim()))return;e.preventDefault();yapistir(t,+tr.dataset.r,c);};});});
+      el.onchange=()=>{const L=veri0().map(v=>v.id===id?hucreYaz({...v},c,el.value):v);const v=L.find(x=>x.id===id);if(c===0&&v.tarih)el.value=trTarih(v.tarih);if(c===3&&v.miktar!=='')el.value=fmt(v.miktar);durumGuncelle(tr,v);ayarla(L,false);if(el.tagName==='SELECT')bitir(el);};
+      el.onblur=()=>{if(el.tagName!=='SELECT')el.readOnly=true;};
+      el.onkeydown=e=>{if(el.tagName!=='SELECT'&&el.readOnly)return;const r=+tr.dataset.r;
+        if(e.key==='Escape'){e.preventDefault();e.stopPropagation();const v=veri0().find(x=>x.id===id);if(v&&el.tagName!=='SELECT'){el.value=c===0?(v.tarih?trTarih(v.tarih):''):c===1?(v.ad!=null?v.ad:adBuyuk(adOf(v.pid))):c===3?(v.miktar==null||v.miktar===''?'':fmt(sayi(v.miktar))):c===4?(v.aciklama||''):el.value;}bitir(el);return;}
+        if(e.key==='Tab'){e.preventDefault();el.dispatchEvent(new Event('change'));bitir(el);sec(r,c+(e.shiftKey?-1:1));return;}
+        if(e.key==='Enter'||((e.key==='ArrowDown'||e.key==='ArrowUp')&&el.tagName!=='SELECT')){e.preventDefault();el.dispatchEvent(new Event('change'));bitir(el);
+          const r2=r+(e.key==='ArrowUp'?-1:1);if(r2>=satirSay()&&e.key==='Enter'){S.pt.odak={c,yeni:true};ayarla([...veri0(),yeniSatir()],true);}else sec(r2,c);}};
+      el.onpaste=e=>{if(el.tagName!=='SELECT'&&el.readOnly)return;const t=(e.clipboardData||window.clipboardData).getData('text');if(!/[\t\n]/.test(t.trim()))return;e.preventDefault();e.stopPropagation();bitir(el);yapistir(t,+tr.dataset.r,c);};});});
   const sutunlar=M=>{// şube sütununu ve başlık satırını at
     if(M.length&&M[0].some(x=>/TAR[İI]H|ADI|VER[İI] T[ÜU]R|M[İI]KTAR/i.test(x)))M=M.slice(1);
     const sb=tumSubeler().map(([i,a])=>isimAnahtar(a));const w=Math.max(...M.map(r=>r.length));const at=[];
@@ -1722,39 +1742,42 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
   const ob=byId('vOto');if(ob)ob.onclick=()=>{S.pt.otoAcik=!S.pt.otoAcik;render();};
   if(S.pt._vkf)kfBagla('veri',S.pt._vkf.cols,S.pt._vkf.rows);const kv=byId('kfHepsiV');if(kv)kv.onclick=()=>{kfDurum('veri').f={};kfDurum('veri').sort=null;S.pt.vsel=null;render();};
   document.querySelectorAll('[data-sil]').forEach(b=>b.onclick=()=>{const v=veri0().find(x=>x.id===b.dataset.sil);const bos=v&&veriKontrol(v,kL,ak,V.kilitli,V).bos;if(!bos&&!b.dataset.ok){b.dataset.ok='1';b.textContent='Sil?';return;}ayarla(veri0().filter(x=>x.id!==b.dataset.sil),true);});
-  if(!veriYapistirBagli){veriYapistirBagli=true;document.addEventListener('paste',e=>{if(S.tab!=='puantaj'||!S.pt.sube||S.pt.gorunum!=='veri'||byId('sheetRoot').innerHTML)return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName))return;
-    const t=(e.clipboardData||window.clipboardData).getData('text');if(!t||!/[\t\n]/.test(t))return;e.preventDefault();const L=veri0();const VI=S.pt._vvis||L.map((v,i)=>i);const bosP=VI.findIndex(i=>L[i]&&veriKontrol(L[i],kL,ak,V.kilitli,V).bos);(window.__vYapistir||(()=>{}))(t,bosP>=0?bosP:VI.length,0);});}
-  window.__vYapistir=yapistir;
-  // Excel gibi hücre seçimi: sürükle ya da Shift+tıkla; Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır, tek değer seçili tüm hücrelere yapıştırılır.
-  const hucreEl=(r,c)=>grid.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);const tdOf=el=>el&&el.closest('td');
-  const konum=el=>{const tr=el.closest('tr[data-r]');const x=el.closest('td')&&el.closest('td').querySelector('[data-c]');return tr&&x?{r:+tr.dataset.r,c:+x.dataset.c}:null;};
-  const aralik=()=>{const A=S.pt.vsel;if(!A)return null;return{r0:Math.min(A.r0,A.r1),r1:Math.max(A.r0,A.r1),c0:Math.min(A.c0,A.c1),c1:Math.max(A.c0,A.c1)};};
-  const selCiz=()=>{grid.querySelectorAll('td.vsel').forEach(t=>t.classList.remove('vsel'));const A=aralik();if(!A||(A.r0===A.r1&&A.c0===A.c1))return;for(let r=A.r0;r<=A.r1;r++)for(let c=A.c0;c<=A.c1;c++){const t=tdOf(hucreEl(r,c));if(t)t.classList.add('vsel');}};
-  const cokluMu=()=>{const A=aralik();return A&&(A.r0!==A.r1||A.c0!==A.c1);};
-  let surukle=null;
-  grid.querySelectorAll('tr[data-vid] td.bi').forEach(td=>{const el=td.querySelector('[data-c]');if(!el)return;
-    td.addEventListener('mousedown',e=>{const k=konum(el);if(!k)return;if(e.shiftKey&&S.pt.vsel){e.preventDefault();S.pt.vsel={...S.pt.vsel,r1:k.r,c1:k.c};selCiz();return;}S.pt.vsel={r0:k.r,c0:k.c,r1:k.r,c1:k.c};surukle=k;selCiz();});
-    td.addEventListener('mouseenter',e=>{if(!surukle||!(e.buttons&1))return;const k=konum(el);if(!k||(k.r===S.pt.vsel.r1&&k.c===S.pt.vsel.c1))return;S.pt.vsel={...S.pt.vsel,r1:k.r,c1:k.c};if(cokluMu()){document.activeElement&&document.activeElement.blur&&document.activeElement.blur();window.getSelection&&window.getSelection().removeAllRanges();}selCiz();});});
-  document.addEventListener('mouseup',()=>{surukle=null;},{once:true});
-  grid.addEventListener('focusin',e=>{if(surukle)return;const k=e.target.closest('[data-c]')&&konum(e.target);if(k&&cokluMu()){S.pt.vsel={r0:k.r,c0:k.c,r1:k.r,c1:k.c};selCiz();}});
-  const degerOf=el=>el.tagName==='SELECT'?(el.value?el.selectedOptions[0].text:''):el.value;
-  grid.oncopy=null;
-  if(!S.pt.vgDinle){S.pt.vgDinle=true;
-    document.addEventListener('copy',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri')return;const ae=document.activeElement;const icinde=ae&&g.contains(ae);
-      const A=aralik();if(!A)return;const tekSelect=icinde&&ae.tagName==='SELECT';if(!cokluMu()&&!tekSelect)return;
-      const R=[];for(let r=A.r0;r<=A.r1;r++){const row=[];for(let c=A.c0;c<=A.c1;c++){const x=g.querySelector(`tr[data-r="${r}"] [data-c="${c}"]`);row.push(x?degerOf(x):'');}R.push(row.join('\t'));}
-      e.clipboardData.setData('text/plain',R.join('\n'));e.preventDefault();toast(`${(A.r1-A.r0+1)*(A.c1-A.c0+1)} hücre kopyalandı.`);});
-    document.addEventListener('paste',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri'||byId('sheetRoot').innerHTML)return;const ae=document.activeElement;const A=aralik();
-      const t=(e.clipboardData||window.clipboardData).getData('text');if(t==null)return;const tek=!/[\t\n]/.test(t.replace(/[\r\n]+$/,''));
-      if(tek&&A&&(cokluMu()||(ae&&ae.tagName==='SELECT'&&g.contains(ae)))){e.preventDefault();e.stopPropagation();(window.__vDoldur||(()=>{}))(t.replace(/[\r\n]+$/,''),A);}},true);
-    document.addEventListener('keydown',e=>{const g=byId('vGrid');if(!g||S.pt.gorunum!=='veri')return;if((e.key==='Delete'||e.key==='Backspace')&&cokluMuG()){const ae=document.activeElement;if(ae&&/INPUT|SELECT|TEXTAREA/.test(ae.tagName))return;e.preventDefault();(window.__vDoldur||(()=>{}))('',aralikG());}});}
-  const cokluMuG=()=>cokluMu();const aralikG=()=>aralik();window.cokluMuG=cokluMuG;window.aralikG=aralikG;
+  // Fare: tıkla seç, sürükle / Shift+tıkla aralık, çift tıkla düzenle. Dokunmatik ekranda dokununca düzenler.
+  let surukle=false,ptr='mouse';
+  const konum=t=>{const td=t.closest&&t.closest('td.bi');const el=td&&td.querySelector('[data-c]');const tr=td&&td.closest('tr[data-r]');return el&&tr?{r:+tr.dataset.r,c:+el.dataset.c,el}:null;};
+  grid.onpointerdown=e=>{ptr=e.pointerType||'mouse';const k=konum(e.target);if(!k||k.el.disabled)return;if(ptr!=='mouse')return;if(e.button!==0)return;
+    if(document.activeElement===k.el&&duzenleniyor())return;// düzenlenen hücrenin içinde imleç / metin seçimi serbest
+    e.preventDefault();const a=document.activeElement;if(a&&grid.contains(a)&&a!==grid)a.blur();grid.focus({preventScroll:true});sec(k.r,k.c,e.shiftKey);surukle=true;};
+  grid.onpointermove=e=>{if(!surukle||ptr!=='mouse'||!(e.buttons&1))return;const t=document.elementFromPoint(e.clientX,e.clientY);const k=t&&konum(t);if(k&&S.pt.vsel&&(k.r!==S.pt.vsel.r1||k.c!==S.pt.vsel.c1))sec(k.r,k.c,true);};
+  grid.onpointerup=grid.onpointercancel=()=>{surukle=false;};
+  grid.ondblclick=e=>{const k=konum(e.target);if(k&&ptr==='mouse')duzenle(k.r,k.c);};
+  grid.onclick=e=>{if(ptr==='mouse')return;const k=konum(e.target);if(k)duzenle(k.r,k.c);};
+  grid.querySelectorAll('select[data-c]').forEach(el=>el.addEventListener('mousedown',e=>{if(ptr==='mouse'&&document.activeElement!==el)e.preventDefault();}));
+  window.__vg={
+    aktif:()=>S.tab==='puantaj'&&S.pt.gorunum==='veri'&&!byId('sheetRoot').innerHTML&&byId('vGrid')===grid&&grid.isConnected,
+    duzenleniyor,aralik,sec,duzenle,
+    tsv:()=>{const A=aralik();if(!A)return null;const R=[];for(let r=A.r0;r<=A.r1;r++){const row=[];for(let c=A.c0;c<=A.c1;c++){const x=hucreEl(r,c);row.push(x?(x.tagName==='SELECT'?(x.value?x.selectedOptions[0].text:''):x.value):'');}R.push(row.join('\t'));}return{t:R.join('\n'),n:(A.r1-A.r0+1)*(A.c1-A.c0+1)};},
+    yapistir:t=>{const A=aralik();const tek=!/[\t\n]/.test(t.replace(/[\r\n]+$/,''));
+      if(A){if(tek&&(A.r1>A.r0||A.c1>A.c0)){window.__vDoldur(t.replace(/[\r\n]+$/,''),A);return;}yapistir(t,A.r0,A.c0);return;}
+      if(tek)return;const L=veri0();const VI=vis();const bosP=VI.findIndex(i=>L[i]&&veriKontrol(L[i],kL,ak,V.kilitli,V).bos);yapistir(t,bosP>=0?bosP:VI.length,0);}};
   window.__vDoldur=(val,A)=>{const L=veri0().slice();const VI=vis();let n=0;for(let p=A.r0;p<=A.r1;p++){const r=VI[p];if(r==null||!L[r])continue;let v={...L[r]};for(let c=A.c0;c<=A.c1;c++){if(c>4)continue;v=hucreYaz(v,c,val);n++;}L[r]=v;}
     ayarla(L,true);toast(val===''?`${n} hücre temizlendi.`:`${n} hücreye yapıştırıldı.`);};
+  if(!veriYapistirBagli){veriYapistirBagli=true;
+    document.addEventListener('copy',e=>{const G=window.__vg;if(!G||!G.aktif()||G.duzenleniyor())return;const x=G.tsv();if(!x)return;e.clipboardData.setData('text/plain',x.t);e.preventDefault();toast(`${x.n} hücre kopyalandı.`);});
+    document.addEventListener('paste',e=>{const G=window.__vg;if(!G||!G.aktif()||G.duzenleniyor())return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&!(byId('vGrid')&&byId('vGrid').contains(a)))return;
+      const t=(e.clipboardData||window.clipboardData).getData('text');if(!t)return;e.preventDefault();G.yapistir(t);});
+    document.addEventListener('keydown',e=>{const G=window.__vg;if(!G||!G.aktif()||G.duzenleniyor())return;const a=document.activeElement;if(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)&&!(byId('vGrid')&&byId('vGrid').contains(a)))return;
+      const A=G.aralik();if(!A)return;const P=S.pt.vsel;
+      if(e.key==='Escape'){S.pt.vsel=null;G.sec&&byId('vGrid').querySelectorAll('td.vsel,td.vakt').forEach(t=>t.classList.remove('vsel','vakt'));return;}
+      if(e.key==='Delete'||e.key==='Backspace'){e.preventDefault();window.__vDoldur('',A);return;}
+      if(e.key==='Enter'||e.key==='F2'){e.preventDefault();G.duzenle(P.r1,P.c1);return;}
+      if(e.key==='Tab'){e.preventDefault();G.sec(P.r1,P.c1+(e.shiftKey?-1:1));return;}
+      const yon={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[e.key];if(yon){e.preventDefault();G.sec(P.r1+yon[0],P.c1+yon[1],e.shiftKey);return;}
+      if(e.key.length===1&&!e.ctrlKey&&!e.metaKey&&!e.altKey){e.preventDefault();if(P.c1===2)G.duzenle(P.r1,P.c1);else G.duzenle(P.r1,P.c1,e.key);}});}
   selCiz();
-  // odak
+  // odak: yeni eklenen satırın hücresi seçilip düzenlemeye açılır
   if(S.pt.odak){const o=S.pt.odak;S.pt.odak=null;const rows=[...grid.querySelectorAll('tr[data-vid]')];let tr=o.ilkBos?rows.find(t=>{const v=veri0().find(x=>x.id===t.dataset.vid);return v&&veriKontrol(v,kL,ak,V.kilitli,V).bos;}):rows[rows.length-1];
-    const el=tr&&tr.querySelector(`[data-c="${o.c}"]`);if(el)el.focus();}}
+    if(tr)duzenle(+tr.dataset.r,o.c);}}
 
 // Boş satırlar: sekme değişince, şubeden çıkınca ve sayfa açılınca silinir.
 function bosSatirMi(v){return !String(v.ad||'').trim()&&!v.pid&&!v.tur&&(v.miktar===''||v.miktar==null)&&!String(v.aciklama||'').trim();}

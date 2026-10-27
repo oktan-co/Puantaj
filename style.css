@@ -424,3 +424,10 @@ table.bl.cal th{padding-left:10px;padding-right:10px}
 .gcm .gcr{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:3px 0}
 .gcm .gcr i{font-style:normal;font-size:11px;color:var(--mut,#667)}
 .gcm .gcr .mini{margin-left:auto}
+
+/* Veri girişi: çizelge gibi hücre seçimi */
+table.vg2:focus{outline:none}
+table.vg2 td.bi input[readonly]{cursor:cell;user-select:none;-webkit-user-select:none;caret-color:transparent}
+table.vg2 td.bi input[readonly]:focus{box-shadow:none}
+table.vg2 td.bi select{cursor:cell}
+table.vg2 td.vakt{outline:2.5px solid #2f6fdb;outline-offset:-2px;position:relative;z-index:1}
