@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=156;
+const APP_SURUM=157;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -456,7 +456,8 @@ function sagHesap(pid,sol,sag,net,sb,devir,ek={},us={},kapi=false){const e=k=>ek
   const bankaya=sayi(s.bankaya)+e('BY'),paketPrimi=sayi(s.paketPrimi),ciroPrimi=sayi(s.ciroPrimi),avans=sayi(s.avans);
   let hak=0,maasFarki=0,fmTl=0,paketHak=0;const on=s0.otoOnay||{},rd=s0.otoRed||{};let fmBekle=false,saBekle=false,fmRed=false,saRed=false;
   // Reddedilen (otoRed, aynı saat için) ödenmez ama beklemez; çizelge değişince yeniden karar bekler.
-  const fmS=()=>{const h=sol.fmSaat||0;if(kapi&&Math.abs(h)>0.004&&!otoAyni(on.fm,h)){if(otoAyni(rd.fm,h))fmRed=true;else fmBekle=true;return 0;}return h;};const saS=()=>{const h=sol.calisilanSaat||0;if(kapi&&h>0.004&&!otoAyni(on.sa,h)){if(otoAyni(rd.sa,h))saRed=true;else saBekle=true;return 0;}return h;};
+  // Açıkça reddedilen (aynı saat) ay kilitlense de ödenmez; karar verilmemiş olan kilitli ayda onaylı sayılır.
+  const fmS=()=>{const h=sol.fmSaat||0;if(Math.abs(h)<=0.004||otoAyni(on.fm,h))return h;if(otoAyni(rd.fm,h)){fmRed=true;return 0;}if(kapi){fmBekle=true;return 0;}return h;};const saS=()=>{const h=sol.calisilanSaat||0;if(h<=0.004||otoAyni(on.sa,h))return h;if(otoAyni(rd.sa,h)){saRed=true;return 0;}if(kapi){saBekle=true;return 0;}return h;};
   if(esnaf){paketHak=sayi(s.paketSayisi)*sayi(s.paketUcret);hak=paketHak;maasFarki=paketHak-bankaya;}
   else if(saat){hak=(saS()+e('SA'))*sayi(us.saatUcret);maasFarki=hak-bankaya;fmTl=0;}
   else if(pb){hak=0;maasFarki=0;fmTl=0;/* paket başı: kazanç paket primi sütununda; fazla mesai yok */}
