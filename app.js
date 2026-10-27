@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=129;
+const APP_SURUM=130;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -703,8 +703,7 @@ function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=wee
   h+=`<div class="actions"><button class="btn grow" id="copyW">Geçen haftayı kopyala</button><button class="btn" id="undoB" ${undo.length?'':'disabled'}>Geri al</button><button class="btn" id="shareB">Paylaş</button></div>`+haftaIslemleri(wid);
   if(!S.loaded.personel||!S.loaded.haftalar)return view(h+`<div class="empty-state"><b>Vardiyalar yükleniyor</b></div>`,bindWeek);
   const akF=fmAyi(wid,sb);const ak3=AYK[+akF.slice(5)-1];
-  const czMod=tryLS('pm.czMod')||'sutun';
-  h+=`<div class="czmod"><span>Telefon görünümü</span><div class="seg" id="czMod"><button data-v="sutun" class="${czMod==='sutun'?'on':''}">İsim solda</button><button data-v="satir" class="${czMod==='satir'?'on':''}">İsim üstte</button></div></div>`;
+  const czMod='sutun';// isim her zaman solda
   h+=`<div class="grid cz-${czMod}" id="grid"><div></div>${ds.map((d,i)=>`<div class="dh ${ymd(d)===td?'today':''}">${GUN[i]}<span>${d.getDate()}</span></div>`).join('')}<div class="dh fmh">Hafta<span>fazla mesai</span></div><div class="dh fmh">${ak3}<span>bu haftaya kadar</span></div>`;
   GRUP_SIRA.forEach(g=>{h+=`<div class="gt">${GRUP[g]}<button class="gadd" data-g="${g}">+ ${GRUP[g]} ekle</button></div>`;
     kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesapS(p,wid,sb);const ay=ayKadarS(p,wid,sb);
@@ -726,7 +725,7 @@ function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=wee
    <p class="note">İsim altında haftanın toplam saati. En sağda: haftanın fazla mesaisi ve ayın toplam fazla mesaisi${sb.fmDonem==='hafta'?` (fazla mesai dönemi ${fmDonemYazi(akF,sb)})`:''}. Hesap: çalışılan − (çalışılan gün × ${fmt(sb.gunluk)} sa); izin günü kullanılmadan 7 gün çalışılan haftada − ${fmt(sb.haftalik)} sa. Başka şubede çalıştığı günler bu şubede hesaba girmez; o günün mesaisi çalıştığı şubede.</p>
    <p class="note"><b>Saatler:</b> yarım saatlik seçilir. İleri tarihli günlerde ${saatYaz(saatAraligi(sb).n0)} – ${saatYaz(saatAraligi(sb).n1)} arası; bugün ve geçmiş günlerde düzeltme için iki uçta birer saat daha (erken çağrılma, geç çıkış).</p>`;
   if(MOD)h+=`<div class="modbar"><span>${MOD.tip==='hucre'?`<b>${esc(degerYazi(MOD.val))}</b> kopyalandı. Yapıştırmak için hücrelere dokunun.`:`<b>${esc(kisaAd((S.personel.find(p=>p.id===MOD.pid)||{}).ad))}</b> haftası kopyalandı. Hedef kişinin adına dokunun.`}</span><button class="btn small primary" id="modB">Bitti</button></div>`;
-  view(h,()=>{bindWeek();gridBagla();selCiz();document.querySelectorAll('#czMod button').forEach(b=>b.onclick=()=>{tryLS('pm.czMod',b.dataset.v);render();});const mb=byId('modB');if(mb)mb.onclick=()=>{MOD=null;render();};});}
+  view(h,()=>{bindWeek();gridBagla();selCiz();const mb=byId('modB');if(mb)mb.onclick=()=>{MOD=null;render();};});}
 function degerYazi(v){return isShift(v)?v.replace('-',' – '):v&&KOD[v]?KOD[v].ad:'Boş';}
 function bindWeek(){byId('prevW').onclick=()=>{S.hafta=ymd(addDays(parse(S.hafta),-7));SEL=null;render();};byId('nextW').onclick=()=>{S.hafta=ymd(addDays(parse(S.hafta),7));SEL=null;render();};
   byId('thisW').onclick=()=>{S.hafta=mondayOf(today());render();};const on=(id,f)=>{const e=byId(id);if(e)e.onclick=f;};on('copyW',kopyala);on('undoB',geriAl);on('shareB',paylas);haftaIslemBagla(S.hafta);}
