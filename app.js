@@ -109,7 +109,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=148;
+const APP_SURUM=149;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1639,7 +1639,8 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   const adYazi=v=>v.ad!=null&&v.ad!==''?v.ad:(v.pid?adBuyuk(adOf(v.pid)):'');
   const VC=[{k:'tarih',ad:'Tarih',v:x=>x.v.tarih?trTarih(x.v.tarih):'',n:x=>x.v.tarih||''},{k:'ad',ad:'Ad soyad',v:x=>adYazi(x.v),l:1},{k:'tur',ad:'Veri türü',v:x=>veriTur(x.v.tur)?veriTur(x.v.tur).ad:'',l:1},
     {k:'miktar',ad:'Miktar',v:x=>x.v.miktar===''||x.v.miktar==null?'':fmt(sayi(x.v.miktar)),n:x=>sayi(x.v.miktar)},{k:'ack',ad:'Açıklama',v:x=>x.v.aciklama||'',l:1},{k:'durum',ad:'Durum',v:x=>x.k.bos?'Boş satır':x.k.gecersiz?x.k.hata:x.k.uyari||'Tamam',l:1}];
-  const tumR=veri.map((v,i)=>({v,i,k:veriKontrol(v,kL,ak,V.kilitli,V)}));let VIS=kfUygula('veri',VC,tumR);tumR.forEach(x=>{if(x.k.bos&&!VIS.includes(x))VIS.push(x);});
+  const tumR=veri.map((v,i)=>({v,i,k:veriKontrol(v,kL,ak,V.kilitli,V)}));// Boş satırlar (yeni eklenenler) sıralama / filtre ne olursa olsun en altta, eklenme sırasıyla.
+  let VIS=kfUygula('veri',VC,tumR).filter(x=>!x.k.bos);tumR.forEach(x=>{if(x.k.bos)VIS.push(x);});
   S.pt._vvis=VIS.map(x=>x.i);S.pt._vkf={cols:VC,rows:tumR};
   let h=`${V.kesin?'':'<div class="actions" style="margin-top:0"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>'}${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}${uyariSay?`<div class="banner">${uyariSay} satırda uyarı var (sarı). Satırdaki yazıyı okuyun: rapor / izin aynı gün çizelgede ya da başka şubede de yazılmış (iki kez sayılır) veya kişinin o ay çalıştığı günden fazla rapor / izin girilmiş olabilir.</div>`:''}
    ${kfAktifMi('veri')?`<div class="kfbar">Filtre açık · ${VIS.length} / ${veri.length} satır gösteriliyor <button class="mini" id="kfHepsiV">Filtreleri kaldır</button></div>`:''}
