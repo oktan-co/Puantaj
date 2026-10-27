@@ -431,3 +431,4 @@ table.vg2 td.bi input[readonly]{cursor:cell;user-select:none;-webkit-user-select
 table.vg2 td.bi input[readonly]:focus{box-shadow:none}
 table.vg2 td.bi select{cursor:cell}
 table.vg2 td.vakt{outline:2.5px solid #2f6fdb;outline-offset:-2px;position:relative;z-index:1}
+table.pt tr.oto.bekle td{background:var(--warn-bg)}
