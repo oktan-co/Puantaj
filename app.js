@@ -10,10 +10,11 @@ const AYK=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','
 const GUN=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
 const GUNU=['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const GRUP={M:'Müdür',K:'Mutfak',S:'Kurye'}; const GRUP_SIRA=['M','K','S'];
-const KOD={HT:{ad:'Haftalık izin',kisa:'İZİN'},R:{ad:'Rapor',kisa:'RAPOR'},UI:{ad:'Ücretsiz izin',kisa:'ÜCR.<br>İZİN'},YI:{ad:'Yıllık izin',kisa:'YILLIK'},B:{ad:'Bayram',kisa:'BAYR.'},D:{ad:'Diğer',kisa:'DİĞER'}};
+const KOD={HT:{ad:'Haftalık izin',kisa:'İZİN'},R:{ad:'Rapor',kisa:'RAPOR'},UI:{ad:'Ücretsiz izin',kisa:'ÜCR.<br>İZİN'},YI:{ad:'Yıllık izin',kisa:'YILLIK'},B:{ad:'Bayram',kisa:'BAYR.'},D:{ad:'Diğer',kisa:'DİĞER'},CG:{ad:'Çalışma günü değil',kisa:'ÇAL. GÜNÜ<br>DEĞİL'}};
+// CG: sadece part-time personelde seçilir; ücrete, SGK gününe ve fazla mesaiye etkisi yok, sadece günün boş sayılmasını önler. Lejantta gösterilmez.
 const KOD_SIRA=['HT','R','UI','YI','B','D'];
 // Excel'deki koşullu biçim renkleri: [zemin, yazı]
-const KOD_RENK={HT:['#1c1c1c','#ffffff'],R:['#c6e3ab','#24401a'],UI:['#1f3864','#ffffff'],YI:['#4f6a2a','#ffffff'],B:['#e9edf3','#33415a'],D:['#e01e1e','#ffffff']};
+const KOD_RENK={HT:['#1c1c1c','#ffffff'],R:['#c6e3ab','#24401a'],UI:['#1f3864','#ffffff'],YI:['#4f6a2a','#ffffff'],B:['#e9edf3','#33415a'],D:['#e01e1e','#ffffff'],CG:['#eef0f3','#5b6472']};
 const BOS_RENK='#fde2e2';
 const kodStil=k=>{const r=KOD_RENK[k];return r?`style="background:${r[0]};border-color:${r[0]};color:${r[1]}"`:'';};
 const SEKILLER=['Tam','Part','Esnaf kurye'];
@@ -107,7 +108,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=145;
+const APP_SURUM=146;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -525,7 +526,7 @@ const haftaAyari=wid=>subeAyari(S.subeId,fmAyi(wid,subeAyari(S.subeId,gosterAy(w
 const sunucuHazir=sid=>!!sid&&S.subeId===sid&&S.loaded.haftalar&&S.haftalarSunucu&&S.loaded.personel;
 function hazirDegil(){return new Error('Şube verileri tam yüklenmeden ya da işlem sırasında şube değiştiği için işlem yapılmadı. Tekrar deneyin.');}
 // Tek hücreye yazmadan önce kontrol: saat kuralı ve aynı gün başka şube.
-function hucreKontrol(p,wid,i,val,sessiz){const d=weekDays(wid)[i];if(isShift(val)){const k=vardiyaKontrol(val,sube(),d);if(!k.ok){if(!sessiz)toast(k.neden);return false;}}
+function hucreKontrol(p,wid,i,val,sessiz){const d=weekDays(wid)[i];if(val==='CG'&&!(p&&p.sekil==='Part')){if(!sessiz)toast('"Çalışma günü değil" sadece part-time personelde seçilebilir.');return false;}if(isShift(val)){const k=vardiyaKontrol(val,sube(),d);if(!k.ok){if(!sessiz)toast(k.neden);return false;}}
   if(val&&p&&cokSubeli(p)){const c=gunCakisir(val,digerGunler(p,d));if(c){if(!sessiz)toast(cakismaMesaj(p,ymd(d),c));return false;}}return true;}
 function setCell(pid,wid,i,val){const sid=S.subeId;const hdA=hdAlani(wid);if(wid===S.hafta&&kilitEngel())return Promise.resolve(false);const p=S.personel.find(x=>x.id===pid);if(!hucreKontrol(p,wid,i,val))return Promise.resolve(false);
   const w0=S.haftalar[wid]||{};const kad=kadroOf(wid).ids.slice();const kadVardi=kad.includes(pid);if(!kadVardi)kad.push(pid);undoKaydet(wid);const eski=cellOf(pid,wid,i);
@@ -537,19 +538,24 @@ function setCell(pid,wid,i,val){const sid=S.subeId;const hdA=hdAlani(wid);if(wid
       if(c){if(S.subeId===sid){const w1=S.haftalar[wid];if(w1&&w1.cells&&w1.cells[pid])w1.cells[pid][String(i)]=eski;undo.pop();render();toast(cakismaMesaj(p,ds,c));}return false;}}
     arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),...hdA,...kadAlan,cells:{[pid]:{[String(i)]:val}}},{merge:true}));kapaliHaftaGuncelle(wid,sid);return true;});}
 // Birden çok hücre: saat kuralına ya da aynı gün kuralına uymayan hücreler eski değerinde kalır, sayısı döner.
-function setWeek(wid,cells,kadro,pushUndo=true){const sid=S.subeId;const hdA=hdAlani(wid);if(wid===S.hafta&&kilitBaskasi()){setTimeout(()=>toast(kilitMesaj()),60);return 0;}
+function setWeek(wid,cells,kadro,pushUndo=true){const DEL_ALAN=deleteField();const sid=S.subeId;const hdA=hdAlani(wid);if(wid===S.hafta&&kilitBaskasi()){setTimeout(()=>toast(kilitMesaj()),60);return 0;}
   const w0=S.haftalar[wid]||{};const eskiC=w0.cells||{};const ds=weekDays(wid);let red=0;const degisen=[];
   Object.keys({...eskiC,...cells}).forEach(pid=>{const p=S.personel.find(x=>x.id===pid);for(let i=0;i<7;i++){const a=(eskiC[pid]||{})[String(i)]??null,b=(cells[pid]||{})[String(i)]??null;if(a===b)continue;
     if(b&&!hucreKontrol(p,wid,i,b,true)){red++;if(cells[pid])cells[pid][String(i)]=a;continue;}if(p&&cokSubeli(p))degisen.push([p,ymd(ds[i]),b]);}});
   if(pushUndo)undoKaydet(wid);const kad=kadro===undefined?kadroOf(wid).ids:kadro;
   // Sadece değişen hücreler yazılır: aynı anda başka birinin girdiği hücreler silinmez.
-  const fark={};Object.keys({...eskiC,...cells}).forEach(pid=>{if(!(pid in cells)){if(pid in eskiC)fark[pid]=deleteField();return;}
+  const fark={};Object.keys({...eskiC,...cells}).forEach(pid=>{if(!(pid in cells)){if(pid in eskiC)fark[pid]=DEL_ALAN;return;}
     for(let i=0;i<7;i++){const a=(eskiC[pid]||{})[String(i)]??null,b=(cells[pid]||{})[String(i)]??null;if(a!==b)(fark[pid]=fark[pid]||{})[String(i)]=b;}});
   const kadDeg=!Array.isArray(w0.kadro)||JSON.stringify(w0.kadro)!==JSON.stringify(kad);
   S.haftalar[wid]={...w0,hafta:wid,kadro:kad,cells};render();
   sirayla(sid+'|'+wid,async()=>{if(!(await kilitAl(czK(wid,sid)))){if(S.subeId===sid){S.haftalar[wid]=w0;if(pushUndo)undo.pop();render();toast(kilitMesaj());}return;}
+    // Çok şubeli kişide önce ortak gün kaydı yazılır; başka şubede o gün kaydı varsa (ekrandaki kontrol önbellekten geçmiş olsa da) hücre çizelgeye hiç yazılmaz, eski değerinde kalır.
+    let geri=0,sonC=null;
+    for(const[p,d,v]of degisen){let c=null;try{c=await gunYaz(p,d,v,sid);}catch(e){console.error(e);c={hata:1};}
+      if(c){const i=ds.findIndex(x=>ymd(x)===d);const a=(eskiC[p.id]||{})[String(i)]??null;if(fark[p.id]&&fark[p.id]!==DEL_ALAN&&String(i) in fark[p.id]){delete fark[p.id][String(i)];if(!Object.keys(fark[p.id]).length)delete fark[p.id];}
+        const w1=S.subeId===sid&&S.haftalar[wid];if(w1&&w1.cells){w1.cells[p.id]={...(w1.cells[p.id]||{}),[String(i)]:a};}geri++;if(!c.hata)sonC=[p,d,c];}}
     arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),...hdA,...(kadDeg?{kadro:kad}:{}),...(Object.keys(fark).length?{cells:fark}:{})},{merge:true}));
-    for(const[p,d,v]of degisen){try{const c=await gunYaz(p,d,v,sid);if(c)toast(cakismaMesaj(p,d,c));}catch(e){console.error(e);toast('Bazı günler diğer şubeye işlenemedi, tekrar dene.');}}kapaliHaftaGuncelle(wid,sid);});
+    if(geri&&S.subeId===sid){render();toast(sonC?`${geri} hücre yazılmadı: ${RED_NEDEN}. ${cakismaMesaj(...sonC)}`:'Bazı günler diğer şubeye işlenemedi, tekrar dene.');}kapaliHaftaGuncelle(wid,sid);});
   return red;}
 
 const RED_NEDEN='şube saatleri dışında, yarım saat değil ya da kişi o gün başka şubede';
@@ -767,7 +773,7 @@ function selAralik(){if(!SEL)return null;return{r0:Math.min(SEL.r0,SEL.r1),r1:Ma
 function selCiz(){document.querySelectorAll('.cell.sel').forEach(x=>x.classList.remove('sel'));const A=selAralik();if(!A||SEL.wid!==S.hafta)return;
   document.querySelectorAll('.cell[data-r]').forEach(x=>{const r=+x.dataset.r,c=+x.dataset.c;if(r>=A.r0&&r<=A.r1&&c>=A.c0&&c<=A.c1)x.classList.add('sel');});}
 function secimAktif(){if(S.tab!=='cizelge'||!SEL||SEL.wid!==S.hafta||byId('sheetRoot').innerHTML)return false;const a=document.activeElement;return !(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName));}
-const KOD_EXCEL={HT:'HAF. İZİN',UI:'ÜCR. İZİN',YI:'YILLIK İZİN',R:'RAPOR',B:'BAYRAM',D:'DİĞER'};
+const KOD_EXCEL={HT:'HAF. İZİN',UI:'ÜCR. İZİN',YI:'YILLIK İZİN',R:'RAPOR',B:'BAYRAM',D:'DİĞER',CG:'ÇALIŞMA GÜNÜ DEĞİL'};
 function secimTSV(){const A=selAralik();const out=[];for(let r=A.r0;r<=A.r1;r++){const row=[];for(let c=A.c0;c<=A.c1;c++){const v=cellOf(rowPid(ROWS[r],c),S.hafta,c);
   if(isShift(v))row.push(...v.split('-'));else if(v&&KOD[v])row.push(KOD_EXCEL[v],'');else row.push('','');}out.push(row.join('\t'));}return out.join('\r\n');}
 function hucreCoz(a,b){a=String(a??'').trim();b=String(b??'').trim();if(!a&&!b)return null;const ust=a.toLocaleUpperCase('tr-TR').replace(/\s+/g,' ');
@@ -811,7 +817,7 @@ function hucre(pid,i,opt={}){if(kilitEngel())return;const p=S.personel.find(x=>x
    <div class="times tsec"><label><small>Giriş</small><select id="tA" aria-label="Giriş saati">${secenek(a,'Seçin')}</select></label><span>–</span><label><small>Çıkış</small><select id="tB" aria-label="Çıkış saati">${secenek(b,'Seçin')}</select></label></div>
    <div class="meta" id="tMeta"></div><div class="row2"><button class="btn primary grow" id="tSave">Kaydet</button><button class="btn grow" id="tNext">Kaydet, sonraki gün</button></div>
    <p class="note" style="margin:6px 0 0">${pay?`Bugün ve geçmiş günlerde ${saatYaz(saatAraligi(sb).n0-1)} – ${saatYaz(saatAraligi(sb).n1+1)} arası seçilebilir; turuncu işaretli saatler erken çağrılma / geç çıkıştır.`:`Plan: ${saatYaz(saatAraligi(sb).n0)} – ${saatYaz(saatAraligi(sb).n1)} arası. Erken çağrılma ve geç çıkış, gün geldiğinde düzeltme olarak yazılır.`}</p>
-   <span class="lbl">Durum</span><div class="codes">${KOD_SIRA.filter(k=>(k!=='B'&&k!=='D')||val===k).map(k=>`<button data-k="${k}" class="${val===k?'sel':''}" ${kodStil(k)}>${KOD[k].ad}</button>`).join('')}</div>
+   <span class="lbl">Durum</span><div class="codes">${[...KOD_SIRA.filter(k=>(k!=='B'&&k!=='D')||val===k),...(p.sekil==='Part'||val==='CG'?['CG']:[])].map(k=>`<button data-k="${k}" class="${val===k?'sel':''}" ${kodStil(k)}>${KOD[k].ad}</button>`).join('')}</div>
    <div class="codes" style="margin-top:8px;grid-template-columns:1fr"><button class="clear" data-k="">Hücreyi temizle</button></div>`,sh=>{
    const A=byId('tA'),B=byId('tB'),M=byId('tMeta');
    const bitisSecenek=()=>{const x=A.value;if(!x)return;const ar=saatAraligi(sb);const azami=Math.max(16,ar.n1-ar.n0+(pay?2:0));const ta=saatKonum(x,sb);[...B.options].forEach(op=>{if(!op.value)return;let tb=saatKonum(op.value,sb);if(tb<=ta)tb+=24;op.disabled=tb<=ta||tb-ta>azami;});if(B.selectedOptions[0]&&B.selectedOptions[0].disabled)B.value='';};
@@ -2216,10 +2222,15 @@ async function yedekAl(durum){const B={};let n=0;const ekle=(yol,data)=>{B[yol]=
   for(const s of tum){for(const alt of ['haftalar','durum','aylar','personel'])await kol(['subeler',s,alt]);await kol(['puantaj',s,'aylar']);await tek(['maaslar',s]);}
   return{uygulama:'puantaj-merkezi',yedekSurum:1,tarih:new Date().toISOString(),alan:benAd(),subeSayisi:tum.length,belgeSayisi:n,belgeler:B};}
 // Her şubenin haftalarında: kişi silinmişse ya da kişinin o şubeyle bağı yoksa (çalıştığı / SGK / diğer / görünür şubeleri arasında değilse) listelenir.
-async function veriKontrolu(){const P=new Map(S.personel.map(p=>[p.id,p]));const out=[];const tum=[...new Set([...S.subeIds,...Object.keys(S.subeAdlari||{})])].filter(x=>x&&x!==SGK_YOK);
+async function veriKontrolu(){const P=new Map(S.personel.map(p=>[p.id,p]));const out=[];const vg={};const tum=[...new Set([...S.subeIds,...Object.keys(S.subeAdlari||{})])].filter(x=>x&&x!==SGK_YOK);
   for(const sid of tum){const q=await getDocs(collection(db,'subeler',sid,'haftalar'));q.docs.forEach(d=>{const x=d.data()||{};const ids=new Set([...(Array.isArray(x.kadro)?x.kadro:[]),...Object.keys(x.cells||{})]);
     ids.forEach(pid=>{const dolu=Object.values((x.cells||{})[pid]||{}).filter(v=>v).length;const p=P.get(pid);
-      if(!p){if(dolu)out.push({sid,wid:d.id,ad:pid,neden:'silinmiş kişi',dolu});return;}if(!kisiSubeleri(p).includes(sid))out.push({sid,wid:d.id,ad:adBuyuk(p.ad),neden:'bu şubeyle bağı yok',dolu});});});}
+      if(!p){if(dolu)out.push({sid,wid:d.id,ad:pid,neden:'silinmiş kişi',dolu});return;}if(!kisiSubeleri(p).includes(sid))out.push({sid,wid:d.id,ad:adBuyuk(p.ad),neden:'bu şubeyle bağı yok',dolu});
+      // Aynı gün iki şubede vardiya (eski yapıştırma hatasından kalmış olabilir)
+      Object.entries((x.cells||{})[pid]||{}).forEach(([i,v])=>{if(!isShift(v))return;const ds=ymd(addDays(parse(d.id),+i));const k=pid+'|'+ds;(vg[k]=vg[k]||[]).push({sid,wid:d.id});});});});}
+  const cg={};Object.entries(vg).forEach(([k,L])=>{if(new Set(L.map(x=>x.sid)).size<2)return;const[pid,ds]=k.split('|');const t=parse(ds);const sAd=[...new Set(L.map(x=>subeAdi(x.sid)))].join(', ');
+    L.forEach(x=>{const g=x.sid+'|'+x.wid+'|'+pid;(cg[g]=cg[g]||{sid:x.sid,wid:x.wid,pid,gun:[],sAd}).gun.push(`${t.getDate()} ${AYK[t.getMonth()]}`);});});
+  Object.values(cg).forEach(c=>{const p=P.get(c.pid);out.push({sid:c.sid,wid:c.wid,ad:p?adBuyuk(p.ad):c.pid,neden:`aynı gün iki şubede vardiya (${c.sAd}): ${c.gun.join(', ')}`});});
   return out.sort((a,b)=>String(a.sid).localeCompare(String(b.sid))||a.wid.localeCompare(b.wid));}
 /* ================= İşçilik (sadece işveren): şube başına aylık işçilik maliyeti ve ciroya oranı =================
    Kişi maliyeti = resmi maliyet + elden ödenen + paket primi.
