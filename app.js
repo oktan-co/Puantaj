@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=141;
+const APP_SURUM=142;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1086,7 +1086,7 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
        let h=`<label class="chs ${p.sgkSube?'':'bad'}"><b>SGK</b><select data-x="sgkSube" ${dis}>${p.sgkSube?'':opt('','Seçin',true)}${opt(SGK_YOK,'Yok',p.sgkSube===SGK_YOK)}${subeler.map(([sid,ad])=>opt(sid,ad,p.sgkSube===sid)).join('')}</select></label>`;
        h+=`<label class="chs ${ana===sgk?'ayni':''}" title="Çalıştığı şube (çizelgesinde göründüğü)"><b>Çalıştığı</b><select data-x="anaSube" ${dis}>${(anaSec.includes(ana)?anaSec:[ana,...anaSec]).map(x=>opt(x,subeAdi(x),ana===x)).join('')}</select></label>`;
        const ek=ekSubeleri(p).filter(x=>x!==ana&&x!==sgk);if(!isSube()&&(ek.length||ekYetkiVar()))h+=`<label class="chs e" title="Bu şubelerin çizelgesinde de görünür; çalıştığı günün mesaisi o şubeden ödenir. Sadece işveren ve bölge müdürü değiştirir."><b>Diğer</b><button class="chb" data-x="ekSube" ${ekYetkiVar()?'':'disabled'}>${ek.length?esc(ek.map(kisaSubeAd).join(', ')):'+ ekle'}</button></label>`;
-       if(!isSube()&&((sgk&&sgk!==ana)||ms!==ana||ek.length)){const sec=[[ana,subeAdi(ana)],...(sgk&&sgk!==ana?[[sgk,subeAdi(sgk)]]:[]),...ek.map(x=>[x,subeAdi(x)]),...(ms!==ana&&ms!==sgk&&!ek.includes(ms)?[[ms,subeAdi(ms)]]:[])];
+       if(!isSube()&&p.paketBasi)h+=`<span class="chs ayni" title="Paket başı çalışan: maaş yok, hangi şubede paket attıysa o şubede ödenir. Muhasebe SGK şubesinde."><b>Paket başı</b></span>`;else if(!isSube()&&((sgk&&sgk!==ana)||ms!==ana||ek.length)){const sec=[[ana,subeAdi(ana)],...(sgk&&sgk!==ana?[[sgk,subeAdi(sgk)]]:[]),...ek.map(x=>[x,subeAdi(x)]),...(ms!==ana&&ms!==sgk&&!ek.includes(ms)?[[ms,subeAdi(ms)]]:[])];
          h+=`<label class="chs f" title="Bu aydan itibaren maaşın ödeneceği şube. Önceki aylar değişmez. Muhasebe SGK şubesinde kalır.${maasSubeGecmisYazi(p)?' Geçmiş: '+esc(maasSubeGecmisYazi(p)):''}"><b>Maaş</b><select data-x="maasYeri" ${dis}>${sec.map(([v,a])=>opt(v,a,ms===v)).join('')}</select></label>`;}
        return h;})()}</div></td>
      <td class="bi"><input type="date" data-x="baslama" title="Deneme başlangıcı (SGK'dan önce çalıştığı ilk gün)" class="${p.baslama?'':'bos'}" value="${esc(p.baslama||'')}" ${dis}></td>
@@ -1378,7 +1378,7 @@ function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=nul
   // Diğer şubelerin ay özetleri (izin, saat): yüklenmeden puantaj gösterilmez ve onaylanmaz.
   getDocs(query(collection(db,'ozetler'),where('ay','==',ak))).then(q=>{if(S.pt.sube!==id||S.ay!==ak)return;const m={},vg={};q.docs.forEach(d=>{const x=d.data();if(x.sube){m[x.sube]=x.kisiler||{};vg[x.sube]=x.veriGun||{};}});S.pt.ozetVeri=vg;S.pt.ozetler=m;render();}).catch(e=>{console.error(e);if(S.pt.sube===id&&S.ay===ak){S.pt.ozetVeri={};S.pt.ozetler={};S.pt.ozetHata=true;render();}});
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
-function ucretSekli(pid){const m=S.pt.maas||{};const u=m.ucretSekli&&m.ucretSekli[pid];if(u)return u;return m.paketBasi&&m.paketBasi[pid]?'paket':'maas';}
+function ucretSekli(pid){const kp=S.personel.find(x=>x.id===pid);if(kp&&kp.paketBasi===true)return'paket';/* kişi paket başı: her şubede */const m=S.pt.maas||{};const u=m.ucretSekli&&m.ucretSekli[pid];if(u)return u;return m.paketBasi&&m.paketBasi[pid]?'paket':'maas';}
 function paketBasiMi(pid){return ucretSekli(pid)==='paket';}
 // Ücretler aya göre: "x ayından itibaren" kaydı tutulur, geçmiş aylar değişmez.
 function ayDegeri(eski,gecmis,ak){const o={...(eski||{})};Object.entries(gecmis||{}).forEach(([pid,g])=>{const k=Object.keys(g||{}).filter(x=>x<=ak).sort().pop();if(k)o[pid]=g[k];});return o;}
@@ -1786,7 +1786,8 @@ function odemePanel(pid){if(kilitEngel()||kesinEngel())return;const V=ptVerisi()
      if(await kilitliMi(ptK(sid,ak)))return;
      try{const netEl=byId('oNet');if(!esnaf){const u=usSimdi();if(u.tip!==us0.tip||(u.tip==='saat'&&u.saatUcret!==us0.saatUcret)){const m0=S.pt.maas||{};
          const sg0=(m0.saatGecmis||{})[pid]||{};S.pt.maas={...m0,ucretSekli:{...(m0.ucretSekli||{}),[pid]:u.tip},paketBasi:{...(m0.paketBasi||{}),[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{...(m0.saatGecmis||{}),[pid]:{...sg0,[ak]:u.saatUcret}}}:{})};
-         setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{[pid]:{[ak]:u.saatUcret}}}:{})},{merge:true}).catch(yazmaHatasi);}}
+         setDoc(doc(db,'maaslar',sid),{ucretSekli:{[pid]:u.tip},paketBasi:{[pid]:u.tip==='paket'},...(u.tip==='saat'?{saatGecmis:{[pid]:{[ak]:u.saatUcret}}}:{})},{merge:true}).catch(yazmaHatasi);}
+         const kp=S.personel.find(q=>q.id===pid),yPb=u.tip==='paket';if(kp&&!!kp.paketBasi!==yPb){kp.paketBasi=yPb;setDoc(doc(db,'personel',pid),{paketBasi:yPb},{merge:true}).catch(yazmaHatasi);}/* paket başı kişinin kendisinde: her şubede geçerli */}
        if(!esnaf&&byId('oFo')){const yeni=tip==='maas'?(sayi(byId('oFo').value)||0):0;const eski=sayi(us0.fmOzel)||0;if(yeni!==eski){const m0=S.pt.maas||{};const g0=(m0.fmOzelGecmis||{})[pid]||{};
          S.pt.maas={...m0,fmOzelGecmis:{...(m0.fmOzelGecmis||{}),[pid]:{...g0,[ak]:yeni}}};setDoc(doc(db,'maaslar',sid),{fmOzelGecmis:{[pid]:{[ak]:yeni}}},{merge:true}).catch(yazmaHatasi);}}
        const netYeni=!esnaf&&netEl&&!byId('oNetW').hidden?(sayi(netEl.value)||null):undefined;const netDeg=netYeni!==undefined&&netYeni!==(sayi(x.net)||null);
@@ -2192,12 +2193,12 @@ const iscAyar=D=>{const a={...((D&&D.ayar)||{})};if(a.aylik==null&&a.asgari==nul
 const iscGunluk=a=>(a.aylik!=null&&sayi(a.aylik)>0?sayi(a.aylik):sayi(a.asgari)*(1+sayi(a.sgk)/100+sayi(a.issizlik)/100))/30;
 const r2=x=>Math.round((x||0)*100)/100;
 function iscAyi(){if(S.iscAy)return S.iscAy;const bu=ayKey(today());return today().getDate()<=15?ayKaydir(bu,-1):bu;}
-function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const burada=esnaf?true:sol.maasBurada!==false;// esnaf kuryenin maliyeti çalıştığı (verisinin girildiği) şubede kalır, maaş şubesine taşınmaz
-  const gun=burada&&!esnaf&&!sol.sgkYok?sayi(sol.iscGun!=null?sol.iscGun:sol.gun):0;/* SGK şubesi değişen kişide iki kaydın günleri (en çok 30) */const resmi=r2(gun*iscGunluk(ayar));
+function iscKisi(x,ayar){const sol=x.sol||{},h=x.hes||{};const esnaf=sol.sekil==='Esnaf kurye'||h.esnaf;const maasB=sol.maasBurada!==false;const burada=esnaf||h.pb?true:maasB;// paket başı kurye de esnaf gibi: maliyet paket attığı şubede kalır (SGK günü yine maaş/SGK şubesinde). Esnaf kuryenin maliyeti çalıştığı (verisinin girildiği) şubede kalır, maaş şubesine taşınmaz
+  const gun=maasB&&!esnaf&&!sol.sgkYok?sayi(sol.iscGun!=null?sol.iscGun:sol.gun):0;/* SGK şubesi değişen kişide iki kaydın günleri (en çok 30) */const resmi=r2(gun*iscGunluk(ayar));
   // Paket primi ayrı kalemdir (ödemeler listesindeki tutar olduğu gibi); bankaya yatan primden düşülmez, kuryenin sigortası da diğerleri gibi Resmi'ye girer.
   let elden=r2(sayi(h.maasFarki)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));
   let paket=r2(sayi(h.paketPrimi));
-  let banka=burada&&resmi<=0?r2(sayi(h.bankaya)):0;
+  let banka=burada&&resmi<=0&&!h.pb?r2(sayi(h.bankaya)):0;/* paket başında bankaya yatan paket primini ödemektir, ayrı maliyet değil */
   // Esnaf kurye ayrı bir şirkettir: SGK / maaş yok, her şubede o şubede attığı paketin bedeli (paket sayısı × ücret + girilen paket primi) o şubenin paket primidir.
   if(esnaf){paket=r2(sayi(h.paketHak)+sayi(h.paketPrimi));elden=r2(sayi(h.maasFarki)+sayi(h.bankaya)-sayi(h.paketHak)+sayi(h.fmTl)+sayi(h.ciroPrimi)+sayi(h.ekOd));banka=0;}
   return{pid:x.pid,ad:sol.ad||'',grup:sol.grup||'K',gun,resmi,banka,elden,paket,toplam:r2(resmi+banka+elden+paket),burada};}
