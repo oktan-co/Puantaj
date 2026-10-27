@@ -63,7 +63,9 @@ function veriUygula(sol,oz){Object.entries(oz).forEach(([pid,e])=>{const r=sol[p
     // Part gün girilmemiş part-time: gün sayısı tam zamanlı gibi (ay − rapor − ücretsiz izin)
     if(r.partGun>0)r.gun=r.partGun;else if(vE)r.gun=T?sgkGunSayisi(T.ist,T.takvim,T.e+vE):Math.max(0,(r.gun||0)-vE);
     if(r.hakGun!=null&&vE)r.hakGun=T?sgkGunSayisi(T.istF,T.takvim,T.eH+vE):Math.max(0,r.hakGun-vE);
-    if(r.iscGun!=null&&vE&&T&&T.iS!=null)r.iscGun=sgkGunSayisi(T.iS,T.takvim,T.eS+vE);}
+    if(r.iscGun!=null&&vE&&T&&T.iS!=null)r.iscGun=sgkGunSayisi(T.iS,T.takvim,T.eS+vE);
+    // Part gün girilmiş tam zamanlı (ör. SGK'da 1 gün gösterilen, fiilen tüm ay çalışan): işçilikte SGK maliyeti de part gün üzerinden; maaş hak günü değişmez.
+    if(r.iscGun!=null&&r.partGun>0)r.iscGun=Math.min(r.iscGun,r.partGun);}
   r.fmSaat=Math.round(((r.fmSaat||0)+n('FM'))*100)/100;if(['R','UI','YI','B','PG','FM'].some(k=>e[k]))r.elle=true;});return sol;}
 function gorevBul(ad){return GOREVLER.find(g=>g.ad===ad)||null;}
 function gorevTahmin(p){const g=String(p.gorev||'').toLocaleUpperCase('tr-TR');if(gorevBul(p.gorev))return p.gorev;
@@ -109,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=151;
+const APP_SURUM=152;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
