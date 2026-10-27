@@ -418,3 +418,9 @@ table.bl.cal th{padding-left:10px;padding-right:10px}
 .ibk-f{display:flex;gap:8px;padding:12px 14px;border-top:1px solid var(--line)}
 .banner.kilit{background:var(--soft,#eef2f8);color:var(--ink,#152033);border:1px solid var(--line,#d9dee8);font-weight:500}
 .banner.kilit b{font-weight:700}
+
+.gcm .gcb{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin-top:6px;font-size:13px}
+.gcm .gcb>b{display:block;font-size:12px;color:var(--mut,#667);margin-bottom:4px}
+.gcm .gcr{display:flex;flex-wrap:wrap;gap:4px 10px;align-items:center;padding:3px 0}
+.gcm .gcr i{font-style:normal;font-size:11px;color:var(--mut,#667)}
+.gcm .gcr .mini{margin-left:auto}
