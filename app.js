@@ -74,7 +74,7 @@ const DURUM={taslak:{ad:'Taslak',c:'mut'},sube_onay:{ad:'Şube onayladı',c:'war
 // Ay onaylı mı (bölge onayı ya da işverenin kesin kapanışı). Kesin kapanan ayda hiçbir şey değişmez: rakamlar kapanış anındaki halleriyle saklanır.
 const onayli=d=>d==='bolge_onay'||d==='kesin';
 const kesinAy=d=>((S.aylar[ayKey(d)]||{}).durum)==='kesin';
-const VARSAYILAN={ad:'Şube',acilis:'11:00',kapanis:'00:30',gunluk:8.5,haftalik:51,partSaat:8,fmYontem:'sabit',fmUcret:165,paketUcret:0,fmDonem:'hafta'};
+const VARSAYILAN={ad:'Şube',acilis:'11:00',kapanis:'00:30',gunluk:8.5,haftalik:51,fmYontem:'sabit',fmUcret:165,fmDonem:'hafta'};
 
 /* ================= Firebase ================= */
 const ayarliMi=!String(firebaseConfig.apiKey||'').startsWith('BURAYA');
@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=128;
+const APP_SURUM=129;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -178,10 +178,10 @@ const isIsveren=()=>rol()==='isveren', isBolge=()=>rol()==='bolge', isSube=()=>r
 const puantajYetki=()=>isIsveren()||isBolge();
 
 /* ================= Hesaplar ================= */
-function sube(id){return Object.assign({},VARSAYILAN,S.subeler[id||S.subeId]||{});}
+function sube(id){const o=Object.assign({},VARSAYILAN,S.subeler[id||S.subeId]||{});o.haftalik=Math.round(o.gunluk*6*100)/100;return o;}// haftalık mesai = günlük × 6 (ayrı ayar yok)
 // Hesaba giren şube ayarları aya göre: ayarGecmis {"2026-11": {gunluk, fmUcret, …}} = "o aydan itibaren". Ayar değişince önceki aylar eski ayarla kalır.
-const AYAR_ALANLARI=['gunluk','haftalik','partSaat','fmYontem','fmUcret','fmDonem','paketUcret'];
-function subeAyari(id,ak){const sb=sube(id);const g=sb.ayarGecmis;if(!g||!ak)return sb;const k=Object.keys(g).filter(x=>x<=ak).sort().pop();return k?{...sb,...g[k]}:sb;}
+const AYAR_ALANLARI=['gunluk','fmYontem','fmUcret','fmDonem'];
+function subeAyari(id,ak){const sb=sube(id);const g=sb.ayarGecmis;if(!g||!ak)return sb;const k=Object.keys(g).filter(x=>x<=ak).sort().pop();if(!k)return sb;const r={...sb,...g[k]};r.haftalik=Math.round(r.gunluk*6*100)/100;return r;}
 function ayarGecmisYama(id,yeni){const s0=sube(id);if(!S.subeler[id])return{};const ak0=ayKey(today());const ak=ak0<BASLANGIC_AY?BASLANGIC_AY:ak0;const g={...(s0.ayarGecmis||{})};
   const al=o=>Object.fromEntries(AYAR_ALANLARI.map(k=>[k,o[k]??VARSAYILAN[k]??null]));const simdi=subeAyari(id,ak);
   if(!AYAR_ALANLARI.some(k=>yeni[k]!==undefined&&yeni[k]!==simdi[k]))return{};
@@ -243,7 +243,7 @@ function ayHesap(p,ak,sb=sube(),H=S.haftalar,bitis=null){const[y,m]=ak.split('-'
   const part=p.sekil==='Part',esnaf=isEsnaf(p),fmYok=part||esnaf;
   const tamAy=istihdam===last.getDate();
   const bordroGun=sgkGunSayisi(istihdam,last.getDate(),(kod.R||0)+(kod.UI||0));
-  return{h,fm:fmYok?0:fm,fmHam:esnaf?0:fm,bos:esnaf?0:bos,gun,kod,part,esnaf,partGun:part?Math.round(h/(sb.partSaat||8)*100)/100:0,bordroGun,tamAy};}
+  return{h,fm:fmYok?0:fm,fmHam:esnaf?0:fm,bos:esnaf?0:bos,gun,kod,part,esnaf,bordroGun,tamAy};}
 // Çizelgedeki ay sütunu: o haftaya kadar (o hafta dahil) birikmiş fazla mesai ve saat. Haftalık dönemde dönemin haftaları, takvim ayında haftanın son gününe kadar.
 function ayKadar(p,wid,sb=sube(),H=S.haftalar){const ak=fmAyi(wid,sb);const fmYok=p.sekil==='Part'||isEsnaf(p);
   // Şube müdürü kapatılmış haftaları göremez: o haftaların toplamı kapatılırken kaydedilen özetten gelir.
@@ -429,7 +429,7 @@ function fmSaatUcreti(sb,n,ak){if(sb.fmYontem!=='maas')return sayi(sb.fmUcret);i
 function sagHesap(pid,sol,sag,net,sb,devir,ek={},us={}){const e=k=>ek[k]||0;if(typeof us==='boolean')us={tip:us?'paket':'maas'};const tip=us.tip||'maas';let pb=tip==='paket';const saat=tip==='saat'&&!(sol.sekil==='Esnaf kurye');const s0=sag||{};const devirAvans=devir<0?-devir:0;const araOdeme=e('AO');const s={...s0,avans:sayi(s0.avans)+e('AV')+devirAvans,paketPrimi:sayi(s0.paketPrimi)+e('PP'),ciroPrimi:sayi(s0.ciroPrimi)+e('CP'),paketSayisi:sayi(s0.paketSayisi)+e('PS')};const esnaf=sol.sekil==='Esnaf kurye';
   const bankaya=sayi(s.bankaya)+e('BY'),paketPrimi=sayi(s.paketPrimi),ciroPrimi=sayi(s.ciroPrimi),avans=sayi(s.avans);
   let hak=0,maasFarki=0,fmTl=0,paketHak=0;
-  if(esnaf){paketHak=sayi(s.paketSayisi)*sayi(s.paketUcret!=null&&s.paketUcret!==''?s.paketUcret:sb.paketUcret);hak=paketHak;maasFarki=paketHak-bankaya;}
+  if(esnaf){paketHak=sayi(s.paketSayisi)*sayi(s.paketUcret);hak=paketHak;maasFarki=paketHak-bankaya;}
   else if(saat){hak=((sol.calisilanSaat||0)+e('SA'))*sayi(us.saatUcret);maasFarki=hak-bankaya;fmTl=0;}
   else if(pb&&sol.maasBurada!==false){hak=0;maasFarki=0;fmTl=0;/* paket başı: kazanç paket primi sütununda; fazla mesai yok */}
   else if(sol.maasBurada===false){const n=sayi(net);const fm=(sol.fmSaat||0)/* eksi mesai de işlenir */;fmTl=fm*(sb.fmYontem==='maas'&&s.fmMod==='elle'&&s.fmBirim!==undefined?sayi(s.fmBirim):fmKisiUcreti(sb,n,us));}
@@ -693,7 +693,6 @@ function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=wee
   const K=kadroOf(wid);const kisiler=cizelgeKisileri(wid);ROWS=kisiler.map(p=>p.id);if(SEL&&SEL.wid!==wid)SEL=null;
   let h=`<div class="weeknav"><button class="nav-arrow" id="prevW" aria-label="Önceki hafta">‹</button><button class="ttl" id="thisW">${rangeLabel(wid)}<small>${mondayOf(today())===wid?'Bu hafta':'Bu haftaya dön'}</small></button><button class="nav-arrow" id="nextW" aria-label="Sonraki hafta">›</button></div>`;
   if(!(sb.gunluk>0&&sb.gunluk<=16))h+=`<div class="banner bad">Şube ayarlarında günlük mesai ${fmt(sb.gunluk)} saat görünüyor, bu yüzden fazla mesai yanlış hesaplanıyor. ${isIsveren()?'Yönetim → Şubeler\'den 8,5 olarak düzeltin.':'İşverenden şube ayarını düzeltmesini isteyin.'}</div>`;
-  else if(Math.abs(sb.haftalik-6*sb.gunluk)>0.01)h+=`<div class="banner bad">Şube ayarlarında haftalık mesai ${fmt(sb.haftalik)} saat; günlük ${fmt(sb.gunluk)} × 6 = ${fmt(6*sb.gunluk)} olmalı. İzinsiz çalışılan haftanın fazla mesaisi bu yüzden yanlış çıkar. ${isIsveren()?'Yönetim → Şubeler\'den düzeltin.':'İşverene haber verin.'}</div>`;
   if(isSube()&&S.goc4===false)h+=`<div class="banner">Sistem güncelleniyor. İşveren uygulamayı bir kez açınca önceki haftalar yeniden görünecek.</div>`;
   h+=haftaBandi(wid);
   if(gunHataVar())h+=`<div class="banner bad">${GUN_HATA_YAZI}</div>`;
@@ -1751,7 +1750,7 @@ function odemePanel(pid){if(kilitEngel()||kesinEngel())return;const V=ptVerisi()
      <p class="note" style="grid-column:1/-1;margin-top:0">${V.kilitli?'Bu ay onaylı, bu ay için değiştirilemez. ':''}Değiştirirseniz bu ay ve sonrası için geçerli olur; önceki aylar değişmez. Muhasebe ${esc(subeAdi(sgk||ana))}'de kalır.${gy?' Geçmiş: '+esc(gy):''}</p>`;}
   let fmModD=s.fmMod==='elle'&&s.fmBirim!==undefined?'elle':'maas';
   openSheet(`<h2>${esc(x.sol.ad)}</h2><div class="sub">${ayAdi(V.ak)} · ${esc(x.sol.sekil)} · ${esnaf?'paket başı':x.sol.gun+' bordro günü'+(x.sol.hakGun!=null&&x.sol.hakGun!==x.sol.gun?` · ${x.sol.hakGun} çalışılan gün`:'')}${x.sol.fmSaat&&!esnaf?' · fazla mesai '+sg(x.sol.fmSaat)+' sa':''}${x.sol.sekil==='Part'?` · çizelgede ${fmt(x.sol.calisilanSaat||0)} sa`:''}</div>
-   <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,String(V.sb.paketUcret||'')):`<div style="grid-column:1/-1"><span class="lbl">Ücret şekli</span><div class="seg" id="oSekil">${(maasDisi?[['maas','Maaşı başka şubede'],['saat','Saatlik']]:[['maas','Maaşlı'],...(kuryeMi?[['paket','Paket başı']]:[]),['saat','Saatlik']]).map(([k,a])=>`<button data-v="${k}" class="${tip===k?'on':''}">${a}</button>`).join('')}</div></div>
+   <div class="fgrid">${esnaf?inp('oPs','Paket sayısı',s.paketSayisi)+inp('oPu','Paket başı ücret (₺)',s.paketUcret,''):`<div style="grid-column:1/-1"><span class="lbl">Ücret şekli</span><div class="seg" id="oSekil">${(maasDisi?[['maas','Maaşı başka şubede'],['saat','Saatlik']]:[['maas','Maaşlı'],...(kuryeMi?[['paket','Paket başı']]:[]),['saat','Saatlik']]).map(([k,a])=>`<button data-v="${k}" class="${tip===k?'on':''}">${a}</button>`).join('')}</div></div>
      <div id="oNetW" style="grid-column:1/-1" ${tip==='maas'&&!maasDisi?'':'hidden'}>${inp('oNet',`Anlaşılan aylık net (₺) · ${ayAdi(V.ak)} ayından itibaren`,x.net,'örn. 50000')}<p class="note" style="margin-top:0">Değiştirirseniz bu ay ve sonrası için geçerli olur; önceki aylar değişmez.${ucretGecmisi('netGecmis',pid)?' Geçmiş: '+esc(ucretGecmisi('netGecmis',pid)):''}</p></div>
      <p class="note" id="oMdNot" style="grid-column:1/-1" ${tip==='maas'&&maasDisi?'':'hidden'}>Maaşı ${esc(x.sol.odemeSube||'SGK şubesinin')} puantajında. Burada sadece bu şubede yaptığı fazla mesai ve buraya ait primler hesaplanır.</p>
      <p class="note" id="oPbNot" style="grid-column:1/-1" ${tip==='paket'?'':'hidden'}>Paket başı: kazanç paket primleridir. Paket primlerini Veri girişinden "Paket primi" olarak girin; bankaya yatan, ara ödeme ve avans düşülür, kalan elden ödenir. Fazla mesai hesaplanmaz.</p>
@@ -2065,8 +2064,7 @@ function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
   openSheet(`<h2>${id?'Şube ayarları':'Yeni şube'}</h2><div class="sub">Vardiya renkleri ve fazla mesai bu ayarlara göre hesaplanır.${id?` Mesai ve ücret ayarlarındaki değişiklik ${ayAdi(ayKey(today())<BASLANGIC_AY?BASLANGIC_AY:ayKey(today()))} ayından itibaren geçerli olur; önceki aylar eski ayarla kalır.`:''}</div>
    <label class="field"><span>Şube adı</span><input id="sAd" value="${esc(s.ad)}" placeholder="Altınkale"></label>
    <div class="fgrid"><label class="field"><span>Açılış</span><input id="sAc" inputmode="numeric" value="${esc(s.acilis)}"></label><label class="field"><span>Kapanış</span><input id="sKa" inputmode="numeric" value="${esc(s.kapanis)}"></label>${/legends/i.test(s.ad||'')||s.sonSaat?`<label class="field"><span>Saat listesi son saati</span><input id="sSon" inputmode="numeric" placeholder="örn. 02:30" value="${esc(s.sonSaat||'')}"></label>`:''}
-   <label class="field"><span>Günlük mesai (sa)</span><input id="sGu" inputmode="decimal" value="${s.gunluk}"></label><label class="field"><span>Haftalık mesai (sa)</span><input id="sHa" inputmode="decimal" value="${s.haftalik}"></label>
-   <label class="field"><span>Part günü (sa)</span><input id="sPa" inputmode="decimal" value="${s.partSaat}"></label><label class="field"><span>Kurye paket başı ücret (₺)</span><input id="sPk" inputmode="decimal" value="${s.paketUcret||''}"></label></div>
+   <label class="field"><span>Günlük mesai (sa)</span><input id="sGu" inputmode="decimal" value="${s.gunluk}"></label><div class="note" style="align-self:end;margin:0 0 14px">Haftalık mesai otomatik: günlük × 6</div></div>
    <span class="lbl">Fazla mesai ücreti</span><div class="seg" id="sYon"><button data-v="sabit" class="${s.fmYontem!=='maas'?'on':''}">Sabit saat ücreti</button><button data-v="maas" class="${s.fmYontem==='maas'?'on':''}">Maaşına göre</button></div>
    <p class="note" style="margin:4px 0 0">Sabit: şubedeki herkes aynı saat ücretiyle (örn. 125, 165). Maaşına göre: maaş ÷ 30 ÷ 9, küsurat atılır; kişi ödeme penceresinden tek tek "Elle yaz" ile saat ücretini kendin yazabilirsin.</p>
    <label class="field" id="sUcW"><span>Saat ücreti (₺)</span><input id="sUc" inputmode="decimal" value="${s.fmUcret}"></label>
@@ -2080,11 +2078,11 @@ function subePanel(id){const s=id?sube(id):{...VARSAYILAN,ad:''};
    const db_=sh.querySelectorAll('#sDon button');db_.forEach(b=>b.onclick=()=>{db_.forEach(x=>x.classList.remove('on'));b.classList.add('on');});
    byId('sNo').onclick=closeSheet;byId('sOk').onclick=()=>{const ad=byId('sAd').value.trim(),ac=normTime(byId('sAc').value),ka=normTime(byId('sKa').value);
      if(!ad||!ac||!ka){byId('sErr').innerHTML='<div class="confirm">Şube adı, açılış ve kapanış saati gerekli (örn. 11:00 ve 00:30).</div>';return;}
-     const gu=sayi(byId('sGu').value),ha=sayi(byId('sHa').value);if(!(gu>0&&gu<=16)||!(ha>0&&ha<=100)){byId('sErr').innerHTML='<div class="confirm">Günlük mesai 1–16 saat, haftalık mesai 1–100 saat arasında olmalı (örn. 8,5 ve 51).</div>';return;}
+     const gu=sayi(byId('sGu').value);if(!(gu>0&&gu<=16)){byId('sErr').innerHTML='<div class="confirm">Günlük mesai 1–16 saat arasında olmalı (örn. 8,5).</div>';return;}
      const sid=id||slug(ad);if(!id&&S.subeler[sid]){byId('sErr').innerHTML='<div class="confirm">Bu isimde bir şube var.</div>';return;}
      const sonEl=byId('sSon');const sonRaw=sonEl?sonEl.value.trim():(s.sonSaat||'');const son=sonRaw?normTime(sonRaw):'';if(sonRaw&&!son){byId('sErr').innerHTML='<div class="confirm">Saat listesi son saati geçersiz (örn. 02:30) ya da boş bırakın.</div>';return;}
      if(son){let t=tnum(son);const op=tnum(ac);while(t<=op)t+=24;if(t-op>SON_SAAT_AZAMI){byId('sErr').innerHTML=`<div class="confirm">Saat listesi son saati açılıştan en fazla ${SON_SAAT_AZAMI} saat sonra olabilir (örn. 02:30).</div>`;return;}}
-     const body={ad,acilis:ac,kapanis:ka,sonSaat:son,gunluk:sayi(byId('sGu').value)||8.5,haftalik:sayi(byId('sHa').value)||51,partSaat:sayi(byId('sPa').value)||8,paketUcret:sayi(byId('sPk').value),fmYontem:sh.querySelector('#sYon .on').dataset.v,fmUcret:sayi(byId('sUc').value),fmDonem:sh.querySelector('#sDon .on').dataset.v};
+     const body={ad,acilis:ac,kapanis:ka,sonSaat:son,gunluk:sayi(byId('sGu').value)||8.5,fmYontem:sh.querySelector('#sYon .on').dataset.v,fmUcret:sayi(byId('sUc').value),fmDonem:sh.querySelector('#sDon .on').dataset.v};
      if(id)Object.assign(body,ayarGecmisYama(id,body));
      sirayla('s'+sid,()=>{arka(setDoc(doc(db,'subeler',sid),body,{merge:true}));});closeSheet();toast(id?'Şube ayarları kaydedildi.':`${ad} şubesi eklendi.`);};});}
 /* ================= Excel'den çizelge aktarma (işveren) ================= */
