@@ -109,7 +109,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=150;
+const APP_SURUM=151;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1297,9 +1297,12 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
 /* ================= Ay sonu (şube müdürü) ================= */
 // Ay sonu kontrol listesi
 const YUKSEK_FM=60;
+// Hiç açılmamış hafta (ör. sistem 3 Ağustos'ta başlarken 27 Tem – 2 Ağu): o haftaya düşen ay günleri de boş gün sayılır, doldurulmadan ay kapatılamaz.
+// Şube müdürü kapalı haftaları yüklemez; onlar haftaDurum'da kayıtlı olduğu için "hiç yok" sayılmaz.
+const haftaHicYok=wid=>!S.haftalar[wid]&&!((S.haftaDurum&&S.haftaDurum.w)||{})[wid];
 function ayKontrolleri(ak,R,sb,d){const[y,m]=ak.split('-').map(Number);const ilk=new Date(y,m-1,1),son=new Date(y,m,0);const teyit=d.teyit||{};
   const K={bos:[],yedi:[],eksi:[],yuksek:[],izin:[],gc:[],yok:[]};
-  R.forEach(({p,a})=>{for(let dd=new Date(ilk);dd<=son;dd=addDays(dd,1)){if(!employed(p,dd))continue;const wid=mondayOf(dd),i=(dd.getDay()+6)%7;const v=cellOf(p.id,wid,i);if((v==null||v==='')&&weekHasEntry(p.id,wid))K.bos.push({p,wid,d:new Date(dd)});}
+  R.forEach(({p,a})=>{for(let dd=new Date(ilk);dd<=son;dd=addDays(dd,1)){if(!employed(p,dd))continue;const wid=mondayOf(dd),i=(dd.getDay()+6)%7;const v=cellOf(p.id,wid,i);if((v==null||v==='')&&(weekHasEntry(p.id,wid)||(!isEsnaf(p)&&haftaHicYok(wid)))&&bosSayilir(p,dd))K.bos.push({p,wid,d:new Date(dd)});}
     for(let w=parse(mondayOf(ilk));w<=son;w=addDays(w,7)){const wid=ymd(w);const ds=weekDays(wid);if(ds.every((dd,i)=>employed(p,dd)&&isShift(cellOf(p.id,wid,i)))){const key=p.id+'_'+wid;const t7=(S.haftalar[wid]||{}).teyit7||{};K.yedi.push({p,wid,key,ok:!!t7[p.id]});}}
     if(!a.part&&!a.esnaf){if(a.fm<0)K.eksi.push({p,a});if(a.fm>YUKSEK_FM)K.yuksek.push({p,a});}
     const iz=['R','UI','YI','B'].filter(k=>a.kod[k]);if(iz.length)K.izin.push({p,a,iz});
