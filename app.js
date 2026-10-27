@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=138;
+const APP_SURUM=139;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1567,6 +1567,8 @@ function veriKontrol(v,kL,ak,kilitli,V=null){const r={pid:'',tur:'',hata:''};con
   else if(V&&V.sol&&kilitli&&!satirKaydi(V.sol,x[0]))r.hata='Onaydan sonra eklenen kişi';
   else if(V&&V.sol&&t.k==='BY'&&(()=>{const sr=V.sol[satirKaydi(V.sol,x[0])];return sr&&sr.maasBurada===false&&sr.sekil!=='Esnaf kurye'&&ucretSekli(satirKaydi(V.sol,x[0]))!=='saat';})())r.hata=`Maaşı ${V.sol[satirKaydi(V.sol,x[0])].odemeSube||'başka'} şubesinde`;
   if(!r.hata&&V&&x){const u=veriCiftYazim(x[0],t.k,v.tarih);if(u)r.uyari=u;}
+  // Mantık kontrolü: rapor + ücretsiz izin + yıllık izin, kişinin o ay fiilen çalıştığı takvim gününden fazla olamaz (ör. 28 Eylül'de başlayana 30 gün ücretsiz izin).
+  if(!r.hata&&!r.uyari&&V&&V.sol&&x&&['R','UI','YI'].includes(t.k)){const sr=V.sol[satirKaydi(V.sol,x[0])];const ist=sr&&sr.gunTaban&&sr.gunTaban.istF;const top=sr?(sr.rapor||0)+(sr.ucretsiz||0)+(sr.yillik||0):0;if(ist!=null&&top>ist)r.uyari=`Bu ay ${ist} gün çalışılabilir, rapor/izin toplamı ${top} gün: mantıksız`;}
   if(r.hata){r.pid=r.hata==='Başka ay'||r.hata==='Muhasebe kilitli'||r.hata==='Miktar yok'?'':r.pid;if(r.hata!=='Veri türü seçin')r.tur=r.tur;r.gecersiz=true;}return r;}
 function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL=veriKisileri(V);const kisiler=new Map(kL);const adOf=pid=>kisiler.get(pid)||((S.personel.find(p=>p.id===pid)||{}).ad)||'?';
   const turlar=VERI_TUR.filter(t=>!t.gizli);
@@ -1587,7 +1589,7 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
     {k:'miktar',ad:'Miktar',v:x=>x.v.miktar===''||x.v.miktar==null?'':fmt(sayi(x.v.miktar)),n:x=>sayi(x.v.miktar)},{k:'ack',ad:'Açıklama',v:x=>x.v.aciklama||'',l:1},{k:'durum',ad:'Durum',v:x=>x.k.bos?'Boş satır':x.k.gecersiz?x.k.hata:x.k.uyari||'Tamam',l:1}];
   const tumR=veri.map((v,i)=>({v,i,k:veriKontrol(v,kL,ak,V.kilitli,V)}));let VIS=kfUygula('veri',VC,tumR);tumR.forEach(x=>{if(x.k.bos&&!VIS.includes(x))VIS.push(x);});
   S.pt._vvis=VIS.map(x=>x.i);S.pt._vkf={cols:VC,rows:tumR};
-  let h=`${V.kesin?'':'<div class="actions" style="margin-top:0"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>'}${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}${uyariSay?`<div class="banner">${uyariSay} satırdaki rapor / izin aynı gün çizelgede ya da başka şubenin veri girişinde de yazılı (sarı). Çizelgedekiyle aynıysa veri girişinden silin, yoksa iki kez sayılır.</div>`:''}
+  let h=`${V.kesin?'':'<div class="actions" style="margin-top:0"><button class="btn grow" id="bordroB">Bordro PDF yükle</button></div>'}${hataSay?`<div class="banner bad">${hataSay} satırda veri uyuşmazlığı var (kırmızı). Bu satırlar hesaba katılmaz; ismi ya da türü düzeltin.</div>`:''}${uyariSay?`<div class="banner">${uyariSay} satırda uyarı var (sarı). Satırdaki yazıyı okuyun: rapor / izin aynı gün çizelgede ya da başka şubede de yazılmış (iki kez sayılır) veya kişinin o ay çalıştığı günden fazla rapor / izin girilmiş olabilir.</div>`:''}
    ${kfAktifMi('veri')?`<div class="kfbar">Filtre açık · ${VIS.length} / ${veri.length} satır gösteriliyor <button class="mini" id="kfHepsiV">Filtreleri kaldır</button></div>`:''}
    <div class="tbl-wrap"><table class="pt vt vg2" id="vGrid"><thead><tr>${VC.map(c=>kfBaslik('veri',c,c.l?'l':'')).join('')}<th></th></tr></thead><tbody>`;
   VIS.forEach((x,r)=>{const v=x.v;const k=x.k;const kil=V.kesin||(V.kilitli&&veriTur(v.tur)&&veriTur(v.tur).y==='sol'&&!k.gecersiz);
