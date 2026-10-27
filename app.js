@@ -269,21 +269,27 @@ function fmGecisGunleri(p,ak,sb,H=S.haftalar){const r=fmDonemAraligi(ak,S.subeId
 // ay 1 hafta kısa/uzun seçilebilir; sonraki ay bir önceki ayın bittiği günün ertesinden başlar (hiçbir hafta iki kez sayılmaz ya da boşta kalmaz).
 function fmVarsayilanSon(ak){const[y,m]=ak.split('-').map(Number);let d=new Date(y,m,0);while(d.getDay()!==1)d=addDays(d,-1);return ymd(addDays(d,6));}
 function fmSonSecenekleri(ak){const v=parse(fmVarsayilanSon(ak));return[ymd(addDays(v,-7)),ymd(v),ymd(addDays(v,7))];}
+function fmBasSecenekleri(ak){const[y,m]=ak.split('-').map(Number);let d=new Date(y,m-1,1);while(d.getDay()!==1)d=addDays(d,1);return[ymd(addDays(d,-7)),ymd(d),ymd(addDays(d,7))];}
 function fmSonu(ak,sid=S.subeId){const o=((S.subeler[sid]||{}).fmSon||{})[ak];return o&&fmSonSecenekleri(ak).includes(o)?o:fmVarsayilanSon(ak);}
 function fmHaftalari(ak,sid=S.subeId){const[y,m]=ak.split('-').map(Number);const L=[];let d=new Date(y,m-1,1);while(d.getDay()!==1)d=addDays(d,1);
   const once=ayKaydir(ak,-1);if(once>=BASLANGIC_AY&&subeAyari(sid,once).fmDonem==='hafta'&&((S.subeler[sid]||{}).fmSon||{})[once])d=addDays(parse(fmSonu(once,sid)),1);
+  else if(once<BASLANGIC_AY){const b=((S.subeler[sid]||{}).fmBas||{})[ak];if(b&&fmBasSecenekleri(ak).includes(b))d=parse(b);}// sistemin ilk ayı: başlangıç seçilebilir
   const son=fmSonu(ak,sid);for(;ymd(d)<=son;d=addDays(d,7))L.push(ymd(d));return L;}
 // İşveren: haftalık dönemde ayın kaç hafta ödeneceğini seçer (ör. Ağustos 4 hafta, Eylül 5 hafta). Ay ya da sonraki ay onaylıysa kilitli.
 function fmSecici(ak,sb){if(!isIsveren()||sb.fmDonem!=='hafta'||ak<BASLANGIC_AY)return'';const sid=S.subeId;const bas=fmHaftalari(ak,sid)[0];const cur=fmSonu(ak,sid);
   const kilitli=['sube_onay','bolge_onay','kesin'].includes((S.aylar[ak]||{}).durum)||['bolge_onay','kesin'].includes((S.aylar[ayKaydir(ak,1)]||{}).durum);
   const yaz=t=>{const d=parse(t);return `${d.getDate()} ${AYK[d.getMonth()]}`;};
   const op=fmSonSecenekleri(ak).map(e=>{const n=Math.round(((parse(e)-parse(bas))/864e5+1)/7);return n<1?'':`<option value="${e}" ${e===cur?'selected':''}>${n} hafta · ${yaz(bas)} – ${yaz(e)}</option>`;}).join('');
-  return `<label class="field"><span>Bu ayın fazla mesai dönemi (${esc(subeAdi(sid))})</span><select id="fmSonSec" ${kilitli?'disabled':''}>${op}</select></label>${kilitli?'<p class="note">Ay ya da sonraki ay onaylandığı için dönem değiştirilemez; önce kilidi açın.</p>':`<p class="note">Bu şube bu ayı kaç hafta ödediyse onu seçin. Sonraki ay, bu ayın bittiği günün ertesinden başlar.</p>`}`;}
-function fmSeciciBagla(ak){const e=byId('fmSonSec');if(!e)return;e.onchange=async()=>{const sid=S.subeId,v=e.value;const eski=(S.subeler[sid]||{}).fmSon||{};
+  const ilkAy=ayKaydir(ak,-1)<BASLANGIC_AY;const cb=ymd(parse(bas));
+  const bop=ilkAy?fmBasSecenekleri(ak).map(b=>`<option value="${b}" ${b===cb?'selected':''}>${yaz(b)}</option>`).join(''):'';
+  const basHtml=ilkAy?`<label class="field"><span>Bu ayın fazla mesai dönemi başlangıcı (${esc(subeAdi(sid))})</span><select id="fmBasSec" ${kilitli?'disabled':''}>${bop}</select></label><p class="note">Sistemin ilk ayı: önceki ay bu sistemde olmadığı için başlangıcı siz seçersiniz.</p>`:'';
+  return basHtml+`<label class="field"><span>Bu ayın fazla mesai dönemi (${esc(subeAdi(sid))})</span><select id="fmSonSec" ${kilitli?'disabled':''}>${op}</select></label>${kilitli?'<p class="note">Ay ya da sonraki ay onaylandığı için dönem değiştirilemez; önce kilidi açın.</p>':`<p class="note">Bu şube bu ayı kaç hafta ödediyse onu seçin. Sonraki ay, bu ayın bittiği günün ertesinden başlar.</p>`}`;}
+function fmSeciciBagla(ak){const bb=byId('fmBasSec');if(bb)bb.onchange=async()=>{const sid=S.subeId,v=bb.value;const eski=(S.subeler[sid]||{}).fmBas||{};try{await setDoc(doc(db,'subeler',sid),{fmBas:{[ak]:v}},{merge:true});S.subeler[sid]={...S.subeler[sid],fmBas:{...eski,[ak]:v}};toast('Fazla mesai dönemi başlangıcı güncellendi.');render();}catch(x){yazmaHatasi(x);}};
+  const e=byId('fmSonSec');if(!e)return;e.onchange=async()=>{const sid=S.subeId,v=e.value;const eski=(S.subeler[sid]||{}).fmSon||{};
     try{await setDoc(doc(db,'subeler',sid),{fmSon:{[ak]:v}},{merge:true});S.subeler[sid]={...S.subeler[sid],fmSon:{...eski,[ak]:v}};toast('Fazla mesai dönemi güncellendi.');render();}catch(x){yazmaHatasi(x);}};}
 function fmDonemYazi(ak,sb=sube()){const r=fmDonemAraligi(ak,S.subeId,sb);const t=fmDonemTemel(ak,sb);if(sb.fmDonem!=='hafta'&&r.bas===t.bas)return'';const a=parse(r.bas),b=parse(r.son);return `${a.getDate()} ${AYK[a.getMonth()]} – ${b.getDate()} ${AYK[b.getMonth()]}`;}
 // Çizelgedeki "ay fazla mesai" sütununun ayı: haftalık dönemde haftanın pazartesisinin ayı
-function fmAyi(wid,sb=sube()){if(sb.fmDonem!=='hafta')return gosterAy(wid);const a=ayKey(parse(wid));const s=((S.subeler[S.subeId]||{}).fmSon)||{};if(!Object.keys(s).length)return a;return[a,ayKaydir(a,1),ayKaydir(a,-1)].find(k=>k>=BASLANGIC_AY&&fmHaftalari(k).includes(wid))||a;}
+function fmAyi(wid,sb=sube()){if(sb.fmDonem!=='hafta')return gosterAy(wid);const a=ayKey(parse(wid));const sbd=S.subeler[S.subeId]||{};if(!Object.keys(sbd.fmSon||{}).length&&!Object.keys(sbd.fmBas||{}).length)return a;return[a,ayKaydir(a,1),ayKaydir(a,-1)].find(k=>k>=BASLANGIC_AY&&fmHaftalari(k).includes(wid))||a;}
 // Haftanın listesi (kadro): o hafta çizelgede görünen kişiler. Kayıtlı değilse önceki haftanın listesi önerilir.
 function maasSubesi(p){return p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:(p.anaSube||'');}
 // Maaşın ödendiği şube: varsayılan SGK şubesi; "çalıştığı şubede" seçildiyse çalıştığı şube. Muhasebe (bordro) her zaman SGK şubesinde.
