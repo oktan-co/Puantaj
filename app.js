@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=155;
+const APP_SURUM=156;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1534,7 +1534,8 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     const totRow=`<tr class="tot"><td class="l">${kfAktifMi('sag')?`Filtreli toplam · ${VS.length} / ${V.satir.length} kişi`:`Toplam · ${VS.length} kişi`}</td><td></td><td></td><td>${tt(top('hak'))}</td><td>${tt(top('bankaya'))}</td><td>${tt(top('araOdeme'))}</td><td>${tt(top('maasFarki'))}</td><td>${tt(top('fmTl'))}</td><td>${tt(top('paketPrimi'))}</td><td>${tt(top('ciroPrimi'))}</td><td>${tt(top('avans'))}</td><td class="${kalT<0?'neg':'pos'}">${tl(kalT)}</td></tr>`;
     h=h.slice(0,tbBas)+totRow.replace('class="tot"','class="tot ust"')+h.slice(tbBas);
     h+=`</tbody></table></div>
-     <div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span><i style="background:var(--red)"></i>Kalan eksi: sonraki aya devreder</span><span>Satıra dokunup ödemeleri girin</span></div>`;}
+     <div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span><i style="background:var(--red)"></i>Kalan eksi: sonraki aya devreder</span><span>Satıra dokunup ödemeleri girin</span></div>
+     <div class="actions" style="margin-top:12px"><button class="btn grow" id="odPayB">Ödeme listesi · fotoğraf / PDF / WhatsApp</button></div>`;}
   const bolgeIs=!onayli(durum)&&(durum==='sube_onay'||HD.tamam||isIsveren());
   // Bölge müdürü onay öncesi kontrol: rapor, yıllık izin, SGK giriş/çıkış muhasebe grubundan teyit edilir
   const bk=(V.D&&V.D.bkontrol)||{};const BK=[];V.satir.filter(x=>muhasebedeMi(x.sol)).forEach(({pid,sol})=>{const ic=t=>t&&t.slice(0,7)===ak;
@@ -1555,7 +1556,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
   if(isIsveren()&&durum==='kesin'){const sonraki=(S.aylar[ayKaydir(ak,1)]||{}).durum==='kesin';
     h+=`<div class="row2" style="margin-top:10px">${sonraki?`<p class="note">${ayAdi(ayKaydir(ak,1))} kesin kapalı olduğu için bu ay açılamaz.</p>`:'<button class="btn grow" id="kesinAcB">Kesin kapanışı aç</button>'}</div>`;}
   view(h,()=>{navBagla();document.querySelectorAll('#ptSeg button').forEach(b=>b.onclick=()=>{if(S.pt.gorunum==='veri'&&b.dataset.v!=='veri')veriBosTemizle();S.pt.gorunum=b.dataset.v;S.pt.vsel=null;render();});
-    const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
+    const pb=byId('pdfB');if(pb)pb.onclick=()=>muhasebeCiktisi(V);const opb=byId('odPayB');if(opb)opb.onclick=()=>odemeCiktisi(V);const bb=byId('bordroB');if(bb)bb.onclick=()=>bordroPanel(V);
     if(S.pt._kf&&S.pt.gorunum!=='veri'){kfBagla(S.pt._kf.t,S.pt._kf.cols,S.pt._kf.rows);const kh=byId('kfHepsi');if(kh)kh.onclick=()=>{kfDurum(S.pt._kf.t).f={};render();};}
     if(S.pt.gorunum==='veri'){if(!V.kesin)veriGirisiBagla(V);}else if(!V.kesin){document.querySelectorAll('tr[data-pid]').forEach(r=>r.onclick=()=>odemePanel(r.dataset.pid));document.querySelectorAll('tr[data-mpid]').forEach(r=>r.onclick=()=>gunPanel(r.dataset.mpid));}
     document.querySelectorAll('[data-bk]').forEach(c=>c.onchange=()=>{if(kilitEngel()||kesinEngel()){c.checked=!c.checked;return;}const k=c.dataset.bk;const sid=S.subeId;S.pt.doc={...(S.pt.doc||{}),bkontrol:{...((S.pt.doc||{}).bkontrol||{}),[k]:c.checked}};
@@ -1936,6 +1937,70 @@ function odemePanel(pid){if(kilitEngel()||kesinEngel())return;const V=ptVerisi()
 /* ================= Muhasebe çıktısı ================= */
 /* ================= Muhasebe çıktısı: görsel / PDF, paylaş ================= */
 function trBuyukBas(t){return String(t||'').toLocaleLowerCase('tr-TR').split(/(\s+)/).map(w=>w.trim()?w[0].toLocaleUpperCase('tr-TR')+w.slice(1):w).join('');}
+/* ---- Ödeme listesi paylaşımı: kişi seçerek (hepsi seçili gelir), üstte seçilenlerin toplamı ----
+   Sade: ad + gün + kalan ödeme (çalışanlara). Ayrıntılı: ödemeler tablosunun sütunları (müdüre). */
+function odBaslik(V){return `${trBuyukBas(V.sb.ad)} Şube ${AY[+V.ak.slice(5)-1]} Ayı Ödeme Listesi`;}
+function odToplam(L){return L.reduce((t,x)=>{const h=x.hes;t.hak+=(h.pb?0:h.hak)+h.fmTl+h.paketPrimi+h.ciroPrimi+(h.ekOd||0);t.bankaya+=h.bankaya;t.avans+=h.avans+h.araOdeme;t.nakit+=Math.max(h.kalan,0);t.kalan+=h.kalan;return t;},{hak:0,bankaya:0,avans:0,nakit:0,kalan:0});}
+async function odemeGorseli(V,L,sade){try{await document.fonts.ready;}catch(e){}const T=MUH_TEMA.klasik;
+  const tmp=document.createElement('canvas').getContext('2d');const F=(w,s)=>`${w} ${s}px Figtree,system-ui,sans-serif`;const olc=(t,f)=>{tmp.font=f;return tmp.measureText(String(t)).width;};
+  const gunY=x=>x.hes.saat?fmt(x.hes.saatSayi)+' sa':x.hes.esnaf||x.hes.maasYok?'—':String(x.sol.hakGun!=null?x.sol.hakGun:x.sol.gun);const t2=v=>Math.abs(v||0)>0.004?tl(v):'';
+  const bas=sade?['#','ADI SOYADI','GÜN','ÖDENECEK']:['#','ADI SOYADI','GÜN','HAK EDİLEN','BANKAYA YATAN','FAZLA MESAİ','PRİM','AVANS + ARA ÖD.','ÖDENECEK'];
+  const veri=L.map((x,i)=>{const h=x.hes;const ad=String(x.sol.ad).toLocaleUpperCase('tr-TR');return sade?[i+1,ad,gunY(x),tl(h.kalan)]:[i+1,ad,gunY(x),h.pb?'':t2(h.hak+(h.ekOd||0)),t2(h.bankaya),t2(h.fmTl),t2(h.paketPrimi+h.ciroPrimi),t2(h.avans+h.araOdeme),tl(h.kalan)];});
+  const son=bas.length-1;const fH=F(800,10.5),fA=F(700,12),fD=F(600,11.5),fK=F(800,12.5);
+  const cw=bas.map((b,j)=>Math.ceil(Math.max(olc(b,fH),...veri.map(r=>olc(r[j],j===1?fA:j===son?fK:fD)),j===1?150:24)+(j===1?22:18)));
+  const Tp=odToplam(L);const kutu=sade?[['Ödenecek toplam',tl0(Tp.nakit)],['Kişi',String(L.length)]]:[['Hak ediş',tl0(Tp.hak)],['Bankaya yatan',tl0(Tp.bankaya)],['Avans + ara ödeme',tl0(Tp.avans)],['Ödenecek toplam',tl0(Tp.nakit)]];
+  const pad=28,tw=cw.reduce((a,b)=>a+b,0),W=Math.max(tw+pad*2,sade?460:720),ox=(W-tw)/2,rowH=26,thH=30,kH=58,top=96+kH+16;const H=top+thH+L.length*rowH+thH+48;
+  const cv=document.createElement('canvas');cv.width=W*2;cv.height=H*2;const x=cv.getContext('2d');x.scale(2,2);x.textBaseline='middle';
+  x.fillStyle='#fff';x.fillRect(0,0,W,H);
+  x.fillStyle=T.bant;x.fillRect(0,0,W,58);x.fillStyle=T.bantYazi;x.font=F(800,18);x.textAlign='left';x.fillText(`${String(V.sb.ad).toLocaleUpperCase('tr-TR')} ŞUBE`,ox,24);
+  x.font=F(500,11.5);x.globalAlpha=.85;x.fillText('Ödeme listesi',ox,43);x.globalAlpha=1;
+  const ayT=`${AY[+V.ak.slice(5)-1].toLocaleUpperCase('tr-TR')} ${V.ak.slice(0,4)}`;x.font=F(800,13);const aw=olc(ayT,F(800,13))+28;
+  x.fillStyle=T.ayKutu;x.beginPath();x.roundRect?x.roundRect(ox+tw-aw,15,aw,28,6):x.rect(ox+tw-aw,15,aw,28);x.fill();x.fillStyle=T.ayYazi;x.textAlign='center';x.fillText(ayT,ox+tw-aw/2,29.5);
+  x.textAlign='left';x.fillStyle=T.not;x.font=F(600,11);x.fillText(`${L.length} kişi`,ox,78);x.textAlign='right';x.fillText(`Hazırlayan: ${S.me.adSoyad||S.me.kullaniciAdi||''} · ${trTarih(ymd(today()))}`,ox+tw,78);
+  // üstte toplam kutuları (son kutu: ödenecek nakit, vurgulu)
+  const kg=8,kw=(tw-kg*(kutu.length-1))/kutu.length;kutu.forEach(([a,v],k)=>{const kx=ox+k*(kw+kg),ky=96;const vur=a==='Ödenecek toplam';
+    x.fillStyle=vur?T.bant:T.zebra;x.beginPath();x.roundRect?x.roundRect(kx,ky,kw,kH,8):x.rect(kx,ky,kw,kH);x.fill();
+    x.textAlign='left';x.fillStyle=vur?'#fff':T.not;x.font=F(600,11);x.fillText(a,kx+12,ky+18);x.fillStyle=vur?'#fff':'#14202f';x.font=F(800,18);x.fillText(v,kx+12,ky+40);});
+  let y=top;x.fillStyle=T.th;x.beginPath();x.roundRect?x.roundRect(ox,y,tw,thH,[6,6,0,0]):x.rect(ox,y,tw,thH);x.fill();let cx=ox;x.font=fH;x.fillStyle=T.thYazi;
+  const hiz=j=>j===1?'left':j<=2?'center':'right';const tx=(j,cx)=>j===1?cx+10:j<=2?cx+cw[j]/2:cx+cw[j]-10;
+  bas.forEach((b,j)=>{x.textAlign=hiz(j);x.fillText(b,tx(j,cx),y+thH/2+.5);cx+=cw[j];});y+=thH;
+  L.forEach((r,i)=>{x.fillStyle=i%2?T.zebra:'#fff';x.fillRect(ox,y,tw,rowH);cx=ox;veri[i].forEach((v,j)=>{x.textAlign=hiz(j);const neg=j===son&&r.hes.kalan<-0.004;x.fillStyle=j===0?T.not:neg?'#c0392b':'#14202f';x.font=j===1?fA:j===son?fK:fD;x.fillText(String(v),tx(j,cx),y+rowH/2+.5);cx+=cw[j];});
+    x.fillStyle=T.cizgi;x.fillRect(ox,y+rowH-1,tw,1);y+=rowH;});
+  // toplam satırı
+  x.fillStyle=T.th;x.fillRect(ox,y,tw,thH);x.fillStyle=T.thYazi;x.font=fK;const tr=sade?['','TOPLAM','',tl(Tp.kalan)]:['','TOPLAM','',tl(L.reduce((a,q)=>a+(q.hes.pb?0:q.hes.hak)+(q.hes.ekOd||0),0)),tl(Tp.bankaya),t2(L.reduce((a,q)=>a+q.hes.fmTl,0)),t2(L.reduce((a,q)=>a+q.hes.paketPrimi+q.hes.ciroPrimi,0)),tl(Tp.avans),tl(Tp.kalan)];
+  cx=ox;tr.forEach((v,j)=>{x.textAlign=hiz(j);x.fillText(v,tx(j,cx),y+thH/2+.5);cx+=cw[j];});
+  cx=ox;x.fillStyle=T.cizgi;cw.slice(0,-1).forEach(w=>{cx+=w;x.fillRect(cx,top+thH,1,L.length*rowH);});x.strokeStyle=T.cizgi;x.strokeRect(ox+.5,top+.5,tw-1,thH*2+L.length*rowH-1);
+  y+=thH+22;x.textAlign='left';x.fillStyle=T.not;x.font=F(500,10.5);if(Tp.kalan<Tp.nakit-0.004)x.fillText('Ödenecek toplam: kalanı artı olanların toplamı (eksi kalanlar ödenmez, sonraki aya devreder).',ox,y);
+  return cv;}
+async function odemeDosya(V,L,sade,tur){const cv=await odemeGorseli(V,L,sade);const ad=odBaslik(V);
+  if(tur==='png'){const b=await new Promise(r=>cv.toBlob(r,'image/png'));return new File([b],ad+'.png',{type:'image/png'});}
+  const J=await jspdfLib();const w=cv.width/2*0.75,h=cv.height/2*0.75;const pdf=new J({orientation:w>h?'l':'p',unit:'pt',format:[w,h]});pdf.addImage(cv.toDataURL('image/png'),'PNG',0,0,w,h);
+  pdf.setProperties({title:ad});return new File([pdf.output('blob')],ad+'.pdf',{type:'application/pdf'});}
+function odemeCiktisi(V){let tur=tryLS('pm.odTur')||'png';let sade=tryLS('pm.odSade')==='1';const baslik=odBaslik(V);
+  const tum=V.satir.slice().sort((a,b)=>String(a.sol.ad).localeCompare(String(b.sol.ad),'tr'));const sec=new Set(tum.map(x=>x.pid));
+  openSheet(`<h2>Ödeme listesi paylaş</h2><div class="sub">${esc(baslik)}</div>
+   <div class="seg" id="odSade" style="margin-bottom:8px"><button data-v="0" class="${!sade?'on':''}">Ayrıntılı</button><button data-v="1" class="${sade?'on':''}">Sade (ad + ödenecek)</button></div>
+   <div class="seg" id="odTur" style="margin-bottom:10px"><button data-v="png" class="${tur==='png'?'on':''}">Fotoğraf</button><button data-v="pdf" class="${tur==='pdf'?'on':''}">PDF</button></div>
+   <div class="kpis" id="odTop"></div>
+   <div class="actions" style="margin:8px 0 4px"><button class="mini" id="odHepsi">Tümünü seç</button><button class="mini" id="odHicbiri">Tümünü kaldır</button></div>
+   <div class="card list" id="odKisi" style="max-height:34vh;overflow:auto">${tum.map(x=>`<label class="kfrow" style="padding:6px 10px"><input type="checkbox" data-od="${esc(x.pid)}" checked> <span style="flex:1"><b>${esc(x.sol.ad)}</b></span><em style="font-style:normal">${tl(x.hes.kalan)}</em></label>`).join('')}</div>
+   <img class="share-prev" id="odImg" alt="Ödeme listesi önizleme" style="margin-top:10px">
+   <div class="row2"><button class="btn grow" id="odIndir">İndir</button><button class="btn primary grow" id="odPay">WhatsApp / Paylaş</button></div>
+   <p class="note">Görmemesi gereken kişilerin işaretini kaldırın; üstteki toplamlar ve görsel sadece seçilenlerden hazırlanır.</p>`,()=>{
+   const secili=()=>tum.filter(x=>sec.has(x.pid));let zT;
+   const ciz=()=>{const L=secili();const Tp=odToplam(L);byId('odTop').innerHTML=`<div class="kpi"><span>Seçili kişi</span><b>${L.length} / ${tum.length}</b></div><div class="kpi"><span>Hak ediş</span><b>${tl0(Tp.hak)}</b></div><div class="kpi"><span>Bankaya yatan</span><b>${tl0(Tp.bankaya)}</b></div><div class="kpi"><span>Ödenecek toplam</span><b>${tl0(Tp.nakit)}</b></div>`;
+     clearTimeout(zT);zT=setTimeout(async()=>{const im=byId('odImg');if(!im)return;if(!L.length){im.removeAttribute('src');return;}const cv=await odemeGorseli(V,L,sade);if(byId('odImg'))byId('odImg').src=cv.toDataURL('image/png');},150);};
+   document.querySelectorAll('[data-od]').forEach(c=>c.onchange=()=>{c.checked?sec.add(c.dataset.od):sec.delete(c.dataset.od);ciz();});
+   byId('odHepsi').onclick=()=>{tum.forEach(x=>sec.add(x.pid));document.querySelectorAll('[data-od]').forEach(c=>c.checked=true);ciz();};
+   byId('odHicbiri').onclick=()=>{sec.clear();document.querySelectorAll('[data-od]').forEach(c=>c.checked=false);ciz();};
+   byId('odSade').querySelectorAll('button').forEach(b=>b.onclick=()=>{sade=b.dataset.v==='1';tryLS('pm.odSade',sade?'1':'0');byId('odSade').querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));ciz();});
+   byId('odTur').querySelectorAll('button').forEach(b=>b.onclick=()=>{tur=b.dataset.v;tryLS('pm.odTur',tur);byId('odTur').querySelectorAll('button').forEach(q=>q.classList.toggle('on',q===b));});
+   const indir=f=>{const a=document.createElement('a');a.href=URL.createObjectURL(f);a.download=f.name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),4000);};
+   const hazir=async()=>{const L=secili();if(!L.length){toast('Kimse seçilmedi.');return null;}try{return await odemeDosya(V,L,sade,tur);}catch(e){console.error(e);toast('Dosya hazırlanamadı.');return null;}};
+   byId('odIndir').onclick=async()=>{const f=await hazir();if(f)indir(f);};
+   byId('odPay').onclick=async()=>{const f=await hazir();if(!f)return;try{if(navigator.canShare&&navigator.canShare({files:[f]})){await navigator.share({files:[f],title:baslik,text:baslik});return;}}catch(e){if(e&&e.name==='AbortError')return;}
+     indir(f);window.open('https://wa.me/?text='+encodeURIComponent(baslik),'_blank');};
+   ciz();});}
 function muhBaslik(V){return `${trBuyukBas(V.sb.ad)} Şube ${AY[+V.ak.slice(5)-1]} Ayı Puantaj Verisi`;}
 const MUH_TEMA={
   klasik:{ad:'Klasik mavi',bant:'#0f6fc6',bantYazi:'#fff',baslik:'#0b3d6e',ayKutu:'#ffd23f',ayYazi:'#3a2a00',th:'#1593e8',thYazi:'#fff',zebra:'#e9f3fd',cizgi:'#cfe0f1',cik:['#fff1a8','#ffd54a'],cikKen:'#e0b21c',not:'#5a6b80'},
