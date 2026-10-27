@@ -10,7 +10,7 @@ const AYK=['Oca','Şub','Mar','Nis','May','Haz','Tem','Ağu','Eyl','Eki','Kas','
 const GUN=['Pzt','Sal','Çar','Per','Cum','Cmt','Paz'];
 const GUNU=['Pazartesi','Salı','Çarşamba','Perşembe','Cuma','Cumartesi','Pazar'];
 const GRUP={M:'Müdür',K:'Mutfak',S:'Kurye'}; const GRUP_SIRA=['M','K','S'];
-const KOD={HT:{ad:'Haftalık izin',kisa:'İZİN'},R:{ad:'Rapor',kisa:'RAPOR'},UI:{ad:'Ücretsiz izin',kisa:'ÜCR.<br>İZİN'},YI:{ad:'Yıllık izin',kisa:'YILLIK'},B:{ad:'Bayram',kisa:'BAYR.'},D:{ad:'Diğer',kisa:'DİĞER'},CG:{ad:'Çalışma günü değil',kisa:'ÇAL. GÜNÜ<br>DEĞİL'}};
+const KOD={HT:{ad:'Haftalık izin',kisa:'İZİN'},R:{ad:'Rapor',kisa:'RAPOR'},UI:{ad:'Ücretsiz izin',kisa:'ÜCR.<br>İZİN'},YI:{ad:'Yıllık izin',kisa:'YILLIK'},B:{ad:'Bayram',kisa:'BAYR.'},D:{ad:'Diğer',kisa:'DİĞER'},CG:{ad:'Part boş',kisa:'PART<br>BOŞ'}};
 // CG: sadece part-time personelde seçilir; ücrete, SGK gününe ve fazla mesaiye etkisi yok, sadece günün boş sayılmasını önler. Lejantta gösterilmez.
 const KOD_SIRA=['HT','R','UI','YI','B'];// 'D' (Diğer) kaldırıldı: eski kayıtlarda görünür, yeni seçilemez
 // Excel'deki koşullu biçim renkleri: [zemin, yazı]
@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=160;
+const APP_SURUM=161;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -537,7 +537,7 @@ const haftaAyari=wid=>subeAyari(S.subeId,fmAyi(wid,subeAyari(S.subeId,gosterAy(w
 const sunucuHazir=sid=>!!sid&&S.subeId===sid&&S.loaded.haftalar&&S.haftalarSunucu&&S.loaded.personel;
 function hazirDegil(){return new Error('Şube verileri tam yüklenmeden ya da işlem sırasında şube değiştiği için işlem yapılmadı. Tekrar deneyin.');}
 // Tek hücreye yazmadan önce kontrol: saat kuralı ve aynı gün başka şube.
-function hucreKontrol(p,wid,i,val,sessiz){const d=weekDays(wid)[i];if(val==='CG'&&!(p&&p.sekil==='Part')){if(!sessiz)toast('"Çalışma günü değil" sadece part-time personelde seçilebilir.');return false;}if(isShift(val)){const k=vardiyaKontrol(val,sube(),d);if(!k.ok){if(!sessiz)toast(k.neden);return false;}}
+function hucreKontrol(p,wid,i,val,sessiz){const d=weekDays(wid)[i];if(val==='CG'&&!(p&&p.sekil==='Part')){if(!sessiz)toast('"Part boş" sadece part-time personelde seçilebilir.');return false;}if(isShift(val)){const k=vardiyaKontrol(val,sube(),d);if(!k.ok){if(!sessiz)toast(k.neden);return false;}}
   if(val&&p&&cokSubeli(p)){const c=gunCakisir(val,digerGunler(p,d));if(c){if(!sessiz)toast(cakismaMesaj(p,ymd(d),c));return false;}}return true;}
 function setCell(pid,wid,i,val){const sid=S.subeId;const hdA=hdAlani(wid);if(wid===S.hafta&&kilitEngel())return Promise.resolve(false);const p=S.personel.find(x=>x.id===pid);if(!hucreKontrol(p,wid,i,val))return Promise.resolve(false);
   const w0=S.haftalar[wid]||{};const kad=kadroOf(wid).ids.slice();const kadVardi=kad.includes(pid);if(!kadVardi)kad.push(pid);undoKaydet(wid);const eski=cellOf(pid,wid,i);
@@ -1078,13 +1078,13 @@ async function ibanExcel(ak){const L=ibanListe(ak);let X;try{X=await xlsxLib();}
   const sat=(p,d)=>[adBuyuk(p.ad),tcOf(p)||'',p.iban||'',subeAdi(maasSubesi(p)),d,trTarih(p.giris)];
   const ws=X.utils.aoa_to_sheet([['Ad soyad','TC kimlik no','IBAN','Şube','Durum','SGK giriş'],...L.g.map(p=>sat(p,'Yeni giriş')),...L.u.map(p=>sat(p,'IBAN güncellendi'))]);
   ws['!cols']=[{wch:28},{wch:14},{wch:30},{wch:18},{wch:18},{wch:12}];const wb=X.utils.book_new();X.utils.book_append_sheet(wb,ws,'IBAN');X.writeFile(wb,`IBAN-${ak}.xlsx`);}
-function ibanKutusu(){if(!puantajYetki())return'';const bu=ayKey(today());const ak=ibanAyi();const acik=!!S.ibanAcik;const L=ibanListe(ak);const hepsi=[...L.g,...L.u];const eks=hepsi.filter(p=>!p.iban).length;
-  let h=`<div class="ibk"><button class="ibk-h" id="ibanBas"><b>İşverene IBAN listesi</b><span class="n">${hepsi.length}</span>${eks?`<span class="chip bad">${eks} IBAN eksik</span>`:''}<span class="ar">${acik?'▾':'▸'}</span></button>`;
+function ibanKutusu(){if(!puantajYetki())return'';const bu=ayKey(today());const ak=ibanAyi();const acik=true;const L=ibanListe(ak);const hepsi=[...L.g,...L.u];const eks=hepsi.filter(p=>!p.iban).length;
+  let h=`<div class="ibk"><div class="ibk-h" id="ibanBas"><b>İşverene IBAN listesi</b><span class="n">${hepsi.length}</span>${eks?`<span class="chip bad">${eks} IBAN eksik</span>`:''}</div>`;
   if(acik){tcYukle(hepsi);const aylar=[...new Set([ak,...[0,1,2,3,4,5].map(i=>ayKaydir(bu,-i))])].sort().reverse();
     const satir=(p,gun,guncel)=>{const ib=p.iban||'';const tc=tcOf(p);return `<div class="ibr ${ib?'':'eks'}"><div class="n"><b>${esc(adBuyuk(p.ad))}</b><i>${esc(gorevTahmin(p)||'')} · ${esc(subeAdi(maasSubesi(p)))} · ${gun}</i></div><div class="v"><span class="mono">${ib?esc(ib):'IBAN girilmemiş'}</span><span>TC ${tc?esc(tc):'—'}${guncel&&p.ibanEski?' · eski: '+esc(p.ibanEski):''}</span></div></div>`;};
     h+=`<div class="ibk-t"><label>Ay <select id="ibanAy">${aylar.map(a=>`<option value="${a}" ${a===ak?'selected':''}>${ayAdi(a)}</option>`).join('')}</select></label><span>Tüm şubeler tek listede</span></div>
      <div class="ibk-s"><span>Yeni girenler · ${L.g.length}</span><span>SGK girişi bu ay</span></div>${L.g.length?L.g.map(p=>satir(p,'giriş '+trTarih(p.giris),false)).join(''):L.n.length?'':'<div class="ibr"><div class="n"><i>Bu ay SGK girişi olan yok.</i></div></div>'}
-     ${L.n.map(p=>`<div class="ibr"><div class="n"><b>${esc(adBuyuk(p.ad))}</b><i>${esc(gorevTahmin(p)||'')} · ${esc(subeAdi(maasSubesi(p)))} · giriş ${trTarih(p.giris)}</i></div><div class="v"><span class="chip">SGK günü 0 · IBAN gerekmiyor</span><span>Bu ay ücretsiz izinde; listeye ve Excel'e girmez</span></div></div>`).join('')}
+     ${L.n.map(p=>`<div class="ibr"><div class="n"><b>${esc(adBuyuk(p.ad))}</b><i>${esc(gorevTahmin(p)||'')} · ${esc(subeAdi(maasSubesi(p)))} · giriş ${trTarih(p.giris)}</i></div><div class="v"><span class="chip">SGK günü 0 · IBAN gerekmiyor</span></div></div>`).join('')}
      <div class="ibk-s"><span>IBAN'ı güncellenenler · ${L.u.length}</span><span>Bu ay değişen</span></div>${L.u.length?L.u.map(p=>satir(p,'değişiklik '+trTarih(ibanDegisim(p)),true)).join(''):'<div class="ibr"><div class="n"><i>Bu ay IBAN değişikliği yok.</i></div></div>'}
      <div class="ibk-f"><button class="btn primary grow" id="ibanKop">WhatsApp için kopyala</button><button class="btn grow" id="ibanXls">Excel indir</button></div>`;}
   return h+'</div>';}
@@ -1140,12 +1140,12 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
   if(C.length){body+=accTr('cik','Çıkış yapanlar',C.length);if(acc.cik)C.forEach(p=>{body+=satir(p,L.indexOf(p));});}
   if(Pall.length){body+=accTr('pas','Pasifler',Pall.length);if(acc.pas){body+=`<tr><td class="l" colspan="${CS+1}"><input class="pasAra" placeholder="Ad ile ara" value="${esc(S.pasAra||'')}" autocomplete="off"></td></tr>`;Pf.forEach(p=>{body+=satir(p,L.indexOf(p));});}}
   const h=`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button><button class="btn grow" id="addX">Excel'den yapıştır</button></div>
-   ${ibanKutusu()}<p class="note" style="margin-top:0">${esc(sube().ad)} · ${(()=>{const dis=Lsay.filter(p=>p.anaSube!==S.subeId&&p.sgkSube!==S.subeId&&ekSubeleri(p).includes(S.subeId)).length;return dis&&!isSube()?`${Lsay.length-dis} kişi + ${dis} diğer şubeden`:`${Lsay.length} kişi`;})()}${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi eksik</b>`:''} · ${CAL?'Hücreye tıklayıp değiştirin, anında kaydedilir.':'Excel\'den kopyalayıp yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.'}</p>
+   <p class="note" style="margin-top:0">${esc(sube().ad)} · ${(()=>{const dis=Lsay.filter(p=>p.anaSube!==S.subeId&&p.sgkSube!==S.subeId&&ekSubeleri(p).includes(S.subeId)).length;return dis&&!isSube()?`${Lsay.length-dis} kişi + ${dis} diğer şubeden`:`${Lsay.length} kişi`;})()}${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi eksik</b>`:''} · ${CAL?'Hücreye tıklayıp değiştirin, anında kaydedilir.':'Excel\'den kopyalayıp yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.'}</p>
    <div class="seg" id="pGor" style="margin-bottom:10px"><button data-v="calisma" class="${CAL?'on':''}">Çalışma bilgileri</button><button data-v="iletisim" class="${CAL?'':'on'}">İletişim ve banka</button></div>
    ${CAL?mobilListe(A,C,Pall,Pf,td):''}
    <div class="tbl-wrap ${CAL?'bl-cal':''}" style="scroll-padding-left:165px"><table class="pt bl sade ${CAL?'cal':''}" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${CAL?`<th>Görev</th><th>Şekil</th><th class="l">Şubeler</th><th>Deneme</th><th>SGK giriş</th><th>Çıkış</th>`:''}${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
    <tbody>${body||`<tr><td class="l" colspan="${CAL?8:F.length+2}">Henüz personel yok. "Personel ekle" ile başlayın.</td></tr>`}</tbody></table></div>`;
-  view(h,()=>{byId('addP').onclick=()=>personelPanel(null);byId('addX').onclick=personelYapistirPanel;document.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.pk));const tb=byId('blTbl');const ibB=byId('ibanBas');if(ibB)ibB.onclick=()=>{S.ibanAcik=!S.ibanAcik;render();};const ibA=byId('ibanAy');if(ibA)ibA.onchange=()=>{S.ibanAy=ibA.value;render();};const ibK=byId('ibanKop');if(ibK)ibK.onclick=async()=>{toast(await panoyaYaz(ibanMetin(ibanAyi()))?'Liste kopyalandı. WhatsApp\'a yapıştırabilirsiniz.':'Kopyalanamadı.');};const ibX=byId('ibanXls');if(ibX)ibX.onclick=()=>ibanExcel(ibanAyi());document.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{S.acc={...(S.acc||{}),[b.dataset.acc]:!(S.acc||{})[b.dataset.acc]};render();});document.querySelectorAll('.pasAra').forEach(i=>i.oninput=()=>{S.pasAra=i.value;const s0=i.selectionStart;render();const nI=[...document.querySelectorAll('.pasAra')].find(x=>x.offsetParent);if(nI){nI.focus();try{nI.setSelectionRange(s0,s0);}catch(_){}}});document.querySelectorAll('#pGor button').forEach(b=>b.onclick=()=>{S.pgor=b.dataset.v;render();});
+  view(h,()=>{byId('addP').onclick=()=>personelPanel(null);byId('addX').onclick=personelYapistirPanel;document.querySelectorAll('[data-pk]').forEach(b=>b.onclick=()=>personelPanel(b.dataset.pk));const tb=byId('blTbl');document.querySelectorAll('[data-acc]').forEach(b=>b.onclick=()=>{S.acc={...(S.acc||{}),[b.dataset.acc]:!(S.acc||{})[b.dataset.acc]};render();});document.querySelectorAll('.pasAra').forEach(i=>i.oninput=()=>{S.pasAra=i.value;const s0=i.selectionStart;render();const nI=[...document.querySelectorAll('.pasAra')].find(x=>x.offsetParent);if(nI){nI.focus();try{nI.setSelectionRange(s0,s0);}catch(_){}}});document.querySelectorAll('#pGor button').forEach(b=>b.onclick=()=>{S.pgor=b.dataset.v;render();});
     const pOf=el=>S.personel.find(x=>x.id===el.closest('tr').dataset.pid);
     const yaz1=(p,body,yenidenCiz)=>{const b2=personelYaz(p.id,{...p},body);Object.assign(p,b2);if(yenidenCiz){document.activeElement&&document.activeElement.blur();render();}};
     const geri=(el,msg,v)=>{toast(msg);el.value=v;el.classList.add('bad');setTimeout(()=>el.classList.remove('bad'),2500);};
@@ -2225,9 +2225,9 @@ function paylas(){let fm=tryLS('pm.shareFm')!=='0';let tur=tryLS('pm.czTur')||'p
 
 /* ================= Yönetim (işveren) ================= */
 function renderYonetim(){if(!isIsveren()&&!isBolge())return;const iv=isIsveren();let bolum=S.ynt||'subeler';if(!iv&&bolum==='yedek')bolum='subeler';
-  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="iscilik" class="${bolum==='iscilik'?'on':''}">İşçilik</button>${iv?`<button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button>`:''}</div>`;
+  let h=`<div class="seg" style="margin:4px 0 12px" id="ySeg"><button data-v="subeler" class="${bolum==='subeler'?'on':''}">Şubeler</button><button data-v="kullanicilar" class="${bolum==='kullanicilar'?'on':''}">Kullanıcılar</button><button data-v="iscilik" class="${bolum==='iscilik'?'on':''}">İşçilik</button><button data-v="iban" class="${bolum==='iban'?'on':''}">IBAN</button>${iv?`<button data-v="yedek" class="${bolum==='yedek'?'on':''}">Yedek</button>`:''}</div>`;
   if(bolum==='yedek')return renderYedek(h);
-  if(bolum==='iscilik')return renderIscilik(h);
+  if(bolum==='iscilik')return renderIscilik(h); if(bolum==='iban')return renderIbanBolum(h);
   if(bolum==='subeler'){const hf=S.subeIds.filter(id=>sube(id).fmDonem==='hafta').length;
     h+=`${iv?'<div class="actions"><button class="btn primary grow" id="ySubeEkle">Şube ekle</button></div>':'<p class="note" style="margin:0 0 8px">Şube ayarlarını işveren değiştirir.</p>'}
      ${iv?`<div class="card" style="padding:12px;margin-bottom:10px"><span class="lbl" style="margin-top:0">Tüm şubelerde fazla mesai dönemi</span><div class="seg" id="yDon"><button data-v="hafta" class="${hf===S.subeIds.length?'on':''}">Haftalık (örn. Eylül: 7 Eyl – 4 Eki)</button><button data-v="ay" class="${hf===0?'on':''}">Takvim ayı</button></div>
@@ -2538,6 +2538,9 @@ function iscSube(ak,sid){const D=S.iscDoc||{};const x=(D.hesap||{})[sid];const g
       catch(e){yazmaHatasi(e);return false;}};
     const kb=byId('icK');if(kb)kb.onclick=async()=>{if(await kaydet()){toast('Kaydedildi.');closeSheet();}};
     const nb=byId('icN');if(nb)nb.onclick=async()=>{if(await kaydet()){toast('Kaydedildi.');iscSube(ak,sn);}};});}
+function ibanBagla(){const ibA=byId('ibanAy');if(ibA)ibA.onchange=()=>{S.ibanAy=ibA.value;render();};const ibK=byId('ibanKop');if(ibK)ibK.onclick=async()=>{toast(await panoyaYaz(ibanMetin(ibanAyi()))?'Liste kopyalandı. WhatsApp\'a yapıştırabilirsiniz.':'Kopyalanamadı.');};const ibX=byId('ibanXls');if(ibX)ibX.onclick=()=>ibanExcel(ibanAyi());}
+// Yönetim → IBAN: işverene IBAN listesi (eskiden Personel ekranının üstündeydi).
+function renderIbanBolum(h){h+=ibanKutusu();view(h,()=>{document.querySelectorAll('#ySeg button').forEach(b=>b.onclick=()=>{S.ynt=b.dataset.v;render();});ibanBagla();});}
 function renderYedek(h){const son=tryLS('pm.sonYedek');const gun=son?Math.floor((Date.now()-Date.parse(son))/86400000):null;
   h+=`<div class="card" style="padding:14px">
     <h3 style="margin:0 0 6px">Veritabanı yedeği</h3>
