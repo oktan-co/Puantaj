@@ -107,7 +107,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=142;
+const APP_SURUM=143;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1380,6 +1380,12 @@ function puantajAc(id){if(S.subeId!==id)selectSube(id);S.pt.sube=id;S.pt.doc=nul
   getDoc(doc(db,'puantaj',id,'aylar',ayKaydir(ak,-1))).then(s=>{S.pt.prev=s.exists()?s.data():{};render();}).catch(()=>{S.pt.prev={};});render();}
 function ucretSekli(pid){const kp=S.personel.find(x=>x.id===pid);if(kp&&kp.paketBasi===true)return'paket';/* kişi paket başı: her şubede */const m=S.pt.maas||{};const u=m.ucretSekli&&m.ucretSekli[pid];if(u)return u;return m.paketBasi&&m.paketBasi[pid]?'paket':'maas';}
 function paketBasiMi(pid){return ucretSekli(pid)==='paket';}
+// Paket başı kuryede bordro tutarı (bankaya yatan) en çok çalıştığı şubeye yazılır (çizelgedeki vardiyalı gün sayısı; eşitse maaş/SGK şubesi). Diğerlerinde maaşın ödendiği şube.
+function enCokCalisilanSube(pid,ak,varsayilan){const p=S.personel.find(x=>x.id===pid);if(!p)return varsayilan;const kayit=S.personel.filter(x=>x.id===pid||ayniKisi(x,p));const sayac={};const say=g=>Object.values(g||{}).filter(v=>isShift(v)).length;
+  kayit.forEach(q=>{const n=say(gunHaritasi(q,ak));if(n)sayac[S.subeId]=(sayac[S.subeId]||0)+n;});
+  Object.entries(S.pt.ozetler||{}).forEach(([sb,k])=>{if(sb===S.subeId||!k)return;kayit.forEach(q=>{const x=k[q.id];const n=x?say(x.g):0;if(n)sayac[sb]=(sayac[sb]||0)+n;});});
+  const L=Object.entries(sayac).sort((a,b)=>b[1]-a[1]||(a[0]===varsayilan?-1:b[0]===varsayilan?1:0));return L.length?L[0][0]:varsayilan;}
+function bordroHedef(pid,ak,V){const r=V&&V.sol&&V.sol[pid];const p=S.personel.find(q=>q.id===pid);const h=r&&r.odemeSid?r.odemeSid:(p?odemeSubesi(p,ak):S.subeId);return paketBasiMi(pid)?enCokCalisilanSube(pid,ak,h):h;}
 // Ücretler aya göre: "x ayından itibaren" kaydı tutulur, geçmiş aylar değişmez.
 function ayDegeri(eski,gecmis,ak){const o={...(eski||{})};Object.entries(gecmis||{}).forEach(([pid,g])=>{const k=Object.keys(g||{}).filter(x=>x<=ak).sort().pop();if(k)o[pid]=g[k];});return o;}
 function netMap(ak=S.ay){const m=S.pt.maas||{};return ayDegeri(m.net,m.netGecmis,ak);}
@@ -1942,10 +1948,10 @@ function bordroPanel(V){if(kilitEngel()||kesinEngel())return;const ids=Object.ke
      const gor={};satirlar.forEach(k=>{k.tekrar=false;if(!k.pid)return;if(gor[k.pid])k.tekrar=true;else gor[k.pid]=1;});
      byId('bDosya').innerHTML=okunan.map(o=>`<div class="tags" style="margin:6px 0 0"><span class="tag">${esc(o.ad)}</span>${o.hata?`<span class="tag warn">${esc(o.hata)}</span>`:`<span class="tag">${esc(o.isyeri||'')}</span><span class="tag">${esc(o.donem||'')}</span><span class="tag ${o.toplamOk?'':'warn'}">${o.n} kişi · ${tl(o.top)} ₺ ${o.toplamOk?'✓':'⚠ PDF toplamı '+tl(o.toplam)}</span>`}</div>`).join('');
      const baskaAy=k=>!!(k.donemKey&&k.donemKey!==V.ak);const es=satirlar.filter(k=>k.pid&&!k.tekrar&&!baskaAy(k)),yok=satirlar.filter(k=>!k.pid||baskaAy(k));
-     const satir=(k)=>{const j=satirlar.indexOf(k);const sol=k.pid&&V.sol[k.pid];const fark=sol&&k.sgkGun!=null&&sol.gun!==k.sgkGun;const p=k.pid&&S.personel.find(q=>q.id===k.pid);const h=p&&odemeSubesi(p,V.ak);
+     const satir=(k)=>{const j=satirlar.indexOf(k);const sol=k.pid&&V.sol[k.pid];const fark=sol&&k.sgkGun!=null&&sol.gun!==k.sgkGun;const p=k.pid&&S.personel.find(q=>q.id===k.pid);const h=p&&bordroHedef(k.pid,V.ak,V);
        return `<tr class="${!k.pid?'oto':k.tekrar?'hata':''}"><td class="l">${esc(k.ad)}<br><span class="tag">${esc(k.isyeri)}</span>${k.neden?` <span class="tag">${k.eksikGun} gün ${esc(k.neden)}</span>`:''}${k.ocr?' <span class="tag">görselden okundu</span>':''}${(k.uyari||[]).map(u=>` <span class="tag warn">${esc(u)}</span>`).join('')}</td>
          <td class="l"><select data-j="${j}" style="max-width:170px"><option value="">— bu şubede yok —</option>${ids.map(id=>`<option value="${esc(id)}" ${id===k.pid?'selected':''}>${esc(V.sol[id].ad)}</option>`).join('')}</select>
-         ${k.yol==='tc'?'<br><span class="tag warn">İsim tutmadı, TC ile eşleşti</span>':''}${k.tekrar?'<br><span class="tag warn">Bu kişi başka satırda zaten var, atlanır</span>':''}${h&&h!==S.subeId?`<br><span class="tag">maaşı ${esc(subeAdi(h))} → oraya işlenir</span>`:''}</td>
+         ${k.yol==='tc'?'<br><span class="tag warn">İsim tutmadı, TC ile eşleşti</span>':''}${k.tekrar?'<br><span class="tag warn">Bu kişi başka satırda zaten var, atlanır</span>':''}${h&&h!==S.subeId?`<br><span class="tag">${paketBasiMi(k.pid)?'en çok çalıştığı şube':'maaşı'} ${esc(subeAdi(h))} → oraya işlenir</span>`:''}</td>
          <td>${k.sgkGun??''}</td><td>${sol?sol.gun:''}${fark?' <span class="tag warn">gün farkı</span>':''}</td>
          <td class="bi"><input data-n="${j}" value="${esc(k.netYazi==null?'':fmt(k.netYazi))}" inputmode="decimal" style="width:110px;text-align:right;font-weight:700" title="Okunan tutar yanlışsa düzeltin"></td></tr>`;};
      byId('bOut').innerHTML=satirlar.length?`<p class="note" style="margin:8px 0 4px"><b>${es.length} kişi eşleşti</b>${yok.length?` · ${yok.length} kişi bu şubede yok (atlanır)`:''}. Tutar yanlış okunduysa kutudan düzeltin.</p>
@@ -1959,7 +1965,7 @@ function bordroPanel(V){if(kilitEngel()||kesinEngel())return;const ids=Object.ke
       const n=Object.keys(deg).length;if(!n){toast('Eşleşen personel yok.');return;}
       try{if(Object.keys(tcYeni).length)setDoc(doc(db,'maaslar',sid0),{tc:tcYeni},{merge:true}).catch(yazmaHatasi);
         const sonGun=ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));const kim=S.me.adSoyad||S.me.kullaniciAdi||'';const z=new Date().toISOString();
-        const hedefOf=pid=>{const r=V.sol[pid];if(r&&r.odemeSid)return r.odemeSid;const p=S.personel.find(q=>q.id===pid);return p?odemeSubesi(p,ak):sid0;};const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
+        const hedefOf=pid=>bordroHedef(pid,ak,V)||sid0;const satirOf=pid=>({id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:sonGun,ad:adBuyuk(V.sol[pid].ad),pid,tur:'BY',miktar:deg[pid].bankaya,aciklama:`Bordro PDF (${deg[pid].kaynak||V.sb.ad})`,kaynak:'bordro',kim,zaman:z});
         const burada=Object.keys(deg).filter(pid=>hedefOf(pid)===sid0),disari={};Object.keys(deg).forEach(pid=>{const h=hedefOf(pid);if(h!==sid0)(disari[h]=disari[h]||[]).push(pid);});
         // Aynı kişinin önceki bordro satırı yenisiyle değişir; diğer satırlara dokunulmaz.
         const mevcut=((sid0===S.pt.sube&&ak===S.ay&&S.pt.doc)?S.pt.doc.veri:V.D.veri)||[];const silB=mevcut.filter(v=>v.kaynak==='bordro'&&burada.includes(v.pid)).map(v=>v.id);const yeniS=burada.map(satirOf);
