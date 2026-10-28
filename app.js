@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=171;
+const APP_SURUM=172;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1301,6 +1301,7 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
      return `<label class="field"><span>Maaşın ödendiği şube · ${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren</span><select id="pMs" ${yaz?'':'disabled'}>${ids.map(i=>`<option value="${esc(i)}" ${i===ms?'selected':''}>${esc(subeAdi(i))}</option>`).join('')}</select></label><p class="note" style="margin-top:-4px">Önceki aylar değişmez. Muhasebe SGK şubesinde kalır.${gy?' Geçmiş: '+esc(gy):''}</p>`;})():''}
    ${isSube()?`<p class="note" style="margin-top:-2px">SGK şubesi, SGK giriş, çıkış ve çalışma şeklini bölge müdürü ve işveren girer.</p>`:''}
    ${id&&!p.cikis&&yazB?'<button class="btn" id="pOut" style="margin-top:8px;width:100%">Bugün itibarıyla çıkış ver</button>':''}
+   ${id&&p.cikis&&!isSube()?'<button class="btn" id="pCB" style="margin-top:8px;width:100%">Çıkış bildirimi</button>':''}
    ${id&&p.cikis&&p.cikis<ymd(today())&&!S.personel.some(x=>x.id!==p.id&&ayniKisi(x,p)&&!(x.cikis&&x.cikis<ymd(today())))?'<button class="btn" id="pYeni" style="margin-top:8px;width:100%">Yeniden işe al</button>':''}
    ${id?personelGecmisHtml(p):''}
    <div id="pWarn"></div><div class="row2">${id&&(isIsveren()||(isBolge()&&(S.me.subeler||[]).includes(p.anaSube)))?'<button class="btn danger" id="pDel">Personeli sil</button>':''}<button class="btn grow" id="pNo">${yaz?'Vazgeç':'Kapat'}</button>${yaz?'<button class="btn primary grow" id="pOk">Kaydet</button>':''}</div>`,sh=>{
@@ -1308,7 +1309,7 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
    const G=byId('pGorev');const gayW=byId('pGayW');const sekilSec=()=>{const g=gorevBul(G.value);return g&&g.sekil?g.sekil:sh.querySelector('#pSekil .on').dataset.v;};
    const gorevDeg=()=>{const g=gorevBul(G.value);return !!g&&(g.ad!==gv||sekilSec()!==(p.sekil||'Tam'));};
    const tog=()=>{const g=gorevBul(G.value);byId('pSekilW').hidden=!!(g&&g.sekil);if(gayW)gayW.hidden=!gorevDeg();};G.onchange=tog;tog();sh.querySelectorAll('#pSekil button').forEach(bt=>bt.addEventListener('click',tog));
-   const py=byId('pYeni');if(py)py.onclick=()=>{closeSheet();personelPanel(null,null,{eski:p.id});};if(id)personelMaasGecmisi(p);
+   const pcb=byId('pCB');if(pcb)pcb.onclick=()=>{closeSheet();cikisBildirimPanel(p);};const py=byId('pYeni');if(py)py.onclick=()=>{closeSheet();personelPanel(null,null,{eski:p.id});};if(id)personelMaasGecmisi(p);
    const po=byId('pOut');if(po)po.onclick=()=>{byId('pCikis').value=ymd(today());po.hidden=true;};byId('pNo').onclick=closeSheet;const pe=byId('pEk');if(pe)pe.onclick=()=>ekSubePanel(p);const W=byId('pWarn');if(!yaz)return;
    byId('pAd').oninput=e=>{const el=e.target,a=el.selectionStart,b=el.selectionEnd;el.value=el.value.toLocaleUpperCase('tr-TR');try{el.setSelectionRange(a,b);}catch(_){}};
    let eskiB=null;if(eskiK){const o={},liste=[];BILGI.forEach(f=>{const v=f.k==='tc'?tcOf(eskiK):eskiK[f.k];if(v){o[f.k]=v;liste.push(f.ad);}});eskiB={o,liste:liste.length?liste:['kayıtlı bilgi yok']};}
@@ -1341,6 +1342,7 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
      const eskiAna=id?p0.anaSube:null,eskiSgk=id?p0.sgkSube:null;
      void ilkHafta;/* çizelgeye otomatik eklenmez: şube müdürü "+ ekle" ile ekler (opt.sonra: çizelgeden eklenen kişi zaten eklenir) */
      let sgkNot='';if(sgkV&&sgkV!==SGK_YOK&&sgkV!==ana&&(!id||eskiSgk!==sgkV))sgkNot=`. ${subeAdi(sgkV)} listesinde de görünür`;
+     if(id&&!subeK&&cikis&&!p0.cikis){cikisBildirimPanel(p);return;}
      toast((id?'Personel güncellendi':`Personel eklendi${opt.sonra?'':'. Çizelgeye "+ ekle" ile eklenir'}`)+sgkNot+'.');};
    const del=byId('pDel');if(del)del.onclick=()=>{if(!del.dataset.ok){del.dataset.ok='1';del.textContent='Evet, sil';W.innerHTML='<div class="confirm">Kişi şirketin personel listesinden silinir. Ayrılan biri için silmek yerine çıkış tarihi girin.</div>';return;}
      del.disabled=true;del.textContent='Kontrol ediliyor…';personelKaydiVar(p).then(var_=>{if(var_){del.disabled=false;del.textContent='Personeli sil';del.dataset.ok='';W.innerHTML=`<div class="confirm bad">${esc(var_)} çizelgesinde bu kişinin kaydı var, silinemez: silinirse geçmiş haftaları ve puantajı hesaplardan düşer. Ayrıldıysa çıkış tarihi girin.</div>`;return;}
@@ -2357,6 +2359,15 @@ const XKOD={'HAF. İZİN':'HT','HAF.İZİN':'HT','HAFTALIK İZİN':'HT','HAFTA T
 function xSerialTarih(v){if(typeof v!=='number'||v<20000)return null;const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);return d.getUTCFullYear()+'-'+String(d.getUTCMonth()+1).padStart(2,'0')+'-'+String(d.getUTCDate()).padStart(2,'0');}
 function xSaat(v){if(typeof v==='number'){if(v>=1)v=v%1;const m=Math.round(v*1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');}if(typeof v==='string')return normTime(v);return null;}
 function xTarihMetin(v){if(typeof v==='number')return xSerialTarih(v);if(typeof v!=='string')return'';const m=v.trim().match(/^(\d{1,2})[.,/](\d{1,2})[.,/](\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';}
+function adBaslik(s){return String(s||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('tr-TR').split(' ').map(w=>w?w.charAt(0).toLocaleUpperCase('tr-TR')+w.slice(1):w).join(' ');}
+function cikisBildirimMetni(p){const t=(p.cikis||'').split('-');const tar=t.length===3?`${t[2]}.${t[1]}.${t[0]}`:'';const sid=(p.sgkSube&&p.sgkSube!==SGK_YOK)?p.sgkSube:(p.anaSube||'');
+  return `ÇIKIŞ BİLDİRİMİ\nAdı: ${adBaslik(p.ad)}\nŞube Adı: ${subeAdi(sid).toLocaleUpperCase('tr-TR')}\nÇıkış Tarihi: ${tar}\nÇıkış Nedeni: İSTİFA\nÇalışma Şekli: ${String(p.sekil||'Tam').toLocaleUpperCase('tr-TR')}`;}
+function cikisBildirimPanel(p){const m=cikisBildirimMetni(p);
+  openSheet(`<h2>Çıkış bildirimi</h2><div class="sub">Kopyalayıp muhasebe grubuna yapıştırın.</div><pre id="cbM" style="white-space:pre-wrap;background:var(--bg2,#f3f4f6);border-radius:10px;padding:12px;font-weight:600;font-size:14px;line-height:1.5;margin:8px 0">${esc(m)}</pre>
+   <div class="row2"><button class="btn grow" id="cbK">Kopyala</button><button class="btn primary grow" id="cbW">WhatsApp'a gönder</button></div><div class="row2" style="margin-top:8px"><button class="btn grow" id="cbX">Kapat</button></div>`,sh=>{
+   byId('cbX').onclick=closeSheet;
+   byId('cbK').onclick=async()=>{const ok=await panoyaYaz(m);toast(ok?'Kopyalandı.':'Kopyalanamadı, metni elle seçip kopyalayın.');};
+   byId('cbW').onclick=()=>{window.open('https://wa.me/?text='+encodeURIComponent(m),'_blank');};});}
 function adBuyuk(s){return String(s||'').trim().replace(/\s+/g,' ').toLocaleUpperCase('tr-TR');}
 function xAd(s){return adBuyuk(s);}
 function xSekil(s){s=String(s||'').toLocaleUpperCase('tr-TR');return s.includes('PART')?'Part':s.includes('ESNAF')?'Esnaf kurye':'Tam';}
