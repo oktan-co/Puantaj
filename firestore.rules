@@ -129,14 +129,27 @@ service cloud.firestore {
         || (!ayni && e.get('iban', '') == '' && izAyni)
         || (!ayni && y.get('ibanEski', '') == e.get('iban', '') && y.get('ibanZaman', null) == request.time);
     }
+    // Şube müdürü personelin SGK şubesini, çalıştığı şubesini, SGK giriş / çıkışını ve maaş şubesini değiştiremez (görür);
+    // yeni kişiyi SGK bilgisi boş ekler, bölge müdürü / işveren girer. Ad soyad, görev, deneme başlangıcı, iletişim ve banka şube müdüründe.
+    function subeMuduru() { return aktif() && ben().rol == 'sube'; }
+    function subeAlanUygun() {
+      return !subeMuduru()
+        || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['sgkSube', 'anaSube', 'giris', 'cikis', 'maasSubeGecmis', 'maasYeri']);
+    }
+    function subeYeniUygun() {
+      return !subeMuduru()
+        || (request.resource.data.get('sgkSube', '') == '' && request.resource.data.get('giris', '') == ''
+            && request.resource.data.get('cikis', '') == '' && !('maasSubeGecmis' in request.resource.data));
+    }
     match /personel/{p} {
       allow read: if subede(resource.data.get('anaSube', ''))
         || subede(resource.data.get('sgkSube', ''))
         || (aktif() && ben().subeler.hasAny(resource.data.get('gorunurSubeler', [])));
       allow create: if (subede(request.resource.data.anaSube)
         || subede(request.resource.data.get('sgkSube', '')))
-        && (request.resource.data.get('ekSubeler', []).size() == 0 || ben().rol in ['bolge', 'isveren']);
-      allow update: if ibanUygun() && ekDegisimiUygun() && (
+        && (request.resource.data.get('ekSubeler', []).size() == 0 || ben().rol in ['bolge', 'isveren'])
+        && subeYeniUygun();
+      allow update: if ibanUygun() && ekDegisimiUygun() && subeAlanUygun() && (
         ((subede(resource.data.anaSube) || subede(resource.data.get('sgkSube', '')))
           && (subede(request.resource.data.anaSube) || subede(request.resource.data.get('sgkSube', ''))))
         || (aktif() && ben().rol == 'bolge'
