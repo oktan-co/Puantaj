@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=162;
+const APP_SURUM=163;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1727,7 +1727,7 @@ function veriYaz(sid,ak,fark,ek={},sec={}){gerekliSube(sid);const deg=fark.deg||
 // aynı satır maaşın ödendiği şubenin veri girişine de yazılır. Satır değişince / silinince / hedef değişince oradaki kopya da güncellenir.
 async function bankaGonder(sid,ak,fark,eski){const E=new Map((eski||[]).map(v=>[v.id,v]));const Y={};const ekle=h=>Y[h]=Y[h]||{deg:{},sil:[]};
   Object.values(fark.deg||{}).forEach(v=>{const o=E.get(v.id);if(o&&o.gonder&&o.gonder!==v.gonder)ekle(o.gonder).sil.push(v.id);
-    if(v.gonder){const{gonder,...r}=v;ekle(gonder).deg[v.id]={...r,gonderenSid:sid,aciklama:r.aciklama||`${subeAdi(sid)} şubesinden girildi`};}});
+    if(v.gonder){const{gonder,...r}=v;ekle(gonder).deg[v.id]={...r,gonderenSid:sid,aciklama:`${subeAdi(sid)} veri`+(r.aciklama?' · '+r.aciklama:'')};}});
   (fark.sil||[]).forEach(id=>{const o=E.get(id);if(o&&o.gonder)ekle(o.gonder).sil.push(id);});
   const giden=[];const yeniGidis=h=>Object.keys(Y[h].deg).some(id=>{const o=E.get(id);return !o||o.gonder!==h;});// bildirim sadece satır ilk kez o şubeye giderken
   for(const[h,f] of Object.entries(Y)){try{const s0=await getDoc(doc(db,'puantaj',h,'aylar',ak));const d0=s0.exists()?s0.data():{};
