@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=172;
+const APP_SURUM=173;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2363,8 +2363,8 @@ function adBaslik(s){return String(s||'').trim().replace(/\s+/g,' ').toLocaleLow
 function cikisBildirimMetni(p){const t=(p.cikis||'').split('-');const tar=t.length===3?`${t[2]}.${t[1]}.${t[0]}`:'';const sid=(p.sgkSube&&p.sgkSube!==SGK_YOK)?p.sgkSube:(p.anaSube||'');
   return `ÇIKIŞ BİLDİRİMİ\nAdı: ${adBaslik(p.ad)}\nŞube Adı: ${subeAdi(sid).toLocaleUpperCase('tr-TR')}\nÇıkış Tarihi: ${tar}\nÇıkış Nedeni: İSTİFA\nÇalışma Şekli: ${String(p.sekil||'Tam').toLocaleUpperCase('tr-TR')}`;}
 function cikisBildirimPanel(p){const m=cikisBildirimMetni(p);
-  openSheet(`<h2>Çıkış bildirimi</h2><div class="sub">Kopyalayıp muhasebe grubuna yapıştırın.</div><pre id="cbM" style="white-space:pre-wrap;background:var(--bg2,#f3f4f6);border-radius:10px;padding:12px;font-weight:600;font-size:14px;line-height:1.5;margin:8px 0">${esc(m)}</pre>
-   <div class="row2"><button class="btn grow" id="cbK">Kopyala</button><button class="btn primary grow" id="cbW">WhatsApp'a gönder</button></div><div class="row2" style="margin-top:8px"><button class="btn grow" id="cbX">Kapat</button></div>`,sh=>{
+  openSheet(`<h2 style="margin-bottom:6px">Çıkış bildirimi</h2><pre style="white-space:pre-wrap;background:var(--bg2,#f3f4f6);border-radius:8px;padding:8px 10px;font-weight:600;font-size:13px;line-height:1.4;margin:0 0 8px">${esc(m)}</pre>
+   <div class="row2"><button class="btn small grow" id="cbK">Kopyala</button><button class="btn small primary grow" id="cbW">WhatsApp</button><button class="btn small" id="cbX">Kapat</button></div>`,sh=>{
    byId('cbX').onclick=closeSheet;
    byId('cbK').onclick=async()=>{const ok=await panoyaYaz(m);toast(ok?'Kopyalandı.':'Kopyalanamadı, metni elle seçip kopyalayın.');};
    byId('cbW').onclick=()=>{window.open('https://wa.me/?text='+encodeURIComponent(m),'_blank');};});}
