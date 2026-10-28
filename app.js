@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=169;
+const APP_SURUM=170;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -958,7 +958,7 @@ async function haftaKapatPanel(wid,onayDa){await gunleriYukle(cizelgeKisileri(wi
   const tkChip=(x,t)=>zor?`<label class="kchip ${tK[x.key]?'on':''}"><input type="checkbox" data-tk="${esc(x.key)}" ${tK[x.key]?'checked':''}> ${t}</label>`:`<span class="kchip">${t}</span>`;
   if(K.izinG.length)h+=`<div class="kt ${zor?(K.izinG.every(x=>tK[x.key])?'yesil':'sari'):'sari'}"><div class="kth"><b>Rapor ve izinler · ${K.izinG.length}</b><span>${zor?'Evrakı ve günleri kontrol edip her birini işaretleyin; işaretlenmeden hafta kapatılamaz.':'Evrakı tamam mı kontrol edin.'}</span></div><div class="kti">${K.izinG.map(x=>tkChip(x,`${ad(x.p)} · ${x.gun.map(gunY).join(', ')} ${KOD[x.v].ad.toLocaleLowerCase('tr-TR')}`)).join('')}</div></div>`;
   if(K.gc.length)h+=`<div class="kt ${zor?(K.gc.every(x=>tK[x.key])?'yesil':'sari'):'sari'}"><div class="kth"><b>Giriş ve çıkışlar · ${K.gc.length}</b><span>${zor?'SGK tarihini ve çizelgede ilk / son çalıştığı günü kontrol edip işaretleyin; işaretlenmeden hafta kapatılamaz.':'Tarihler doğru mu kontrol edin.'}</span></div><div class="kti">${K.gc.map(x=>tkChip(x,`${ad(x.p)} · ${x.tur.toLowerCase()} ${trTarih(x.t)}${x.sgk?' (SGK '+trTarih(x.sgk)+')':''} · çizelgede ${x.tur==='Giriş'?'ilk':'son'} gün ${x.cz?gunY(x.cz):'yok'}`)).join('')}</div></div>`;
-  if(K.yok.length)h+=`<div class="kt ${zor?(K.yok.every(x=>tK[x.key])?'yesil':'sari'):'sari'}"><div class="kth"><b>Haftanın listesinde olmayan çalışanlar · ${K.yok.length}</b><span>${zor?'Bu hafta gerçekten çalışmadıysa (izinli, raporlu vb. değilse) işaretleyin; çalıştıysa "+ ekle" ile listeye ekleyip günlerini girin. İşaretlenmeden hafta kapatılamaz.':'Personel listesinde aktif ama bu haftanın listesinde yoklar; kontrol edin.'}</span></div><div class="kti">${K.yok.map(x=>tkChip(x,`${ad(x.p)} · listede yok`)).join('')}</div></div>`;
+  if(K.yok.length)h+=`<div class="kt ${zor?(K.yok.every(x=>tK[x.key])?'yesil':'sari'):'sari'}"><div class="kth"><b>Haftanın listesinde olmayan çalışanlar · ${K.yok.length}</b><span>${zor?'Bu hafta çalışmadıysa işaretleyin: kapatınca bu haftaki günleri <b>ücretsiz izin</b> olarak yazılır. Çalıştıysa "+ ekle" ile listeye ekleyip günlerini girin; işten ayrıldıysa personelden çıkış tarihini girin. İşaretlenmeden hafta kapatılamaz.':'Personel listesinde aktif ama bu haftanın listesinde yoklar. Kapatınca bu haftaki günleri <b>ücretsiz izin</b> olarak yazılır; işten ayrıldıysa önce personelden çıkış tarihini girin.'}</span></div><div class="kti">${K.yok.map(x=>tkChip(x,`${ad(x.p)} · listede yok`)).join('')}</div></div>`;
   h+=`<p class="note">${kis.length} kişi · haftanın toplam fazla mesaisi ${sg(topFm)} sa.${isSube()?' Kapatınca bu hafta size kapanır ve bölge müdürünün onayına gider; düzeltme gerekirse bölge müdürü kilidi açar.':''}</p>
    ${engel?`<p class="note" style="color:var(--bad);font-weight:600">${engel} hafta kapatılamaz.</p>`:''}
    <div class="row2"><button class="btn grow" id="hkNo">Vazgeç</button><button class="btn primary grow" id="hkOk" ${engel?'disabled':''}>${onayDa?'Kapat ve onayla':'Evet, kapat'}</button></div>`;
@@ -972,9 +972,18 @@ async function haftaKapatPanel(wid,onayDa){await gunleriYukle(cizelgeKisileri(wi
 function haftaOzHesap(wid){const sb=haftaAyari(wid);const oz={};const k=kadroDoc(wid)||[];
   k.forEach(pid=>{const p=S.personel.find(x=>x.id===pid);if(!p||!weekHasEntry(pid,wid))return;const x=haftaHesap(p,wid,sb);oz[pid]={h:Math.round(x.h*100)/100,fm:Math.round(x.fm*100)/100,a:haftaAyParca(p,wid,sb)};});return oz;}
 async function haftayiKapat(wid,onayDa=false){const sid=S.subeId;const t=new Date().toISOString();const ad=benAd();const d=onayDa?'onay':'kapali';
-  if(!sunucuHazir(sid))throw hazirDegil();await gunleriYukle(cizelgeKisileri(wid),haftaAylari(wid));if(!sunucuHazir(sid))throw hazirDegil();const oz=haftaOzHesap(wid);const k=(kadroDoc(wid)||[]).slice();
+  if(!sunucuHazir(sid))throw hazirDegil();await gunleriYukle(cizelgeKisileri(wid),haftaAylari(wid));if(!sunucuHazir(sid))throw hazirDegil();
+  // Haftanın listesinde olmayan çalışanlar (paket başı / esnaf hariç): çalıştığı günler ücretsiz izin olarak çizelgeye yazılır, listeye eklenir.
+  const yokC={};{const ds=weekDays(wid);for(const x of haftaKontrol(wid).yok){const p=x.p;const c={};
+      for(let i=0;i<7;i++){const d=ds[i];if(!employed(p,d)||!cizelgeYazabilir(d)||cellOf(p.id,wid,i))continue;
+        if(cokSubeli(p)){let cak=null;try{cak=await gunYaz(p,ymd(d),'UI',sid);}catch(e){console.error(e);cak={hata:1};}if(cak)continue;}c[String(i)]='UI';}
+      if(Object.keys(c).length)yokC[p.id]=c;}}
+  const yokIds=Object.keys(yokC);
+  if(yokIds.length){const w0=S.haftalar[wid]||{};const cells={...(w0.cells||{})};yokIds.forEach(pid=>cells[pid]={...(cells[pid]||{}),...yokC[pid]});
+    S.haftalar[wid]={...w0,kadro:[...(kadroDoc(wid)||[]),...yokIds.filter(x=>!(kadroDoc(wid)||[]).includes(x))],cells};}
+  const oz=haftaOzHesap(wid);const k=(kadroDoc(wid)||[]).slice();
   const b=writeBatch(db);
-  b.set(weekRef(wid,sid),{hafta:wid,ay2:ayKey(haftaPazar(wid)),hd:d,kapatma:t,kapatan:S.user.uid,kapatanAd:ad,geriNot:'',...(onayDa?{onayTarihi:t,onaylayanAd:ad}:{}),kayit:arrayUnion({t,ad,i:onayDa?'kapattı ve onayladı':'kapattı'})},{merge:true});
+  b.set(weekRef(wid,sid),{hafta:wid,ay2:ayKey(haftaPazar(wid)),hd:d,...(yokIds.length?{kadro:k,cells:yokC}:{}),kapatma:t,kapatan:S.user.uid,kapatanAd:ad,geriNot:'',...(onayDa?{onayTarihi:t,onaylayanAd:ad}:{}),kayit:arrayUnion({t,ad,i:(onayDa?'kapattı ve onayladı':'kapattı')+(yokIds.length?` · listede olmayan ${yokIds.length} kişi ücretsiz izin yazıldı`:'')})},{merge:true});
   b.set(durumRef(sid),{w:{[wid]:{d,t,ad,oz,k}}},{mergeFields:['w.'+wid]});
   await b.commit();if(onayDa)await ozetGuncelle(haftaAylari(wid),sid);}
 // Hafta onaylandıktan sonra şubeler arası ay özeti; yazılamazsa kullanıcı uyarılır (hafta onayı geçerli kalır).
