@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=174;
+const APP_SURUM=175;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -2361,7 +2361,8 @@ function xSaat(v){if(typeof v==='number'){if(v>=1)v=v%1;const m=Math.round(v*144
 function xTarihMetin(v){if(typeof v==='number')return xSerialTarih(v);if(typeof v!=='string')return'';const m=v.trim().match(/^(\d{1,2})[.,/](\d{1,2})[.,/](\d{4})$/);return m?`${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`:'';}
 function adBaslik(s){return String(s||'').trim().replace(/\s+/g,' ').toLocaleLowerCase('tr-TR').split(' ').map(w=>w?w.charAt(0).toLocaleUpperCase('tr-TR')+w.slice(1):w).join(' ');}
 function cikisBildirimMetni(p){const t=(p.cikis||'').split('-');const tar=t.length===3?`${t[2]}.${t[1]}.${t[0]}`:'';const sid=(p.sgkSube&&p.sgkSube!==SGK_YOK)?p.sgkSube:(p.anaSube||'');
-  return `ÇIKIŞ BİLDİRİMİ\nAdı: ${adBaslik(p.ad)}\nŞube Adı: ${subeAdi(sid).toLocaleUpperCase('tr-TR')}\nÇıkış Tarihi: ${tar}\nÇıkış Nedeni: İSTİFA\nÇalışma Şekli: ${String(p.sekil||'Tam').toLocaleUpperCase('tr-TR')}`;}
+  const sk=p.sekil==='Part'?'PART TIME':p.sekil==='Esnaf kurye'?'ESNAF KURYE':'TAM ZAMANLI';
+  return `ÇIKIŞ BİLDİRİMİ\nADI: ${adBuyuk(p.ad)}\nŞUBE ADI: ${adBuyuk(subeAdi(sid))}\nÇIKIŞ TARİHİ: ${tar}\nÇIKIŞ NEDENİ: İSTİFA\nÇALIŞMA ŞEKLİ: ${sk}`;}
 async function cikisBildirimKopyala(p,ek){const ok=await panoyaYaz(cikisBildirimMetni(p));toast(ok?(ek||'')+'Çıkış bildirimi kopyalandı.':(ek||'')+'Kopyalanamadı, personel kartındaki "Çıkış bildirimi"ne tekrar basın.');}
 function adBuyuk(s){return String(s||'').trim().replace(/\s+/g,' ').toLocaleUpperCase('tr-TR');}
 function xAd(s){return adBuyuk(s);}
