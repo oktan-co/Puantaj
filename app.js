@@ -57,12 +57,15 @@ function ozBirlestir(oz,sol){const satirlar=Object.keys(sol||{}).map(pid=>({pid,
     const x=o[hedef]=o[hedef]||{};Object.entries(e).forEach(([t,v])=>{x[t]=(x[t]||0)+v;});});return o;}
 // Elle girilen gün/saat verilerini muhasebe tarafına ekle. Gün sayısı çizelgedeki kuralla (sgkGunSayisi) yeniden hesaplanır:
 // 31 çeken ayda 1 gün rapor 30 kalır, Şubat (28) 27 olur; çizelgeye yazılmış gibi.
-function veriUygula(sol,oz){Object.entries(oz).forEach(([pid,e])=>{const r=sol[pid];if(!r)return;const n=k=>e[k]||0;
+// Ekim 2026'dan itibaren veri girişindeki rapor / ücretsiz izin sadece muhasebeyi (bordro günü) değiştirir, part gün gibi;
+// hak edilen gün çizelgedeki çalışmaya göre kalır. Önceki aylar eski kuralla (onaylı rakamlar değişmesin).
+const HAK_CIZELGE_AYI='2026-10';
+function veriUygula(sol,oz,ak){Object.entries(oz).forEach(([pid,e])=>{const r=sol[pid];if(!r)return;const n=k=>e[k]||0;
   if(r.maasBurada!==false||r.muhBurada){r.rapor=(r.rapor||0)+n('R');r.ucretsiz=(r.ucretsiz||0)+n('UI');r.yillik=(r.yillik||0)+n('YI');r.bayram=(r.bayram||0)+n('B');
     r.partGun=Math.round(((r.partGun||0)+n('PG'))*100)/100;const T=r.gunTaban;const vE=n('R')+n('UI');
     // Part gün girilmemiş part-time: gün sayısı tam zamanlı gibi (ay − rapor − ücretsiz izin)
     if(r.partGun>0)r.gun=r.partGun;else if(vE)r.gun=T?sgkGunSayisi(T.ist,T.takvim,T.e+vE):Math.max(0,(r.gun||0)-vE);
-    if(r.hakGun!=null&&vE)r.hakGun=T?sgkGunSayisi(T.istF,T.takvim,T.eH+vE):Math.max(0,r.hakGun-vE);
+    if(r.hakGun!=null&&vE&&!(ak&&ak>=HAK_CIZELGE_AYI))r.hakGun=T?sgkGunSayisi(T.istF,T.takvim,T.eH+vE):Math.max(0,r.hakGun-vE);
     if(r.iscGun!=null&&vE&&T&&T.iS!=null)r.iscGun=sgkGunSayisi(T.iS,T.takvim,T.eS+vE);
     // Part gün girilmiş tam zamanlı (ör. SGK'da 1 gün gösterilen, fiilen tüm ay çalışan): işçilikte SGK maliyeti de part gün üzerinden; maaş hak günü değişmez.
     if(r.iscGun!=null&&r.partGun>0)r.iscGun=Math.min(r.iscGun,r.partGun);}
@@ -111,7 +114,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=167;
+const APP_SURUM=168;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1476,7 +1479,7 @@ function ptSol(ak,D){const oz=veriOzet(D.veri,ak);const sol=solHesap(ak,S.subeId
   // Başka şubenin veri girişindeki rapor / izin / part gün: kişinin muhasebe ya da maaş satırı buradaysa burada da sayılır (aynı gün aynı tür bir kez).
   const own=ozBirlestir(oz,sol),dis=ozBirlestir(veriDis(ak,S.subeId,D),sol);const top={};
   [own,dis].forEach(M=>Object.entries(M).forEach(([pid,e])=>{const x=top[pid]=top[pid]||{};Object.entries(e).forEach(([t,v])=>{x[t]=(x[t]||0)+v;});}));
-  veriUygula(sol,top);Object.entries(dis).forEach(([pid,e])=>{const r=sol[pid];if(r&&(r.maasBurada!==false||r.muhBurada))r.disVeri=e;});return sol;}
+  veriUygula(sol,top,ak);Object.entries(dis).forEach(([pid,e])=>{const r=sol[pid];if(r&&(r.maasBurada!==false||r.muhBurada))r.disVeri=e;});return sol;}
 // Bu şubenin veri girişindeki gün türlerini şubeler arası ay özetine yazar (değişmediyse yazmaz).
 function jsSirali(o){return JSON.stringify(o,(k,v)=>v&&typeof v==='object'&&!Array.isArray(v)?Object.fromEntries(Object.keys(v).sort().map(x=>[x,v[x]])):v);}
 const VG_YAZILAN={};let vgT=null;
