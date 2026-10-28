@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=163;
+const APP_SURUM=164;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1731,6 +1731,7 @@ async function bankaGonder(sid,ak,fark,eski){const E=new Map((eski||[]).map(v=>[
   (fark.sil||[]).forEach(id=>{const o=E.get(id);if(o&&o.gonder)ekle(o.gonder).sil.push(id);});
   const giden=[];const yeniGidis=h=>Object.keys(Y[h].deg).some(id=>{const o=E.get(id);return !o||o.gonder!==h;});// bildirim sadece satır ilk kez o şubeye giderken
   for(const[h,f] of Object.entries(Y)){try{const s0=await getDoc(doc(db,'puantaj',h,'aylar',ak));const d0=s0.exists()?s0.data():{};
+      if(d0.kesin===true){toast(`${subeAdi(h)} şubesinin ${ayAdi(ak)} ayı kesin kapandı, "Bankaya yatan" oraya işlenemedi.`);continue;}
       await veriYaz(h,ak,f,d0.kilitli?{}:{sube:h,ay:ak},{kilitsiz:true});if(yeniGidis(h))giden.push(subeAdi(h));}
     catch(e){yazmaHatasi(e);toast(`${subeAdi(h)} şubesine işlenemedi, satırı yeniden kaydedin.`);}}
   if(giden.length)toast(`Bankaya yatan → ${giden.join(', ')} şubesine de işlendi.`);}
@@ -1749,6 +1750,10 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
     const eski=veri0();const fark=veriFark(eski,yeni);S.pt.doc={...(S.pt.doc||{}),veri:yeni};if(!Object.keys(fark.deg).length&&!fark.sil.length){if(ciz){S.pt.zorla=true;render();}return;}Promise.resolve(veriYaz(sid,ak,fark,kalanYama(sid,ak,yeni))).then(ok=>{if(ok!==false)bankaGonder(sid,ak,fark,eski);});if(ciz){S.pt.zorla=true;render();}};
   const coz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);return{...v,pid:k.gecersiz&&k.hata!=='Veri türü seçin'&&k.hata!=='Muhasebe kilitli'&&k.hata!=='Başka ay'&&k.hata!=='Miktar yok'?'':k.pid,_k:k};};
   const temiz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);const o={...v,pid:k.gecersiz?'':k.pid,tur:v.tur||''};if(k.gonder&&!k.gecersiz)o.gonder=k.gonder;else delete o.gonder;return o;};
+  // Güncellemeden önce girilmiş "Bankaya yatan" satırları (maaşı başka şubede): ekran açılınca bir kez işaretlenir ve maaş şubesine gönderilir.
+  {const gk=sid+'|'+ak;S.pt.gonderGecis=S.pt.gonderGecis||{};
+   if(!S.pt.gonderGecis[gk]&&S.pt.doc&&S.pt.doc.kesin!==true&&!kilitBaskasi()){const ids=new Set(veri0().filter(v=>{if(v.gonder||v.tur!=='BY')return false;const k=veriKontrol(v,kL,ak,V.kilitli,V);return k.gonder&&!k.gecersiz;}).map(v=>v.id));
+     if(ids.size){S.pt.gonderGecis[gk]=1;setTimeout(()=>{if(sid!==S.pt.sube||ak!==S.ay)return;ayarla(veri0().map(v=>ids.has(v.id)?temiz(v):v),false);},400);}}}
   const yeniSatir=(o={})=>{const son=veri0()[veri0().length-1]||{};const bugun=ymd(today()).slice(0,7)===ak?ymd(today()):ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));
     return{id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:son.tarih||bugun,ad:'',pid:'',tur:'',miktar:'',aciklama:'',kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString(),...o};};
   const grid=byId('vGrid');
