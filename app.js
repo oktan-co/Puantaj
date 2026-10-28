@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=165;
+const APP_SURUM=167;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -440,7 +440,7 @@ function solHesap(ak,sid=S.subeId,diger=S.pt.ozetler||{},ekIds=[]){const sb=sube
 // Muhasebeye giden tarafta sadece SGK'sı bu şubede olanlar; başka şubenin SGK'lısı ve SGK'sı olmayanlar sadece ödemelerde.
 // Muhasebede görev adı: kuryeler muhasebenin kullandığı şekilde "Sürücü" yazılır
 function muhGorev(sol){const g=sol.gorev||'';return /kurye/i.test(g)?'Sürücü':g;}
-function muhasebedeMi(sol){const g=sol.gunTaban;if(g&&g.ist===0&&!g.iS)return false;/* ay içinde hiç SGK günü yok (SGK girişi sonraki ayda): muhasebede görünmez, ödemelerde kalır */return (sol.muhBurada!=null?sol.muhBurada:sol.maasBurada!==false)&&sol.sgkYok!==true;}
+function muhasebedeMi(sol){if(sol.sekil==='Esnaf kurye')return false;/* esnaf kurye muhasebede (liste, kontrol, PDF) görünmez; sadece Ödemeler tarafında */const g=sol.gunTaban;if(g&&g.ist===0&&!g.iS)return false;/* ay içinde hiç SGK günü yok (SGK girişi sonraki ayda): muhasebede görünmez, ödemelerde kalır */return (sol.muhBurada!=null?sol.muhBurada:sol.maasBurada!==false)&&sol.sgkYok!==true;}
 // Fazla mesai saat ücreti. "Maaşına göre": net ÷ 30 ÷ 9; Eylül 2026'dan itibaren küsurat atılır (37.000 → 137), eski aylar kuruşlu kalır.
 const FM_KUSURAT_AYI='2026-09';
 // Sabit ücretli şubede kişiye özel saat ücreti varsa o geçerli (aya göre, maaslar/{şube}.fmOzelGecmis).
@@ -539,7 +539,7 @@ function hazirDegil(){return new Error('Şube verileri tam yüklenmeden ya da i�
 // Tek hücreye yazmadan önce kontrol: saat kuralı ve aynı gün başka şube.
 function hucreKontrol(p,wid,i,val,sessiz){const d=weekDays(wid)[i];if(val==='CG'&&!(p&&p.sekil==='Part')){if(!sessiz)toast('"Part boş" sadece part-time personelde seçilebilir.');return false;}if(isShift(val)){const k=vardiyaKontrol(val,sube(),d);if(!k.ok){if(!sessiz)toast(k.neden);return false;}}
   if(val&&p&&cokSubeli(p)){const c=gunCakisir(val,digerGunler(p,d));if(c){if(!sessiz)toast(cakismaMesaj(p,ymd(d),c));return false;}}return true;}
-function setCell(pid,wid,i,val){const sid=S.subeId;const hdA=hdAlani(wid);if(wid===S.hafta&&kilitEngel())return Promise.resolve(false);const p=S.personel.find(x=>x.id===pid);if(!hucreKontrol(p,wid,i,val))return Promise.resolve(false);
+function setCell(pid,wid,i,val){const sid=S.subeId;const hdA=hdAlani(wid);if(haftaDurumu(wid)!=='acik'){toast('Bu hafta kapalı. Düzenlemek için önce "Kilidi aç"a basın.');return Promise.resolve(false);}if(wid===S.hafta&&kilitEngel())return Promise.resolve(false);const p=S.personel.find(x=>x.id===pid);if(!hucreKontrol(p,wid,i,val))return Promise.resolve(false);
   const w0=S.haftalar[wid]||{};const kad=kadroOf(wid).ids.slice();const kadVardi=kad.includes(pid);if(!kadVardi)kad.push(pid);undoKaydet(wid);const eski=cellOf(pid,wid,i);
   // Liste: hafta kayıtlıysa kişi sadece eklenir (sunucudaki listeye dokunmadan); yeni haftada önerilen liste yazılır.
   const kadAlan=S.haftalar[wid]&&Array.isArray(S.haftalar[wid].kadro)?(kadVardi?{}:{kadro:arrayUnion(pid)}):{kadro:kad};
@@ -549,7 +549,7 @@ function setCell(pid,wid,i,val){const sid=S.subeId;const hdA=hdAlani(wid);if(wid
       if(c){if(S.subeId===sid){const w1=S.haftalar[wid];if(w1&&w1.cells&&w1.cells[pid])w1.cells[pid][String(i)]=eski;undo.pop();render();toast(cakismaMesaj(p,ds,c));}return false;}}
     arka(setDoc(weekRef(wid,sid),{hafta:wid,ay2:ayKey(addDays(parse(wid),6)),...hdA,...kadAlan,cells:{[pid]:{[String(i)]:val}}},{merge:true}));kapaliHaftaGuncelle(wid,sid);return true;});}
 // Birden çok hücre: saat kuralına ya da aynı gün kuralına uymayan hücreler eski değerinde kalır, sayısı döner.
-function setWeek(wid,cells,kadro,pushUndo=true){const DEL_ALAN=deleteField();const sid=S.subeId;const hdA=hdAlani(wid);if(wid===S.hafta&&kilitBaskasi()){setTimeout(()=>toast(kilitMesaj()),60);return 0;}
+function setWeek(wid,cells,kadro,pushUndo=true){const DEL_ALAN=deleteField();const sid=S.subeId;const hdA=hdAlani(wid);if(haftaDurumu(wid)!=='acik'){setTimeout(()=>toast('Bu hafta kapalı. Düzenlemek için önce "Kilidi aç"a basın.'),60);return 0;}if(wid===S.hafta&&kilitBaskasi()){setTimeout(()=>toast(kilitMesaj()),60);return 0;}
   const w0=S.haftalar[wid]||{};const eskiC=w0.cells||{};const ds=weekDays(wid);let red=0;const degisen=[];
   Object.keys({...eskiC,...cells}).forEach(pid=>{const p=S.personel.find(x=>x.id===pid);for(let i=0;i<7;i++){const a=(eskiC[pid]||{})[String(i)]??null,b=(cells[pid]||{})[String(i)]??null;if(a===b)continue;
     if(b&&!hucreKontrol(p,wid,i,b,true)){red++;if(cells[pid])cells[pid][String(i)]=a;continue;}if(p&&cokSubeli(p))degisen.push([p,ymd(ds[i]),b]);}});
@@ -723,7 +723,7 @@ function hesapPanel(){openSheet(`<h2>${esc(S.me.adSoyad||S.me.kullaniciAdi)}</h2
 
 /* ================= Çizelge ================= */
 let SEL=null,ROWS=[],MOD=null,ptrTip='mouse',suruk=false,lpT=null,lpOldu=false,lpX=0,lpY=0;
-function cizelgeYazabilir(d){return !kesinAy(d)&&(!locked(d)||puantajYetki());}
+function cizelgeYazabilir(d){return !kesinAy(d)&&haftaDurumu(mondayOf(d))==='acik'&&(!locked(d)||puantajYetki());}// kapalı / onaylı haftada önce "Kilidi aç" gerekir
 function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=weekDays(wid);const td=ymd(today());const ak=gosterAy(wid);
   const K=kadroOf(wid);const kisiler=cizelgeKisileri(wid);ROWS=kisiler.map(p=>p.id);if(SEL&&SEL.wid!==wid)SEL=null;
   let h=`<div class="weeknav"><button class="nav-arrow" id="prevW" aria-label="Önceki hafta">‹</button><button class="ttl" id="thisW">${rangeLabel(wid)}<small>${mondayOf(today())===wid?'Bu hafta':'Bu haftaya dön'}</small></button><button class="nav-arrow" id="nextW" aria-label="Sonraki hafta">›</button></div>`;
@@ -904,7 +904,7 @@ function haftaBandi(wid){const hd=haftaDurumu(wid);const w=S.haftalar[wid]||{};c
   if(hd==='acik'){if(w.geriNot)h+=`<div class="banner bad">Bölge müdürü bu haftayı geri gönderdi: "${esc(w.geriNot)}". Düzeltip yeniden kapatın.</div>`;
     if(haftaBitti(wid)&&haftaDolu(wid)){const son=haftaSonGun(wid);h+=haftaGecikti(wid)?`<div class="banner bad">Bu hafta ${gunAdi(son)} gününe kadar kapatılmalıydı, gecikti.</div>`:haftaPazarBugun(wid)?`<div class="banner">Bugün haftanın son günü. Pazar vardiyasının çıkış saatleri henüz bitmemiş olabilir; kapatmadan önce pazar saatlerini kontrol edin. Kapattıktan sonra düzeltme için bölge müdürünün kilidi açması gerekir. En geç ${gunAdi(son)} günü kapatın.</div>`:`<div class="banner">Hafta bitti. Kontrol edip en geç ${gunAdi(son)} günü kapatın.</div>`;}}
   else if(!isSube()){const ad=w.kapatanAd||dw.ad||'';const t=w.kapatma||dw.t;
-    h+=hd==='kapali'?`<div class="banner">Hafta kapatıldı${ad?' · '+esc(ad):''}${t?' · '+tarihSaat(t):''}. Onayınızı bekliyor.</div>`:`<div class="banner ok">Hafta onaylandı${w.onaylayanAd?' · '+esc(w.onaylayanAd):''}${w.onayTarihi?' · '+tarihSaat(w.onayTarihi):''}. Değişiklik yaparsanız özet yeniden hesaplanır.</div>`;}
+    h+=hd==='kapali'?`<div class="banner">Hafta kapatıldı${ad?' · '+esc(ad):''}${t?' · '+tarihSaat(t):''}. Onayınızı bekliyor. Düzenlemek için önce "Kilidi aç"a basın.</div>`:`<div class="banner ok">Hafta onaylandı${w.onaylayanAd?' · '+esc(w.onaylayanAd):''}${w.onayTarihi?' · '+tarihSaat(w.onayTarihi):''}. Düzenlemek için önce "Kilidi aç"a basın.</div>`;}
   return h;}
 function kapaliHaftaKart(wid){const dw=(S.haftaDurum.w||{})[wid]||{};
   return `<div class="empty-state kapali-kart"><b>Bu hafta kapatıldı</b>${dw.ad?esc(dw.ad)+' · ':''}${dw.t?tarihSaat(dw.t):''}<br>${dw.d==='onay'?'Bölge müdürü onayladı.':'Bölge müdürünün onayında.'} Kapatılan haftalar görüntülenemez.<br>Düzeltme gerekiyorsa bölge müdürünüzden haftanın kilidini açmasını isteyin.</div>`;}
@@ -1040,7 +1040,7 @@ async function ekSubeKaydet(p,yeni){const eski=ekSubeleri(p);const ekl=yeni.filt
   const gor=[...new Set([...(p.gorunurSubeler||[]),...kisiSubeleri(p),...yeni])];const body={ekSubeler:yeni,gorunurSubeler:gor};
   try{const b=writeBatch(db);b.set(doc(db,'personel',p.id),body,{merge:true});ekl.forEach(x=>b.set(doc(db,'ekPersonel',x),{ids:{[p.id]:true}},{merge:true}));await b.commit();}
   catch(e){yazmaHatasi(e);return'Kaydedilemedi.';}
-  Object.assign(p,body);const hafta=mondayOf(today());for(const x of ekl)await cizelgeyeKoy(x,hafta,p.id);render();
+  Object.assign(p,body);render();/* çizelgeye otomatik eklenmez: şube müdürü "+ ekle" ile ekler */
   toast([ekl.length?`${ekl.map(subeAdi).join(', ')} çizelgesine eklendi`:'',cik.length?`${cik.map(subeAdi).join(', ')} şubesinden çıkarıldı; geçmiş haftaları duruyor`:''].filter(Boolean).join('. ')+'.');return true;}
 
 /* ================= Personel bilgileri (telefon, acil durum, e-posta, IBAN) ================= */
@@ -1174,8 +1174,8 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
         if(x==='sekil'){yaz1(p,gorevSatirYama(p,{sekil:v}));return;}
         if(x==='maasYeri'){const ak=ayKey(today());const sgk0=p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:'';const my=v===sgk0&&v!==(p.anaSube||S.subeId)?'sgk':'calistigi';const ym=maasGecmisYama(p,v,ak);yaz1(p,{maasYeri:my,...(ym||{})},true);const hs=odemeSubesi(p,ak);toast(`${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren maaşı ${subeAdi(hs)} puantajında; önceki aylar değişmez.${hs!==p.sgkSube&&p.sgkSube&&p.sgkSube!==SGK_YOK?` Muhasebe ${subeAdi(p.sgkSube)}'de kalır.`:''}`);return;}
         if(x==='sgkSube'){if(!v)return;const c=sgkCakisma(p,v);if(c)return geri(el,sgkCakismaMesaj(c),p.sgkSube||'');
-          const eski=p.sgkSube;const ymS=maasGecmisYama(p,{sgkSube:v},ayKey(today()));yaz1(p,{sgkSube:v,...(ymS||{})},true);if(v!==SGK_YOK&&v!==(p.anaSube||S.subeId)&&v!==eski){if(erisimVar(v)){cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} listesine ve çizelgesine de eklendi.`);}else toast(`${subeAdi(v)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir.`);}return;}
-        if(x==='anaSube'){if(!v||v===p.anaSube)return;const ak=ayKey(today());const ym=maasGecmisYama(p,{anaSube:v},ak);yaz1(p,{anaSube:v,...(ym||{})},true);cizelgeyeKoy(v,mondayOf(today()),p.id);toast(`${subeAdi(v)} çizelgesine eklendi.${ym?` Maaşı ${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren ${subeAdi(odemeSubesi(p,ak))} puantajında; önceki aylar değişmez.`:''}`);return;}
+          const eski=p.sgkSube;const ymS=maasGecmisYama(p,{sgkSube:v},ayKey(today()));yaz1(p,{sgkSube:v,...(ymS||{})},true);if(v!==SGK_YOK&&v!==(p.anaSube||S.subeId)&&v!==eski){toast(`${subeAdi(v)} listesinde de görünür. Çizelgeye o şubenin müdürü "+ ekle" ile ekler.`);}return;}
+        if(x==='anaSube'){if(!v||v===p.anaSube)return;const ak=ayKey(today());const ym=maasGecmisYama(p,{anaSube:v},ak);yaz1(p,{anaSube:v,...(ym||{})},true);toast(`${subeAdi(v)} listesine geçti. Çizelgeye "+ ekle" ile eklenir.${ym?` Maaşı ${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren ${subeAdi(odemeSubesi(p,ak))} puantajında; önceki aylar değişmez.`:''}`);return;}
         if(x==='baslama'){if(v&&p.giris&&v>p.giris)return geri(el,'İşe başlama SGK girişinden sonra olamaz. Boş bırakılırsa SGK girişi kullanılır.',p.baslama||'');yaz1(p,{baslama:v},true);return;}
         if(x==='giris'||x==='cikis'){const gi=x==='giris'?v:p.giris,ci=x==='cikis'?v:p.cikis;if(gi&&ci&&ci<gi)return geri(el,'Çıkış tarihi girişten önce olamaz.',p[x]||'');{const c=sgkCakisma(p,p.sgkSube,p.ad,gi,ci);if(c)return geri(el,sgkCakismaMesaj(c),p[x]||'');}yaz1(p,{[x]:v},x==='cikis');return;}};});
     const inp=(r,c)=>tb.querySelector(`input[data-r="${r}"][data-c="${c}"]`);
@@ -1222,7 +1222,7 @@ function personelYapistirPanel(){const sid=S.subeId;
      byId('piOk').onclick=async()=>{const L2=sonuc.filter(o=>!o.hata&&o.sec);if(!L2.length){toast('Seçili kişi yok.');return;}const b=writeBatch(db);const yeni=[];const td=ymd(today());
        L2.forEach(o=>{const pid=slug(o.ad)+'-'+Math.random().toString(36).slice(2,6);const body={ad:o.ad,gorev:o.gorev.ad,grup:o.gorev.grup,sekil:o.sekil,giris:o.giris||'',cikis:o.cikis||'',sgkSube:o.sgk,anaSube:sid};b.set(doc(db,'personel',pid),body);yeni.push({id:pid,...body});});
        try{await b.commit();yeni.forEach(p=>{if(!S.personel.some(x=>x.id===p.id))S.personel.push(p);});
-         const hafta=mondayOf(today());const aktif=yeni.filter(p=>(!p.cikis||p.cikis>=td)&&(!p.giris||p.giris<=ymd(addDays(parse(hafta),6))));for(const p of aktif)await cizelgeyeKoy(sid,hafta,p.id);
+         const hafta=mondayOf(today());const aktif=yeni.filter(p=>(!p.cikis||p.cikis>=td)&&(!p.giris||p.giris<=ymd(addDays(parse(hafta),6))));/* çizelgeye otomatik eklenmez */void aktif;void hafta;
          closeSheet();toast(`${yeni.length} personel eklendi${aktif.length?`, ${aktif.length} kişi bu haftanın çizelgesine kondu`:''}.`);render();}catch(e){yazmaHatasi(e);}};};
    T.oninput=coz;T.focus();});}
 // Kişinin çalıştığı şube ya da SGK şubesi değişince eski şube "görünür şubeler"e ve o şubenin ek personel listesine eklenir:
@@ -1320,9 +1320,9 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
      const ilkHafta=mondayOf(giris&&parse(giris)>today()?parse(giris):today());
      if(opt.sonra)opt.sonra(pid);
      const eskiAna=id?p0.anaSube:null,eskiSgk=id?p0.sgkSube:null;
-     const yeniSube=!id||(eskiAna!==ana);if(yeniSube&&!(opt.sonra&&ana===S.subeId))cizelgeyeKoy(ana,ilkHafta,pid);
-     let sgkNot='';if(sgkV&&sgkV!==SGK_YOK&&sgkV!==ana&&(!id||eskiSgk!==sgkV)){if(erisimVar(sgkV)){cizelgeyeKoy(sgkV,ilkHafta,pid);sgkNot=`, ${subeAdi(sgkV)} çizelgesine de eklendi`;}else sgkNot=`. ${subeAdi(sgkV)} listesinde de görünür, o şubenin müdürü çizelgesine ekleyebilir`;}
-     toast((id?'Personel güncellendi':`Personel eklendi${ana!==S.subeId?', '+subeAdi(ana)+' çizelgesine de eklendi':''}`)+sgkNot+'.');};
+     void ilkHafta;/* çizelgeye otomatik eklenmez: şube müdürü "+ ekle" ile ekler (opt.sonra: çizelgeden eklenen kişi zaten eklenir) */
+     let sgkNot='';if(sgkV&&sgkV!==SGK_YOK&&sgkV!==ana&&(!id||eskiSgk!==sgkV))sgkNot=`. ${subeAdi(sgkV)} listesinde de görünür`;
+     toast((id?'Personel güncellendi':`Personel eklendi${opt.sonra?'':'. Çizelgeye "+ ekle" ile eklenir'}`)+sgkNot+'.');};
    const del=byId('pDel');if(del)del.onclick=()=>{if(!del.dataset.ok){del.dataset.ok='1';del.textContent='Evet, sil';W.innerHTML='<div class="confirm">Kişi şirketin personel listesinden silinir. Ayrılan biri için silmek yerine çıkış tarihi girin.</div>';return;}
      del.disabled=true;del.textContent='Kontrol ediliyor…';personelKaydiVar(p).then(var_=>{if(var_){del.disabled=false;del.textContent='Personeli sil';del.dataset.ok='';W.innerHTML=`<div class="confirm bad">${esc(var_)} çizelgesinde bu kişinin kaydı var, silinemez: silinirse geçmiş haftaları ve puantajı hesaplardan düşer. Ayrıldıysa çıkış tarihi girin.</div>`;return;}
        sirayla('p'+id,()=>{arka(deleteDoc(doc(db,'personel',id)));});closeSheet();toast(`${p.ad} silindi.`);}).catch(e=>{del.disabled=false;del.textContent='Personeli sil';yazmaHatasi(e);});};});}
@@ -1533,7 +1533,7 @@ function renderPuantajDetay(){const vg=byId('vGrid');const ae=document.activeEle
     const tabanS=V.satir.filter(x=>muhasebedeMi(x.sol));const LS=kfUygula('sol',KS,tabanS);S.pt._kf={t:'sol',cols:KS,rows:tabanS};
     if(kfAktifMi('sol'))h+=`<div class="kfbar">Filtre açık · ${LS.length} / ${tabanS.length} kişi gösteriliyor <button class="mini" id="kfHepsi">Filtreleri kaldır</button></div>`;
     h+=`<div class="tbl-wrap"><table class="pt"><thead><tr>${KS.map(c=>kfBaslik('sol',c,c.l?'l':'')).join('')}</tr></thead><tbody>`;
-    const gizli=V.satir.filter(({sol})=>!muhasebedeMi(sol));
+    const gizli=V.satir.filter(({sol})=>!muhasebedeMi(sol)&&sol.sekil!=='Esnaf kurye');
     LS.forEach(({pid,sol})=>{const fo=sol.maasBurada===false&&!sol.muhBurada;h+=`<tr class="click ${cikisMi(sol)?'cikis':''}" data-mpid="${esc(pid)}"><td class="l">${esc(sol.sgkSube)}</td><td class="l"><b>${esc(sol.ad)}</b>${fo?' <span class="tag">sadece fazla mesai</span>':''}${sol.muhBurada&&sol.maasBurada===false?` <span class="tag">ödemesi ${esc(sol.odemeSube)}</span>`:''}${sol.baska&&sol.baska.length?` <span class="tag">+ ${esc(sol.baska.join(', '))}</span>`:''}${sol.bosGun?` <span class="tag warn">${sol.bosGun} boş</span>`:''}${sol.cakisma&&sol.cakisma.length?` <span class="tag warn">${sol.cakisma.length} gün çakışma</span>`:''}${sol.elle?' <span class="tag">+ veri girişi</span>':''}${sol.sekil==='Part'&&!sol.partGun?' <span class="tag warn">part gün girilmedi</span>':''}</td><td>${esc(muhGorev(sol))}</td><td>${esc(sol.muhSekil||sol.sekil)}</td><td>${trTarih(sol.giris)}</td><td>${trTarih(sol.cikis)}</td><td>${sol.rapor||''}</td><td>${sol.ucretsiz||''}</td><td>${sol.partGun?fmt(sol.partGun):''}</td><td>${sol.yillik||''}</td><td>${sol.bayram||''}</td><td>${fo?'—':(sol.bayram>0?`${sol.gun}+${fmt(sol.bayram)} bayram`:sol.gun)}</td></tr>`;});
     h+=`</tbody></table></div><div class="legend"><span><i style="background:var(--yel)"></i>Çıkış yapan</span><span>Gün sayısı = tam ay 30; rapor/ücretsiz izin varsa ayın takvim günü − rapor − ücretsiz izin, en çok 30 (ay ortasında giriş/çıkışta çalışılan takvim günü); part çalışanlarda gün sayısı = part gün</span></div>
     ${gizli.length?`<p class="note"><b>Muhasebede gösterilmeyen ${gizli.length} kişi</b> (SGK'sı başka şubede, SGK'sı yok ya da bu ay SGK girişi yok): ${gizli.map(x=>esc(x.sol.ad)).join(', ')}. Bu kişiler sadece Ödemeler tarafında.</p>`:''}

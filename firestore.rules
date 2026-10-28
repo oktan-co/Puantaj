@@ -203,12 +203,16 @@ service cloud.firestore {
       }
 
       // Haftalık kapatma: hd = acik | kapali | onay. Şube müdürü sadece açık haftayı okur ve yazar; kapatabilir (acik → kapali) ama geri açamaz.
-      // Bölge müdürü (kendi şubeleri) ve işveren her haftayı okur, yazar, onaylar, geri gönderir, kilidi açar.
+      // Bölge müdürü (kendi şubeleri) ve işveren her haftayı okur, onaylar, geri gönderir, kilidi açar. Kapalı / onaylı haftanın hücrelerini ve listesini
+      // kilidi açmadan değiştiremezler: o haftada sadece durum alanları (hd, onay, kayıt, teyit) yazılır.
       match /haftalar/{w} {
         allow read: if bolgede(s)
           || (subede(s) && (resource == null || !('hd' in resource.data) || resource.data.hd == 'acik'));
         // Kesin kapanmış aya değen haftaya kimse yazamaz (işveren önce kesin kapanışı açar).
-        allow write: if !haftaKesin(s, w) && (bolgede(s)
+        allow write: if !haftaKesin(s, w) && ((bolgede(s)
+              && (resource == null || resource.data.get('hd', 'acik') == 'acik'
+                  || (request.resource != null
+                      && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['hafta', 'ay2', 'hd', 'kapatma', 'kapatan', 'kapatanAd', 'onayTarihi', 'onaylayanAd', 'geriNot', 'kayit', 'teyit7', 'teyitK']))))
           || (subede(s) && !ayKilitli(s, w)
               && request.resource != null
               && (resource == null || resource.data.get('hd', 'acik') == 'acik')

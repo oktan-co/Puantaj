@@ -439,3 +439,14 @@ table.pt select.otoSec{font:inherit;font-size:12px;padding:2px 4px;border:1px so
 body.yardim-acik .note.yardim{display:block}
 .yardim-btn{font-weight:800;font-size:17px;line-height:1}
 .yardim-btn.on{background:rgba(255,255,255,.25)}
+
+/* Veri girişi tablosu: daha kalın / okunaklı yazı; tarih ve miktar sütunları içeriğe göre dar, kalan genişliği açıklama alır */
+table.vg2{table-layout:auto}
+table.vg2 td.bi input,table.vg2 td.bi select{font-size:14px;font-weight:600;color:var(--ink)}
+table.vg2 td.bi input[data-c="0"]{width:100px;min-width:0}
+table.vg2 td.bi input[data-c="1"]{width:240px;min-width:0}
+table.vg2 td.bi input[data-c="3"]{width:112px;min-width:0}
+table.vg2 td.bi select{width:auto;max-width:none}
+table.vg2 td.bi input[data-c="4"]{width:100%;min-width:180px}
+table.vg2 th:nth-child(5),table.vg2 td:nth-child(5){width:100%}
+table.vg2 td.dur .chip{font-weight:700}
