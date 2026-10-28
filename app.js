@@ -33,7 +33,7 @@ const VERI_TUR=[{k:'R',ad:'Rapor',b:'gün',y:'sol'},{k:'UI',ad:'Ücretsiz izin',
 const veriTur=k=>VERI_TUR.find(t=>t.k===k);
 // Veri girişi satırının kaydı: kayıt numarası boş ya da silinmiş/değişmiş kayda aitse isimle bulunur (yoksa tutar hiçbir satıra ulaşmaz).
 function veriPid(v){let pid=v.pid;if(!pid||!S.personel.some(p=>p.id===pid)){const k=isimAnahtar(v.ad||'');const p=k?S.personel.find(p=>isimAnahtar(p.ad)===k):null;if(p)pid=p.id;else if(!pid)return null;}return pid;}
-function veriOzet(veri,ak=S.ay){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||v.miktar===''||v.miktar==null)return;if(v.tarih&&ak&&v.tarih.slice(0,7)!==ak)return;
+function veriOzet(veri,ak=S.ay){const o={};(veri||[]).forEach(v=>{const t=veriTur(v.tur);if(!t||v.miktar===''||v.miktar==null)return;if(v.gonder)return;/* maaş şubesine gönderilen "Bankaya yatan": bu şubenin hesabına girmez */if(v.tarih&&ak&&v.tarih.slice(0,7)!==ak)return;
   const pid=veriPid(v);if(!pid)return;const x=o[pid]=o[pid]||{};x[v.tur]=(x[v.tur]||0)+sayi(v.miktar);});return o;}
 // Veri girişindeki gün türleri (rapor, ücretsiz izin, yıllık izin, bayram, part gün) şubeler arası ay özetine (ozetler → veriGun) yazılır:
 // kişinin muhasebe (SGK) şubesi de maaş şubesi de, hangi şubede girilirse girilsin bu günleri sayar. {kayıt: {ad, g: {tarih: {tür: miktar}}}}
@@ -111,7 +111,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=161;
+const APP_SURUM=162;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -1642,7 +1642,11 @@ function veriKontrol(v,kL,ak,kilitli,V=null){const r={pid:'',tur:'',hata:''};con
   if(!adT.trim())r.hata='İsim yok';else if(!x)r.hata='Böyle bir personel yok';else if(!t)r.hata='Veri türü seçin';else if(v.miktar===''||v.miktar==null||String(v.miktar).trim()==='')r.hata='Miktar yok';
   else if(v.tarih&&v.tarih.slice(0,7)!==ak)r.hata='Başka ay';else if(kilitli&&t.y==='sol')r.hata='Muhasebe kilitli';
   else if(V&&V.sol&&kilitli&&!satirKaydi(V.sol,x[0]))r.hata='Onaydan sonra eklenen kişi';
-  else if(V&&V.sol&&t.k==='BY'&&(()=>{const sr=V.sol[satirKaydi(V.sol,x[0])];return sr&&sr.maasBurada===false&&sr.sekil!=='Esnaf kurye'&&!['saat','paket'].includes(ucretSekli(satirKaydi(V.sol,x[0])));})())r.hata=`Maaşı ${V.sol[satirKaydi(V.sol,x[0])].odemeSube||'başka'} şubesinde`;
+  else if(V&&V.sol&&t.k==='BY'&&(()=>{const sr=V.sol[satirKaydi(V.sol,x[0])];return sr&&sr.maasBurada===false&&sr.sekil!=='Esnaf kurye'&&!['saat','paket'].includes(ucretSekli(satirKaydi(V.sol,x[0])));})()){
+    // Maaşı başka şubede: yetkin varsa tutar o şubenin veri girişine de yazılır (bordro PDF'indeki gibi); yetkin yoksa eskisi gibi engellenir.
+    const sr=V.sol[satirKaydi(V.sol,x[0])];const h=sr.odemeSid;
+    if(h&&h!==S.subeId&&(isIsveren()||(S.me.subeler||[]).includes(h))){r.gonder=h;r.gonderAd=sr.odemeSube||subeAdi(h);}
+    else r.hata=`Maaşı ${sr.odemeSube||'başka'} şubesinde`;}
   if(!r.hata&&V&&x){const u=veriCiftYazim(x[0],t.k,v.tarih);if(u)r.uyari=u;}
   // Mantık kontrolü: rapor + ücretsiz izin + yıllık izin, kişinin o ay fiilen çalıştığı takvim gününden fazla olamaz (ör. 28 Eylül'de başlayana 30 gün ücretsiz izin).
   if(!r.hata&&!r.uyari&&V&&V.sol&&x&&['R','UI','YI'].includes(t.k)){const sr=V.sol[satirKaydi(V.sol,x[0])];const ist=sr&&sr.gunTaban&&sr.gunTaban.istF;const top=sr?(sr.rapor||0)+(sr.ucretsiz||0)+(sr.yillik||0):0;if(ist!=null&&top>ist)r.uyari=`Bu ay ${ist} gün çalışılabilir, rapor/izin toplamı ${top} gün: mantıksız`;}
@@ -1663,7 +1667,7 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
   const hataSay=veri.filter(v=>veriKontrol(v,kL,ak,V.kilitli,V).gecersiz).length;const uyariSay=veri.filter(v=>veriKontrol(v,kL,ak,V.kilitli,V).uyari).length;
   const adYazi=v=>v.ad!=null&&v.ad!==''?v.ad:(v.pid?adBuyuk(adOf(v.pid)):'');
   const VC=[{k:'tarih',ad:'Tarih',v:x=>x.v.tarih?trTarih(x.v.tarih):'',n:x=>x.v.tarih||''},{k:'ad',ad:'Ad soyad',v:x=>adYazi(x.v),l:1},{k:'tur',ad:'Veri türü',v:x=>veriTur(x.v.tur)?veriTur(x.v.tur).ad:'',l:1},
-    {k:'miktar',ad:'Miktar',v:x=>x.v.miktar===''||x.v.miktar==null?'':fmt(sayi(x.v.miktar)),n:x=>sayi(x.v.miktar)},{k:'ack',ad:'Açıklama',v:x=>x.v.aciklama||'',l:1},{k:'durum',ad:'Durum',v:x=>x.k.bos?'Boş satır':x.k.gecersiz?x.k.hata:x.k.uyari||'Tamam',l:1}];
+    {k:'miktar',ad:'Miktar',v:x=>x.v.miktar===''||x.v.miktar==null?'':fmt(sayi(x.v.miktar)),n:x=>sayi(x.v.miktar)},{k:'ack',ad:'Açıklama',v:x=>x.v.aciklama||'',l:1},{k:'durum',ad:'Durum',v:x=>x.k.bos?'Boş satır':x.k.gecersiz?x.k.hata:x.k.uyari||(x.k.gonder?'→ '+x.k.gonderAd+' şubesine işlenir':'Tamam'),l:1}];
   const tumR=veri.map((v,i)=>({v,i,k:veriKontrol(v,kL,ak,V.kilitli,V)}));
   // Excel gibi: sıralama / filtre seçildiği anda sıra sabitlenir; yazdıkça satırlar yerinden oynamaz, sonradan eklenen satırlar en altta.
   // Yeniden sıralamak için sıralama / filtre tekrar seçilir.
@@ -1682,7 +1686,7 @@ function veriGirisiHtml(V){const veri=(V.D&&V.D.veri)||[];const ak=V.ak;const kL
      <td class="bi l"><select data-c="2" ${kil?'disabled':''}>${opt('',v.turYazi&&!veriTur(v.tur)?v.turYazi+' ?':'Seçin',!veriTur(v.tur))}${turlar.map(t=>opt(t.k,t.ad,v.tur===t.k)).join('')}${veriTur(v.tur)&&veriTur(v.tur).gizli?opt(v.tur,veriTur(v.tur).ad,true):''}</select></td>
      <td class="bi"><input data-c="3" readonly value="${esc(v.miktar==null||v.miktar===''?'':fmt(sayi(v.miktar)))}" inputmode="decimal" style="text-align:right" ${kil?'disabled':''}></td>
      <td class="bi l"><input data-c="4" readonly value="${esc(v.aciklama||'')}" ${kil?'disabled':''}></td>
-     <td class="l dur">${k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:''}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Satırı sil">✕</button>`}</td></tr>`;});
+     <td class="l dur">${k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:k.gonder?`<span class="chip ok">→ ${esc(k.gonderAd)} şubesine işlenir</span>`:''}</td><td>${kil?'':`<button class="mini" data-sil="${esc(v.id)}" title="Satırı sil">✕</button>`}</td></tr>`;});
   if(!V.kesin)h+=`<tr class="ekle"><td colspan="7"><button class="mini ekleB" id="vSatir">+ Satır ekle</button><button class="mini ekleB" id="vSatir10">+ 10 satır</button></td></tr></tbody></table></div>
    <datalist id="vKisiL">${kL.map(([id,ad])=>`<option value="${esc(adBuyuk(ad))}">`).join('')}</datalist>
    <p class="note yardim">Çizelgedeki gibi: hücreye tıklayıp seçin, sürükleyerek ya da Shift ile aralık seçin; çift tıklayarak ya da yazmaya başlayarak düzenleyin. Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır. Excel'deki satırları (TARİH · ŞUBE · AD SOYAD · VERİ TÜRÜ · MİKTAR · AÇIKLAMA) kopyalayıp seçili hücreye yapıştırın (seçim yoksa ilk boş satıra); satırlar kendiliğinden eklenir, şube sütunu atlanır. Yazdıklarınız anında kaydedilir. İsmi ya da türü tutmayan satırlar kırmızı görünür ve hesaba katılmaz.${V.kilitli?' Ay onaylandığı için gün türleri (rapor, izin, part gün) eklenemez; onaydan sonra eklenen kişiye de giriş yapılamaz. Düzeltme için kilidi açıp yeniden onaylayın.':''} Rapor, izin ve part gün hangi şubede girilirse girilsin kişinin SGK şubesinde ve maaş şubesinde sayılır.</p>`;
@@ -1719,6 +1723,17 @@ function veriYaz(sid,ak,fark,ek={},sec={}){gerekliSube(sid);const deg=fark.deg||
   return sirayla('pt'+key,async()=>{try{if(!sec.kilitsiz&&!(await kilitAl(ptK(sid,ak)))){birak();toast(kilitMesaj());if(sid===S.pt.sube&&ak===S.ay&&S.pt.ham){S.pt.doc={...S.pt.ham,veri:bekleyenUygula(sid,ak,veriListesi(S.pt.ham))};S.pt.zorla=true;render();}return false;}
       const p=setDoc(doc(db,'puantaj',sid,'aylar',ak),body,{merge:true});birak();p.catch(e=>{yazmaHatasi(e);});return true;}
     catch(e){birak();throw e;}});}
+// Maaşı başka şubede olan kişiye elle girilen "Bankaya yatan": satır bu şubede kalır (gonder = hedef şube, bu şubenin hesabına girmez),
+// aynı satır maaşın ödendiği şubenin veri girişine de yazılır. Satır değişince / silinince / hedef değişince oradaki kopya da güncellenir.
+async function bankaGonder(sid,ak,fark,eski){const E=new Map((eski||[]).map(v=>[v.id,v]));const Y={};const ekle=h=>Y[h]=Y[h]||{deg:{},sil:[]};
+  Object.values(fark.deg||{}).forEach(v=>{const o=E.get(v.id);if(o&&o.gonder&&o.gonder!==v.gonder)ekle(o.gonder).sil.push(v.id);
+    if(v.gonder){const{gonder,...r}=v;ekle(gonder).deg[v.id]={...r,gonderenSid:sid,aciklama:r.aciklama||`${subeAdi(sid)} şubesinden girildi`};}});
+  (fark.sil||[]).forEach(id=>{const o=E.get(id);if(o&&o.gonder)ekle(o.gonder).sil.push(id);});
+  const giden=[];const yeniGidis=h=>Object.keys(Y[h].deg).some(id=>{const o=E.get(id);return !o||o.gonder!==h;});// bildirim sadece satır ilk kez o şubeye giderken
+  for(const[h,f] of Object.entries(Y)){try{const s0=await getDoc(doc(db,'puantaj',h,'aylar',ak));const d0=s0.exists()?s0.data():{};
+      await veriYaz(h,ak,f,d0.kilitli?{}:{sube:h,ay:ak},{kilitsiz:true});if(yeniGidis(h))giden.push(subeAdi(h));}
+    catch(e){yazmaHatasi(e);toast(`${subeAdi(h)} şubesine işlenemedi, satırı yeniden kaydedin.`);}}
+  if(giden.length)toast(`Bankaya yatan → ${giden.join(', ')} şubesine de işlendi.`);}
 // Ekrandaki ay için, yeni veri listesiyle hesaplanan "kalan"lar: sonraki ayın devri bu kayıtlı kalandan gelir, her veri değişikliğinde güncellenir.
 function kalanYama(sid,ak,veri){if(sid!==S.pt.sube||sid!==S.subeId||ak!==S.ay||!S.pt.doc)return{};try{const V=ptVerisi();return{sag:sagYama(sagSonuclu({...V,D:{...V.D,veri}}),[])};}catch(e){console.error(e);return{};}}
 // Sağ taraf (ödemeler): sadece değişen kişilerin alanları; diğerlerinin yalnız hesaplanan kalanı yazılır.
@@ -1731,13 +1746,13 @@ function veriGirisiBagla(V){const ak=V.ak,sid=S.subeId;const kL=veriKisileri(V);
   const veri0=()=>((S.pt.doc&&S.pt.doc.veri)||[]);
   // Her değişiklik anında, sadece değişen satırlar yazılır.
   const ayarla=(yeni,ciz)=>{if(kesinEngel()){S.pt.zorla=true;render();return;}if(kilitBaskasi()){toast(kilitMesaj());S.pt.zorla=true;render();return;}if(sid!==S.pt.sube||ak!==S.ay){S.pt.zorla=true;render();return;}
-    const fark=veriFark(veri0(),yeni);S.pt.doc={...(S.pt.doc||{}),veri:yeni};if(!Object.keys(fark.deg).length&&!fark.sil.length){if(ciz){S.pt.zorla=true;render();}return;}veriYaz(sid,ak,fark,kalanYama(sid,ak,yeni));if(ciz){S.pt.zorla=true;render();}};
+    const eski=veri0();const fark=veriFark(eski,yeni);S.pt.doc={...(S.pt.doc||{}),veri:yeni};if(!Object.keys(fark.deg).length&&!fark.sil.length){if(ciz){S.pt.zorla=true;render();}return;}Promise.resolve(veriYaz(sid,ak,fark,kalanYama(sid,ak,yeni))).then(ok=>{if(ok!==false)bankaGonder(sid,ak,fark,eski);});if(ciz){S.pt.zorla=true;render();}};
   const coz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);return{...v,pid:k.gecersiz&&k.hata!=='Veri türü seçin'&&k.hata!=='Muhasebe kilitli'&&k.hata!=='Başka ay'&&k.hata!=='Miktar yok'?'':k.pid,_k:k};};
-  const temiz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);const o={...v,pid:k.gecersiz?'':k.pid,tur:v.tur||''};return o;};
+  const temiz=v=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);const o={...v,pid:k.gecersiz?'':k.pid,tur:v.tur||''};if(k.gonder&&!k.gecersiz)o.gonder=k.gonder;else delete o.gonder;return o;};
   const yeniSatir=(o={})=>{const son=veri0()[veri0().length-1]||{};const bugun=ymd(today()).slice(0,7)===ak?ymd(today()):ymd(new Date(+ak.slice(0,4),+ak.slice(5),0));
     return{id:Math.random().toString(36).slice(2,10),sira:yeniSira(),tarih:son.tarih||bugun,ad:'',pid:'',tur:'',miktar:'',aciklama:'',kim:S.me.adSoyad||S.me.kullaniciAdi||'',zaman:new Date().toISOString(),...o};};
   const grid=byId('vGrid');
-  const durumGuncelle=(tr,v)=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);tr.classList.toggle('hata',!!k.gecersiz);tr.querySelector('.dur').innerHTML=k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:'';};
+  const durumGuncelle=(tr,v)=>{const k=veriKontrol(v,kL,ak,V.kilitli,V);tr.classList.toggle('hata',!!k.gecersiz);tr.querySelector('.dur').innerHTML=k.gecersiz?`<span class="chip bad">${esc(k.hata)}</span>`:k.uyari?`<span class="chip warn">${esc(k.uyari)}</span>`:k.gonder?`<span class="chip ok">→ ${esc(k.gonderAd)} şubesine işlenir</span>`:'';};
   const hucreYaz=(v,c,val)=>{if(c===0){const d=trTarihCoz(val);v.tarih=d||'';v._tarihYazi=d?'':val;}else if(c===1){v.ad=adBuyuk(val);v.pid='';}else if(c===2){const t=veriTur(val)?val:turCoz(val);v.tur=t||'';v.turYazi=t?'':val;}else if(c===3)v.miktar=String(val).trim()===''?'':sayi(val);else if(c===4)v.aciklama=String(val).trim();return temiz(v);};
   // Hücreler çizelgedeki gibi: tıkla seç, sürükle / Shift ile aralık, çift tıkla (ya da Enter / F2 / yazmaya başla) düzenle.
   // Ctrl+C / Ctrl+V / Delete seçili hücrelerde çalışır; yapıştırma seçili hücreden başlar, seçim yoksa ilk boş satıra.
