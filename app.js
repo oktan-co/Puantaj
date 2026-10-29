@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=177;
+const APP_SURUM=178;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -655,6 +655,12 @@ async function gocKontrol(){if(!isIsveren()||S.gocBakildi||!S.subeIds.length||!S
     // v3: isimler büyük harf
     if(!gd.v3){const L=S.personel.filter(p=>p.ad&&p.ad!==adBuyuk(p.ad));for(let i=0;i<L.length;i+=400){const b=writeBatch(db);L.slice(i,i+400).forEach(p=>{p.ad=adBuyuk(p.ad);b.set(doc(db,'personel',p.id),{ad:p.ad},{merge:true});});await b.commit();}
       await setDoc(doc(db,'sistem','goc'),{v3:true},{merge:true});if(L.length){toast(`${L.length} personelin adı büyük harfe çevrildi.`);render();}}
+    // v5: aktarımdaki yanlış/eksik isimler (bir kerelik; eşleşmeler işverene gösterilir, onaylarsa yazılır; çift kayıt oluşturacaklara dokunulmaz)
+    if(!gd.v5){const E=isimEslestir(S.personel.map(p=>({id:p.id,ad:p.ad})),DOGRU_ISIMLER);
+      if(!E.yeni.length){await setDoc(doc(db,'sistem','goc'),{v5:true},{merge:true});}
+      else if(confirm('İsimler düzeltilsin mi? ('+E.yeni.length+')\n\n'+E.yeni.map(x=>x.ad+' → '+x.dogru).join('\n')+(E.birles.length?'\n\nZaten kaydı olduğu için DOKUNULMAYAN (elle birleştirilecek):\n'+E.birles.map(x=>x.ad+' → '+x.dogru).join('\n'):'')+(E.belirsiz.length?'\n\nBelirsiz (DOKUNULMAYAN):\n'+E.belirsiz.map(x=>x.ad+' → '+x.adaylar.join(' / ')).join('\n'):''))){
+        const b=writeBatch(db);E.yeni.forEach(x=>{b.set(doc(db,'personel',x.id),{ad:x.dogru},{merge:true});const p=S.personel.find(q=>q.id===x.id);if(p)p.ad=x.dogru;});await b.commit();
+        await setDoc(doc(db,'sistem','goc'),{v5:true},{merge:true});toast(`${E.yeni.length} personelin adı düzeltildi.`);render();}}
     // v4: haftalık kapatma. Haftalara durum yazılır: kapatılmış/onaylanmış aya ait haftalar "onay" (şube müdürüne gizlenir), diğerleri "acik".
     if(!gd.v4){let n=0;const t=new Date().toISOString();
       for(const sid of S.subeIds){const aq=await getDocs(collection(db,'subeler',sid,'aylar'));const ay={};aq.docs.forEach(d=>ay[d.id]=(d.data()||{}).durum);const kil=k=>['bolge_onay'].includes(ay[k]);
@@ -2365,6 +2371,24 @@ function cikisBildirimMetni(p){const t=(p.cikis||'').split('-');const tar=t.leng
   return `ÇIKIŞ BİLDİRİMİ\n\nAdı Soyadı: ${adBuyuk(p.ad)}\nŞube: ${subeAdi(sid)}\nÇıkış tarihi: ${tar}\nÇıkış nedeni: İstifa\nÇalışma şekli: ${sk}`;}
 async function cikisBildirimKopyala(p,ek){const ok=await panoyaYaz(cikisBildirimMetni(p));toast(ok?(ek||'')+'Çıkış bildirimi kopyalandı.':(ek||'')+'Kopyalanamadı, personel kartındaki "Çıkış bildirimi"ne tekrar basın.');}
 function adBuyuk(s){return String(s||'').trim().replace(/\s+/g,' ').toLocaleUpperCase('tr-TR');}
+// Doğru isim listesi (Yıldız + İlkbahar puantaj dosyalarından) ve yanlış yazılmış isimleri bunlarla eşleştiren yardımcı
+const DOGRU_ISIMLER=['SERDAR ÖZTÜRK','ELİF KARACA','HATİCE KÜBRA KARIK','UMUT GÖNEN','BERKAY EKİCİ','EMİR CAN ACAY','RIZA ŞAHİN','DAMLA AYDIN','ÖMER MELİH YILDIRIM','SEZAİ ACAR','FATMANUR ÇAKMAK','EMRE AŞMA','SAKİNE KORKMAZER','ADEM ELÇİ','EDA ELİBOL','YAĞMUR AYDIN','NEJLA AKÇABAY','KAYAHAN KARATUÇ','MERAL KENESARI','ÜMİT AYGÜN','BİRSEN KARA','OĞUZHAN ÇAKMAK','SÜMEYRA GİZEM KONGÜL','MEHMET YURTÇU','NACİYE ELÇİ','DOĞAN AKBAŞ','MUSTAFA HOCAOĞLU','AYŞEGÜL ÖZKAN','CEYHAN TURAN'];
+function isimEslestir(liste,dogru){
+  const kat=s=>adBuyuk(s).replace(/Ç/g,'C').replace(/Ğ/g,'G').replace(/İ/g,'I').replace(/Ö/g,'O').replace(/Ş/g,'S').replace(/Ü/g,'U');
+  const ed=(a,b)=>{const m=a.length,n=b.length;let p=Array.from({length:n+1},(_,j)=>j);for(let i=1;i<=m;i++){const c=[i];for(let j=1;j<=n;j++)c[j]=Math.min(p[j]+1,c[j-1]+1,p[j-1]+(a[i-1]===b[j-1]?0:1));p=c;}return p[n];};
+  const D=dogru.map(d=>({d,t:kat(d).split(' ')}));const tam=new Set(dogru.map(d=>adBuyuk(d)));const var_=new Set(liste.map(x=>adBuyuk(x.ad)));
+  const yeni=[],birles=[],belirsiz=[];
+  liste.forEach(x=>{const a=adBuyuk(x.ad);if(!a||tam.has(a))return;const at=kat(a).split(' ');
+    const ad=D.filter(c=>{const sub=(u,v)=>u.every(w=>v.includes(w));
+      if(at.join(' ')===c.t.join(' '))return true;
+      if(at.length<c.t.length&&sub(at,c.t))return true;
+      if(c.t.length<at.length&&sub(c.t,at))return true;
+      if(at.length===c.t.length){let fark=0;for(let i=0;i<at.length;i++){if(at[i]!==c.t[i]){if(at[i].length>=5&&c.t[i].length>=5&&ed(at[i],c.t[i])<=1)fark++;else return false;}}return fark<=1;}
+      return false;});
+    if(!ad.length)return;
+    if(ad.length>1){belirsiz.push({id:x.id,ad:a,adaylar:ad.map(c=>c.d)});return;}
+    const dg=ad[0].d;if(var_.has(dg)||yeni.some(y=>y.dogru===dg))birles.push({id:x.id,ad:a,dogru:dg});else yeni.push({id:x.id,ad:a,dogru:dg});});
+  return {yeni,birles,belirsiz};}
 function xAd(s){return adBuyuk(s);}
 function xSekil(s){s=String(s||'').toLocaleUpperCase('tr-TR');return s.includes('PART')?'Part':s.includes('ESNAF')?'Esnaf kurye':'Tam';}
 function excelCoz(X,wb){const val=(ws,r,c)=>{const x=ws[X.utils.encode_cell({r,c})];return x?x.v:null;};const sayfalar=[];let liste=null;
