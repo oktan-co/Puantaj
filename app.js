@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=179;
+const APP_SURUM=180;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -166,7 +166,7 @@ const sg=x=>{const r=Math.round((x||0)*100)/100;return (r>0?'+':r<0?'−':'')+Ma
 const tl=x=>(Math.round((x||0)*100)/100).toLocaleString('tr-TR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const tl0=x=>Math.round(x||0).toLocaleString('tr-TR')+' ₺';
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function kisaAd(ad){const p=String(ad||'').trim().split(/\s+/);return p.length>1?p[0]+' '+p[p.length-1][0]+'.':p[0]||'';}
+function kisaAd(ad){const p=String(ad||'').trim().split(/\s+/);return p.length>1?(/^\d+$/.test(p[p.length-1])?p.join(' '):p[0]+' '+p[p.length-1][0]+'.'):p[0]||'';}// "İSİMSİZ 12" kısalmaz (İSİMSİZ 1 ile karışmasın)
 function bas(ad){const p=String(ad||'').trim().split(/\s+/);return((p[0]||'')[0]||'')+((p.length>1?p[p.length-1][0]:'')||'');}
 function ascii(s){return String(s||'').toLocaleLowerCase('tr-TR').replace(/ı/g,'i').replace(/ğ/g,'g').replace(/ü/g,'u').replace(/ş/g,'s').replace(/ö/g,'o').replace(/ç/g,'c').replace(/i̇/g,'i');}
 function slug(s){return ascii(s).replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'').slice(0,40)||'x';}
@@ -760,7 +760,7 @@ function renderCizelge(){const wid=S.hafta;const sb=haftaAyari(wid);const ds=wee
     kisiler.filter(p=>(p.grup||'K')===g).forEach(p=>{const r=ROWS.indexOf(p.id);const wk=haftaHesapS(p,wid,sb);const ay=ayKadarS(p,wid,sb);
       const alt=`${fmt(wk.h)} sa${isEsnaf(p)?' · esnaf':p.sekil==='Part'?' · part':''}`;
       const fmH=isEsnaf(p)?['—',`${fmt(ay.h)}<small>sa</small>`]:p.sekil==='Part'?['—',`${fmt(ay.h)}<small>sa</small>`]:[sg(wk.fm),sg(ay.fm)];
-      h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}"><span class="adU">${esc(adBuyuk(p.ad))}</span><span class="adK">${esc(adBuyuk(kisaAd(p.ad)))}</span></b><span>${alt}</span><em class="nmfm">${isEsnaf(p)||p.sekil==='Part'?`${ak3} ${fmH[1]}`:`hafta <i>${fmH[0]}</i> · ${ak3} <i>${fmH[1]}</i>`}</em><em class="nmfmK">${isEsnaf(p)||p.sekil==='Part'?`<i class="fmp sa" title="Bu hafta çalışılan saat">${fmt(wk.h)} sa</i>`:`<i class="fmp ${wk.fm>0.004?'art':wk.fm<-0.004?'eks':'sif'}" title="Bu haftanın fazla mesaisi">${sg(wk.fm)}</i>`}</em></button>`;
+      h+=`<button class="nm ${MOD&&MOD.tip==='satir'&&MOD.pid===p.id?'kaynak':''}" data-pe="${esc(p.id)}"><b title="${esc(p.ad)}${isimsizMi(p)&&p.excelAd?' · Excel: '+esc(p.excelAd):''}"><span class="adU">${esc(adBuyuk(p.ad))}</span><span class="adK">${esc(adBuyuk(kisaAd(p.ad)))}</span></b><span>${alt}</span><em class="nmfm">${isEsnaf(p)||p.sekil==='Part'?`${ak3} ${fmH[1]}`:`hafta <i>${fmH[0]}</i> · ${ak3} <i>${fmH[1]}</i>`}</em><em class="nmfmK">${isEsnaf(p)||p.sekil==='Part'?`<i class="fmp sa" title="Bu hafta çalışılan saat">${fmt(wk.h)} sa</i>`:`<i class="fmp ${wk.fm>0.004?'art':wk.fm<-0.004?'eks':'sif'}" title="Bu haftanın fazla mesaisi">${sg(wk.fm)}</i>`}</em></button>`;
       ds.forEach((d,i)=>{const q=gunKaydiP(p,d);if(!q){h+=`<div class="cell out" data-r="${r}" data-c="${i}">—</div>`;return;}
         const lk=!cizelgeYazabilir(d);const val=cellOf(q.id,wid,i);const tag=lk?'div':'button';const at=`data-p="${esc(q.id)}" data-i="${i}" data-r="${r}" data-c="${i}"`;
         if(isShift(val)){const k=shiftKind(val,sb);const vk=vardiyaKontrol(val,sb,d);const[a,b]=val.split('-');h+=`<${tag} class="cell ${!vk.ok?'yuvarla':vk.pay?'pay':''}" ${at} ${!vk.ok?`title="${esc(vk.neden)}"`:vk.pay?'title="Erken çağrılma / geç çıkış (düzeltme)"':''} aria-label="${esc(p.ad)} ${GUNU[i]} ${a}–${b}"><span class="t ${k.o?'o':''}">${a}</span><span class="t ${k.k?'k':''}">${b}</span></${tag}>`;}
@@ -1156,11 +1156,11 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
   if(T&&T.contains(document.activeElement)&&T.dataset.n===String(L.length))return; // yazarken yeniden çizme
   tcYukle(L);
   const subeler=tumSubeler();const anaSec=(isIsveren()?S.subeIds:(S.me.subeler||[])).filter(x=>S.subeler[x]);
-  const eksik=L.filter(p=>!p.cikis||p.cikis>=td).filter(p=>!p.sgkSube||!gorevBul(p.gorev)).length;
+  const eksik=L.filter(p=>!p.cikis||p.cikis>=td).filter(p=>!p.sgkSube||!gorevBul(p.gorev)).length;const isz=Lsay.filter(p=>isimsizMi(p)).length;
   const opt=(v,t,sel)=>`<option value="${esc(v)}" ${sel?'selected':''}>${esc(t)}</option>`;
   const satir=(p,r)=>{const yaz=personelYazabilir(p);const dis=yaz?'':'disabled';const disB=yaz&&!isSube()?'':'disabled';/* SGK / giriş / çıkış / şube / şekil: sadece bölge müdürü ve işveren */const g=gorevBul(gorevTahmin(p));const cik=p.cikis&&p.cikis<td;const ana=p.anaSube||S.subeId;
     return `<tr data-pid="${esc(p.id)}" class="${cik?'mutr':''}">
-     <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${CAL||isSube()?'':(ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):'')}${cik?'çıktı':''}</span></td>
+     <td class="l nmc"><input class="adI" data-x="ad" value="${esc(adBuyuk(p.ad))}" autocomplete="off" spellcheck="false" ${dis}><span>${[CAL||isSube()?'':(ana!==S.subeId?'çalıştığı: '+esc(subeAdi(ana)):''),cik?'çıktı':'',isimsizMi(p)&&p.excelAd?'Excel: '+esc(p.excelAd):''].filter(Boolean).join(' · ')}</span></td>
      ${CAL?`     <td class="bi"><select data-x="gorev" ${dis}>${g?'':opt('','Seçin',true)}${GOREVLER.map(x=>opt(x.ad,x.ad,g&&g.ad===x.ad)).join('')}</select></td>
      <td class="bi">${`<select data-x="sekil" ${disB} ${g&&g.sekil?'disabled':''}>${g&&g.sekil?opt(g.sekil,'Esnaf',true):['Tam','Part'].map(x=>opt(x,x,(p.sekil==='Part'?'Part':'Tam')===x)).join('')}</select>`}</td>
      <td class="bi sbh"><div class="sbz">${(()=>{const sgk=p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:'';const ms=odemeSubesi(p,ayKey(today()));
@@ -1181,7 +1181,7 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
   if(C.length){body+=accTr('cik','Çıkış yapanlar',C.length);if(acc.cik)C.forEach(p=>{body+=satir(p,L.indexOf(p));});}
   if(Pall.length){body+=accTr('pas','Pasifler',Pall.length);if(acc.pas){body+=`<tr><td class="l" colspan="${CS+1}"><input class="pasAra" placeholder="Ad ile ara" value="${esc(S.pasAra||'')}" autocomplete="off"></td></tr>`;Pf.forEach(p=>{body+=satir(p,L.indexOf(p));});}}
   const h=`<div class="actions"><button class="btn primary grow" id="addP">Personel ekle</button>${isSube()?'':`<button class="btn grow" id="addX">Excel'den yapıştır</button>`}</div>
-   <p class="note" style="margin-top:0">${esc(sube().ad)} · ${(()=>{const dis=Lsay.filter(p=>p.anaSube!==S.subeId&&p.sgkSube!==S.subeId&&ekSubeleri(p).includes(S.subeId)).length;return dis&&!isSube()?`${Lsay.length-dis} kişi + ${dis} diğer şubeden`:`${Lsay.length} kişi`;})()}${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi eksik</b>`:''} · ${CAL?'Hücreye tıklayıp değiştirin, anında kaydedilir.':'Excel\'den kopyalayıp yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.'}</p>
+   <p class="note" style="margin-top:0">${esc(sube().ad)} · ${(()=>{const dis=Lsay.filter(p=>p.anaSube!==S.subeId&&p.sgkSube!==S.subeId&&ekSubeleri(p).includes(S.subeId)).length;return dis&&!isSube()?`${Lsay.length-dis} kişi + ${dis} diğer şubeden`:`${Lsay.length} kişi`;})()}${eksik?` · <b style="color:var(--warn)">${eksik} kişide görev ya da SGK şubesi eksik</b>`:''}${isz?` · <b style="color:var(--warn)">${isz} isimsiz kişinin adı yazılmadı</b>`:''} · ${CAL?'Hücreye tıklayıp değiştirin, anında kaydedilir.':'Excel\'den kopyalayıp yapıştırabilirsiniz; ilk sütun isimse satırlar isimle eşleşir.'}</p>
    <div class="seg" id="pGor" style="margin-bottom:10px"><button data-v="calisma" class="${CAL?'on':''}">Çalışma bilgileri</button><button data-v="iletisim" class="${CAL?'':'on'}">İletişim ve banka</button></div>
    ${CAL?mobilListe(A,C,Pall,Pf,td):''}
    <div class="tbl-wrap ${CAL?'bl-cal':''}" style="scroll-padding-left:165px"><table class="pt bl sade ${CAL?'cal':''}" id="blTbl" data-n="${L.length}"><thead><tr><th class="l">Ad soyad</th>${CAL?`<th>Görev</th><th>Şekil</th><th class="l">Şubeler</th><th>Deneme</th><th>SGK giriş</th><th>Çıkış</th>`:''}${F.map(f=>`<th>${f.ad}</th>`).join('')}<th></th></tr></thead>
@@ -1198,7 +1198,11 @@ function renderBilgiListesi(){const T=byId('blTbl');const gor=S.pgor||'calisma';
       // Tarih alanı yazılırken her rakamda değişiklik gelir; sadece alandan çıkınca ve yıl tamamsa kaydet.
       if(tarihMi){el.onchange=null;el.onkeydown=e=>{if(e.key==='Enter')el.blur();};}
       el[tarihMi?'onblur':'onchange']=()=>{const p=pOf(el);if(!p)return;const v=el.value;if(tarihMi){if(v===(p[x]||''))return;if(v&&(+v.slice(0,4)<1990||+v.slice(0,4)>2100))return geri(el,'Tarih hatalı, yılı 4 haneli yazın.',p[x]||'');}
-        if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,sgkCakismaMesaj(c),adBuyuk(p.ad));el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
+        if(x==='ad'){const ad=adBuyuk(v);if(!ad)return geri(el,'Ad soyad boş olamaz.',adBuyuk(p.ad));const c=sgkCakisma(p,p.sgkSube,ad);if(c)return geri(el,sgkCakismaMesaj(c),adBuyuk(p.ad));
+          // İsimsiz kayda şubede zaten olan birinin adı verilirse: aynı kişiyse günleri iki kayıtta kalır, iki kez sayılır.
+          if(isimsizMi(p)&&ad!==adBuyuk(p.ad)){const ana=p.anaSube||S.subeId;const ay=subePersoneli(ana).find(y=>y.id!==p.id&&isimAnahtar(y.ad)===isimAnahtar(ad)&&!(y.cikis&&y.cikis<ymd(today())));
+            if(ay&&!confirm(`${subeAdi(ana)} listesinde ${adBuyuk(ay.ad)} zaten var.\n\nBu isimsiz kayıt o kişiyse İptal'e basın: çizelge günleri iki ayrı kayıtta kalır ve iki kez sayılır.\n\nFarklı kişiyse Tamam'a basın.`))return geri(el,'Ad değiştirilmedi.',adBuyuk(p.ad));}
+          el.value=ad;if(ad!==p.ad)yaz1(p,{ad});return;}
         if(x==='gorev'){const g=gorevBul(v);if(!g)return;const body={gorev:g.ad,grup:g.grup,sekil:g.sekil||(p.sekil==='Part'?'Part':'Tam')};yaz1(p,gorevSatirYama(p,body),true);return;}
         if(x==='sekil'){yaz1(p,gorevSatirYama(p,{sekil:v}));return;}
         if(x==='maasYeri'){const ak=ayKey(today());const sgk0=p.sgkSube&&p.sgkSube!==SGK_YOK?p.sgkSube:'';const my=v===sgk0&&v!==(p.anaSube||S.subeId)?'sgk':'calistigi';const ym=maasGecmisYama(p,v,ak);yaz1(p,{maasYeri:my,...(ym||{})},true);const hs=odemeSubesi(p,ak);toast(`${ayAdi(ak<BASLANGIC_AY?BASLANGIC_AY:ak)} ayından itibaren maaşı ${subeAdi(hs)} puantajında; önceki aylar değişmez.${hs!==p.sgkSube&&p.sgkSube&&p.sgkSube!==SGK_YOK?` Muhasebe ${subeAdi(p.sgkSube)}'de kalır.`:''}`);return;}
@@ -1302,7 +1306,7 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
   const gorevOpt=GOREVLER.filter(g=>id||!gr||g.grup===gr).map(g=>`<option value="${esc(g.ad)}" ${gv===g.ad?'selected':''}>${esc(g.ad)}</option>`).join('');
   const buAy=ayKey(today());const gayOpt=(()=>{const L=[];for(let k=BASLANGIC_AY;k<=buAy;k=ayKaydir(k,1))L.push(k);return L.reverse().map(k=>`<option value="${k}" ${k===buAy?'selected':''}>${esc(ayAdi(k))}</option>`).join('');})();
   openSheet(`<h2>${id?'Personeli düzenle':eskiK?'Yeniden işe giriş':'Yeni personel · '+GRUP[gr||'K']}</h2><div class="sub">${yaz?'İsim puantaj ve bordro eşleşmesinde kullanılır, bordrodaki gibi yazın.':'Bu kişi başka bir şubeye kayıtlı; bilgilerini o şube düzenler.'}</div>
-   <label class="field"><span>Ad soyad (büyük harf)</span><input id="pAd" value="${esc(adBuyuk(p.ad))}" autocomplete="off" autocapitalize="characters" ${yaz?'':'disabled'}></label>${id?'':'<div id="pEski"></div>'}
+   <label class="field"><span>Ad soyad (büyük harf)</span><input id="pAd" value="${esc(adBuyuk(p.ad))}" autocomplete="off" autocapitalize="characters" ${yaz?'':'disabled'}></label>${id?'':'<div id="pEski"></div>'}${id&&isimsizMi(p)&&p.excelAd?`<p class="note" style="margin:-4px 0 10px">Excel'deki adı: <b>${esc(p.excelAd)}</b> · doğru ad soyadı yazın.</p>`:''}
    <label class="field"><span>Görev</span><select id="pGorev" ${yaz?'':'disabled'}><option value="">Seçin</option>${gorevOpt}</select></label>
    <div id="pSekilW"><span class="lbl">Çalışma şekli</span><div class="seg" id="pSekil">${['Tam','Part'].map(x=>`<button data-v="${x}" class="${(p.sekil==='Part'?'Part':'Tam')===x?'on':''}" ${yazB?'':'disabled'}>${x}</button>`).join('')}</div></div>
    ${id&&yaz?`<label class="field" id="pGayW" hidden><span>Yeni görev / şekil hangi aydan geçerli</span><select id="pGay">${gayOpt}</select><small class="note" style="margin:4px 0 0;display:block">Önceki aylar eski görevle kalır. Yanlış girilmiş görevi düzeltiyorsanız ${esc(ayAdi(BASLANGIC_AY))} seçin.</small></label>`:''}
@@ -1341,7 +1345,7 @@ function personelPanel(id,gr,opt={}){const eskiK=!id&&opt.eski?S.personel.find(x
      // Bir kişi sadece bir şubede SGK'lı olabilir: aynı isim ya da TC'li başka kayıt başka şubede SGK'lıysa kaydetme.
      if(!subeK&&sgkV!==SGK_YOK){const tcK=p.tc||'';const cak=sgkCakisma({...p,id,tc:tcK},sgkV,ad,byId('pGiris').value,byId('pCikis').value);
        if(cak){W.innerHTML=`<div class="confirm bad">${esc(sgkCakismaMesaj(cak))} Aynı dönemde başka şubede de çalışıyorsa SGK şubesini ${esc(subeAdi(cak.sgkSube))} bırakın, "Çalıştığı şube"yi değiştirin.</div>`;return;}}
-     const anaS=subeK?(id?(p.anaSube||S.subeId):S.subeId):(byId('pAna').value||S.subeId);const ayni=subePersoneli(anaS).find(x=>x.id!==id&&isimAnahtar(x.ad)===isimAnahtar(ad)&&!(x.cikis&&x.cikis<ymd(today())));if(ayni&&!W.dataset.ok){W.dataset.ok='1';W.innerHTML=`<div class="confirm">${esc(subeAdi(anaS))} listesinde bu isimde biri zaten var. Aynı kişiyse yeni kayıt açmayın. Farklı kişiyse tekrar Kaydet'e basın.</div>`;return;}
+     const anaS=subeK?(id?(p.anaSube||S.subeId):S.subeId):(byId('pAna').value||S.subeId);const ayni=subePersoneli(anaS).find(x=>x.id!==id&&isimAnahtar(x.ad)===isimAnahtar(ad)&&!(x.cikis&&x.cikis<ymd(today())));if(ayni&&!W.dataset.ok){W.dataset.ok='1';W.innerHTML=isimsizMi(p)?`<div class="confirm bad">${esc(subeAdi(anaS))} listesinde ${esc(adBuyuk(ayni.ad))} zaten var. Bu isimsiz kayıt o kişiyse kaydetmeyin: çizelge günleri iki ayrı kayıtta kalır ve iki kez sayılır. Farklı kişiyse tekrar Kaydet'e basın.</div>`:`<div class="confirm">${esc(subeAdi(anaS))} listesinde bu isimde biri zaten var. Aynı kişiyse yeni kayıt açmayın. Farklı kişiyse tekrar Kaydet'e basın.</div>`;return;}
      const bilgi={...((!id&&eskiB&&eskiB.o)||{})};
      const giris=subeK?(id?(p.giris||''):''):byId('pGiris').value,cikis=subeK?(id?(p.cikis||''):''):byId('pCikis').value;if(giris&&cikis&&cikis<giris){W.innerHTML='<div class="confirm">Çıkış tarihi girişten önce olamaz.</div>';return;}
      const sekil=g.sekil||(subeK?(id&&p.sekil&&p.sekil!=='Esnaf kurye'?p.sekil:'Tam'):sh.querySelector('#pSekil .on').dataset.v);const ana=anaS;
@@ -2397,6 +2401,16 @@ function isimEslestir(liste,dogru){
     if(ad.length>1){belirsiz.push({id:x.id,ad:a,adaylar:ad.map(c=>c.d)});return;}
     const dg=ad[0].d;if(var_.has(dg)||yeni.some(y=>y.dogru===dg))birles.push({id:x.id,ad:a,dogru:dg});else yeni.push({id:x.id,ad:a,dogru:dg});});
   return {yeni,birles,belirsiz};}
+// Aktarımda adı sonra yazılacak kişi "İSİMSİZ 3" diye açılır; Excel'deki adı excelAd'da kalır (ipucu ve sonraki aktarımda eşleşme için).
+// Numara şirket genelinde tektir: aynı adlı iki kayıt aynı kişi sayıldığından iki "İSİMSİZ 1" olmamalı.
+function isimsizMi(p){return !!p&&/^İSİMSİZ \d+$/.test(adBuyuk(p.ad));}
+function isimsizSonNo(){let n=0;S.personel.forEach(p=>{const m=adBuyuk(p.ad).match(/^İSİMSİZ (\d+)$/);if(m)n=Math.max(n,+m[1]);});return n;}
+// Excel'de adı tutmayan satırı, aynı haftalar daha önce aktarılmışsa çizelge verisinden tanır (ör. adı sonradan düzeltilmiş kişi).
+// g: [[hafta, gün, değer]]. Aday: ortak dolu günlerinin %90'ı ve Excel'in o haftalardaki günlerinin %80'i aynı, en az 5 gün; ikinci güçlü aday varsa önerilmez.
+function izEslestir(g,adaylar,H){
+  const L=adaylar.map(p=>{let ayni=0,dolu=0,tot=0;g.forEach(([w,i,x])=>{const c=H[w]&&H[w].cells&&H[w].cells[p.id];if(!c||!Object.values(c).some(v=>v!=null&&v!==''))return;tot++;const y=c[String(i)];if(y==null||y==='')return;dolu++;if(y===x)ayni++;});return{p,ayni,dolu,tot};})
+    .filter(s=>s.ayni>=5&&s.ayni>=0.9*s.dolu&&s.ayni>=0.8*s.tot).sort((a,b)=>b.ayni-a.ayni);
+  if(!L.length||(L[1]&&L[1].ayni>=0.6*L[0].ayni))return null;return L[0];}
 function xAd(s){return adBuyuk(s);}
 function xSekil(s){s=String(s||'').toLocaleUpperCase('tr-TR');return s.includes('PART')?'Part':s.includes('ESNAF')?'Esnaf kurye':'Tam';}
 function excelCoz(X,wb){const val=(ws,r,c)=>{const x=ws[X.utils.encode_cell({r,c})];return x?x.v:null;};const sayfalar=[];let liste=null;
@@ -2431,28 +2445,48 @@ function excelAktarPanel(sid){const sb=sube(sid);
      byId('xOn').onclick=()=>{const sec=[...O.querySelectorAll('input[type=checkbox]:checked')].map(i=>i.value);if(!sec.length){toast('En az bir sayfa seçin.');return;}
        const haftalar={};sirali.filter(s=>sec.includes(s.name)).forEach(s=>s.hafta.forEach(h=>{const w=haftalar[h.mon]||(haftalar[h.mon]={});Object.entries(h.kisiler).forEach(([k,v])=>{w[k]={ad:v.ad,gun:{...((w[k]||{}).gun||{}),...v.gun}};});}));
        const kisi={};Object.values(haftalar).forEach(w=>Object.entries(w).forEach(([k,v])=>{if(!kisi[k])kisi[k]={ad:v.ad,vardiya:0};kisi[k].vardiya+=Object.keys(v.gun).length;}));
-       const mevcut={};subePersoneli(sid).forEach(p=>mevcut[isimAnahtar(p.ad)]=p);
+       // Kişi satır sırasıyla değil Excel'deki adıyla eşleşir (her haftada sıra değişebilir). Önce ad soyad, sonra önceki aktarımda saklanan Excel adı.
+       const SP=subePersoneli(sid);const mevcut={};
+       SP.forEach(p=>{if(!p.excelAd)return;const k=isimAnahtar(p.excelAd);if(!mevcut[k]||(isimsizMi(mevcut[k])&&!isimsizMi(p)))mevcut[k]=p;});
+       SP.forEach(p=>{mevcut[isimAnahtar(p.ad)]=p;});
        const keys=Object.keys(kisi).sort((a,b)=>kisi[a].ad.localeCompare(kisi[b].ad,'tr'));
-       byId('xOn2').innerHTML=`<span class="lbl">Personel · ${keys.length} kişi</span><p class="note" style="margin:0 0 8px">Yeni kişilerin görevini ve SGK şubesini seçin. Mevcut personel aynen kalır.</p>
-        <div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">İsim</th><th>Durum</th><th>Görev</th><th>SGK şubesi</th><th>Giriş</th><th>Çıkış</th></tr></thead><tbody>${keys.map(k=>{const m=mevcut[k],l=(P.liste||{})[k]||{};
-          return `<tr><td class="l"><b>${esc(kisi[k].ad)}</b><br><span class="tag">${kisi[k].vardiya} gün</span>${l.sekil&&!m?` <span class="tag">${esc(l.sekil)}</span>`:''}</td><td>${m?'<span class="chip ok">Mevcut</span>':'<span class="chip warn">Yeni</span>'}</td>
+       const tutan=new Set(keys.filter(k=>mevcut[k]).map(k=>mevcut[k].id));
+       const adaylar=SP.filter(p=>!tutan.has(p.id)).sort((a,b)=>adBuyuk(a.ad).localeCompare(adBuyuk(b.ad),'tr'));
+       // Adı tutmayan satır: aynı haftalar daha önce aktarıldıysa çizelgesi aynı olan kişi seçili gelir (aynı kişi iki kayıt olmasın).
+       const H=S.subeId===sid?S.haftalar:{};const oneri={};
+       keys.filter(k=>!mevcut[k]).forEach(k=>{const g=[];Object.entries(haftalar).forEach(([mon,w])=>{if(w[k])Object.entries(w[k].gun).forEach(([i,x])=>g.push([mon,i,x]));});
+         const e=izEslestir(g,adaylar,H);if(e&&(!oneri[e.p.id]||oneri[e.p.id].ayni<e.ayni))oneri[e.p.id]={k,...e};});
+       const oneriK={};Object.values(oneri).forEach(o=>{oneriK[o.k]=o;});const izBas=isimsizSonNo();
+       byId('xOn2').innerHTML=`<span class="lbl">Personel · ${keys.length} kişi</span><p class="note" style="margin:0 0 8px">Kişiler satır sırasıyla değil Excel'deki adıyla eşleşir. Listede olmayanlar "İsimsiz" açılır; adını sonra Personel'de yazarsınız, Excel'deki adı altında görünür. Kişi listede başka adla varsa "Kim?" sütunundan seçin. Yeni kişilerin görevini ve SGK şubesini seçin.</p>
+        <div class="tbl-wrap"><table class="pt"><thead><tr><th class="l">Excel'deki isim</th><th>Kim?</th><th>Görev</th><th>SGK şubesi</th><th>Giriş</th><th>Çıkış</th></tr></thead><tbody>${keys.map(k=>{const m=mevcut[k],l=(P.liste||{})[k]||{};const o=oneriK[k];
+          return `<tr><td class="l"><b>${esc(kisi[k].ad)}</b><br><span class="tag">${kisi[k].vardiya} gün</span>${l.sekil&&!m?` <span class="tag">${esc(l.sekil)}</span>`:''}</td><td>${m?`<span class="chip ok">Mevcut</span>${adBuyuk(m.ad)!==kisi[k].ad?`<br><span class="tag">${esc(adBuyuk(m.ad))}</span>`:''}`:`<select data-k="${esc(k)}" data-t="k"><option value="__isz">İsimsiz</option><option value="__ad">Excel'deki adla aç</option>${adaylar.map(p=>`<option value="${esc(p.id)}" ${o&&o.p.id===p.id?'selected':''}>${esc(adBuyuk(p.ad))}${isimsizMi(p)&&p.excelAd?' (Excel: '+esc(p.excelAd)+')':''}${p.cikis?' · çıkış '+trTarih(p.cikis):''}</option>`).join('')}</select>${o?`<br><span class="tag">çizelgesi tutuyor · ${o.ayni}/${o.dolu} gün</span>`:''}`}</td>
           <td>${m?esc(gorevTahmin(m)):`<select data-k="${esc(k)}" data-t="g"><option value="">Seçin</option>${GOREVLER.map(g=>`<option value="${esc(g.ad)}" ${(l.sekil==='Esnaf kurye'&&g.ad==='Esnaf Kurye')?'selected':''}>${esc(g.ad)}</option>`).join('')}</select>`}</td>
           <td>${m?esc(m.sgkSube===SGK_YOK?'Boş':m.sgkSube?subeAdi(m.sgkSube):'—'):`<select data-k="${esc(k)}" data-t="s"><option value="${SGK_YOK}">Boş</option>${tumSubeler().map(([id2,ad2])=>`<option value="${esc(id2)}" ${id2===sid?'selected':''}>${esc(ad2)}</option>`).join('')}</select>`}</td><td>${trTarih(m?m.giris:l.giris)}</td><td>${trTarih(m?m.cikis:l.cikis)}</td></tr>`;}).join('')}</tbody></table></div>
         <p class="note">${Object.keys(haftalar).length} hafta aktarılacak. Aynı haftada çizelgede daha önce girilmiş günler Excel'deki değerle değiştirilir.</p>
         <div class="row2"><button class="btn grow" id="xNo">Vazgeç</button><button class="btn primary grow" id="xOk">Aktar</button></div>`;
        byId('xNo').onclick=closeSheet;
-       byId('xOk').onclick=async()=>{const eksik=keys.filter(k=>!mevcut[k]&&!gorevBul((byId('xOn2').querySelector(`select[data-t="g"][data-k="${CSS.escape(k)}"]`)||{}).value));
+       const X2=byId('xOn2');const sel=(k,t)=>X2.querySelector(`select[data-t="${t}"][data-k="${CSS.escape(k)}"]`);const kim=k=>{const s=sel(k,'k');return s?s.value:null;};
+       // İsimsiz numaraları tablo sırasıyla verilir; seçim değişince yeniden sıralanır. Mevcut kişi seçilen satırda görev / SGK seçilmez.
+       const izAdlari=()=>{const o={};let n=izBas;keys.forEach(k=>{if(!mevcut[k]&&kim(k)==='__isz')o[k]='İSİMSİZ '+(++n);});return o;};
+       const guncelle=()=>{const iz=izAdlari();keys.forEach(k=>{const s=sel(k,'k');if(!s)return;s.options[0].textContent=iz[k]?adBaslik(iz[k]):'İsimsiz';const yeni=s.value==='__isz'||s.value==='__ad';['g','s'].forEach(t=>{const x=sel(k,t);if(x)x.disabled=!yeni;});});};
+       X2.querySelectorAll('select[data-t="k"]').forEach(s=>s.onchange=guncelle);guncelle();
+       byId('xOk').onclick=async()=>{const iz=izAdlari();const hedef={};// Excel adı → mevcut kayıt
+         keys.forEach(k=>{if(mevcut[k]){hedef[k]=mevcut[k];return;}const v=kim(k);if(v&&v!=='__isz'&&v!=='__ad'){const p=S.personel.find(x=>x.id===v);if(p)hedef[k]=p;}});
+         const say={};Object.values(hedef).forEach(p=>{say[p.id]=(say[p.id]||0)+1;});const cift=[...new Set(Object.values(hedef).filter(p=>say[p.id]>1).map(p=>adBuyuk(p.ad)))];
+         if(cift.length){toast(`${cift.join(', ')} birden fazla Excel satırına seçildi. Her kişi tek satıra seçilebilir.`);return;}
+         const eksik=keys.filter(k=>!hedef[k]&&!gorevBul((sel(k,'g')||{}).value));
          if(eksik.length){toast(`${eksik.length} kişinin görevi seçilmedi.`);return;}
          const btn=byId('xOk');btn.disabled=true;btn.textContent='Aktarılıyor…';const pidOf={};const ops=[];
-         keys.forEach(k=>{const m=mevcut[k];if(m){pidOf[k]=m.id;const lb=((P.liste||{})[k]||{}).bilgi||{};const ek={};Object.entries(lb).forEach(([f,v])=>{if(v&&!m[f])ek[f]=v;});if(Object.keys(ek).length)ops.push([doc(db,'personel',m.id),ek,true]);return;}const l=(P.liste||{})[k]||{};const pid=slug(kisi[k].ad)+'-'+Math.random().toString(36).slice(2,6);pidOf[k]=pid;
-           const g=gorevBul(byId('xOn2').querySelector(`select[data-t="g"][data-k="${CSS.escape(k)}"]`).value);const sgkV=byId('xOn2').querySelector(`select[data-t="s"][data-k="${CSS.escape(k)}"]`).value;
-           ops.push([doc(db,'personel',pid),{ad:kisi[k].ad,grup:g.grup,gorev:g.ad,sekil:g.sekil||(l.sekil==='Part'?'Part':'Tam'),giris:l.giris||'',cikis:l.cikis||'',sgkSube:sgkV,anaSube:sid,...(l.bilgi||{})},false]);});
+         keys.forEach(k=>{const m=hedef[k];if(m){pidOf[k]=m.id;const lb=((P.liste||{})[k]||{}).bilgi||{};const ek={};Object.entries(lb).forEach(([f,v])=>{if(v&&!m[f])ek[f]=v;});if(!mevcut[k]&&!m.excelAd)ek.excelAd=kisi[k].ad;if(Object.keys(ek).length)ops.push([doc(db,'personel',m.id),ek,true]);return;}
+           const l=(P.liste||{})[k]||{};const ad=iz[k]||kisi[k].ad;const pid=slug(ad)+'-'+Math.random().toString(36).slice(2,6);pidOf[k]=pid;
+           const g=gorevBul(sel(k,'g').value);const sgkV=sel(k,'s').value;
+           ops.push([doc(db,'personel',pid),{ad,excelAd:kisi[k].ad,grup:g.grup,gorev:g.ad,sekil:g.sekil||(l.sekil==='Part'?'Part':'Tam'),giris:l.giris||'',cikis:l.cikis||'',sgkSube:sgkV,anaSube:sid,...(l.bilgi||{})},false]);});
          let atla=0;Object.entries(haftalar).forEach(([mon,w])=>{const cells={};Object.entries(w).forEach(([k,v])=>{cells[pidOf[k]]=Object.fromEntries(Object.entries(v.gun).map(([i,x])=>[String(i),x]));});
            // Var olan haftanın listesi korunur (yeni kişiler eklenir), durumu değişmez; kapatılmış / onaylı haftaya yazılmaz.
            const e=S.subeId===sid?S.haftalar[mon]:null;if(e&&e.hd&&e.hd!=='acik'){atla++;return;}const k0=e?(Array.isArray(e.kadro)?e.kadro:Object.keys(e.cells||{})):[];
            ops.push([doc(db,'subeler',sid,'haftalar',mon),{hafta:mon,ay2:ayKey(addDays(parse(mon),6)),kadro:[...k0,...Object.keys(cells).filter(x=>!k0.includes(x))],...(e?{}:{hd:'acik'}),cells},true]);});
          try{for(let i=0;i<ops.length;i+=400){const b=writeBatch(db);ops.slice(i,i+400).forEach(([r,d,m])=>m?b.set(r,d,{merge:true}):b.set(r,d));await b.commit();}
-           closeSheet();toast(`${Object.keys(haftalar).length-atla} hafta ve ${keys.length} kişi aktarıldı.${atla?` ${atla} kapatılmış / onaylı hafta atlandı.`:''}`);if(S.subeId!==sid)selectSube(sid);}
+           const nIz=Object.keys(iz).length;closeSheet();toast(`${Object.keys(haftalar).length-atla} hafta ve ${keys.length} kişi aktarıldı.${atla?` ${atla} kapatılmış / onaylı hafta atlandı.`:''}${nIz?` ${nIz} kişi isimsiz açıldı, adlarını Personel'de yazın.`:''}`);if(S.subeId!==sid)selectSube(sid);}
          catch(e){btn.disabled=false;btn.textContent='Aktar';yazmaHatasi(e);}};};};});}
 
 /* ================= Yedek (işveren) =================
