@@ -113,7 +113,7 @@ window.addEventListener('beforeunload',e=>{if(KAYIT.n>0){e.preventDefault();e.re
 /* ================= Sürüm kontrolü =================
    sistem/surum.min: kayıt yapabilecek en eski uygulama sürümü. İşveren yeni sürümü açınca min yükselir; eski sürümle açık kalan
    telefonlar yazamaz, "yenileyin" ekranı görür (eski kodun hatalı kayıt yapması engellenir). Her yayında APP_SURUM bir artırılır. */
-const APP_SURUM=178;
+const APP_SURUM=179;
 /* ================= Durum ================= */
 const S={subeAdlari:{},user:null,me:null,meYuklendi:false,kurulumVar:null,subeler:{},subeIds:[],subeId:null,personel:[],haftalar:{},aylar:{},
   loaded:{personel:false,haftalar:false},tab:'cizelge',hafta:null,ay:null,
@@ -661,6 +661,14 @@ async function gocKontrol(){if(!isIsveren()||S.gocBakildi||!S.subeIds.length||!S
       else if(confirm('İsimler düzeltilsin mi? ('+E.yeni.length+')\n\n'+E.yeni.map(x=>x.ad+' → '+x.dogru).join('\n')+(E.birles.length?'\n\nZaten kaydı olduğu için DOKUNULMAYAN (elle birleştirilecek):\n'+E.birles.map(x=>x.ad+' → '+x.dogru).join('\n'):'')+(E.belirsiz.length?'\n\nBelirsiz (DOKUNULMAYAN):\n'+E.belirsiz.map(x=>x.ad+' → '+x.adaylar.join(' / ')).join('\n'):''))){
         const b=writeBatch(db);E.yeni.forEach(x=>{b.set(doc(db,'personel',x.id),{ad:x.dogru},{merge:true});const p=S.personel.find(q=>q.id===x.id);if(p)p.ad=x.dogru;});await b.commit();
         await setDoc(doc(db,'sistem','goc'),{v5:true},{merge:true});toast(`${E.yeni.length} personelin adı düzeltildi.`);render();}}
+    // v6: giriş/çıkış tarihi düzeltmeleri (4 kişi, işveren seçimi; onaylanınca yazılır)
+    if(gd.v5&&!gd.v6){const T=[['EDA ELİBOL',{cikis:'2026-08-18'}],['EMRE AŞMA',{giris:'2026-06-15',cikis:'2026-09-28'}],['ELİF KARACA',{giris:'2026-05-04'}],['BERKAY EKİCİ',{giris:'2026-06-12'}]];
+      const trh=v=>{const t=String(v||'').split('-');return t.length===3?`${t[2]}.${t[1]}.${t[0]}`:'boş';};
+      const Y=[];T.forEach(([ad,d])=>{const L=S.personel.filter(p=>adBuyuk(p.ad)===ad);if(L.length!==1)return;const p=L[0];const f=Object.entries(d).filter(([k,v])=>(p[k]||'')!==v);if(f.length)Y.push({p,ad,f});});
+      if(!Y.length){await setDoc(doc(db,'sistem','goc'),{v6:true},{merge:true});}
+      else if(confirm('Tarihler düzeltilsin mi?\n\n'+Y.map(y=>y.ad+': '+y.f.map(([k,v])=>(k==='giris'?'giriş ':'çıkış ')+trh(y.p[k])+' → '+trh(v)).join(', ')).join('\n')+'\n\nOnaylı/kilitli aylardaki SGK günleri bu tarihlere göre değişebilir; önce kontrol edin.')){
+        const b=writeBatch(db);Y.forEach(y=>{const o=Object.fromEntries(y.f);b.set(doc(db,'personel',y.p.id),o,{merge:true});Object.assign(y.p,o);});await b.commit();
+        await setDoc(doc(db,'sistem','goc'),{v6:true},{merge:true});toast(`${Y.length} personelin tarihi düzeltildi.`);render();}}
     // v4: haftalık kapatma. Haftalara durum yazılır: kapatılmış/onaylanmış aya ait haftalar "onay" (şube müdürüne gizlenir), diğerleri "acik".
     if(!gd.v4){let n=0;const t=new Date().toISOString();
       for(const sid of S.subeIds){const aq=await getDocs(collection(db,'subeler',sid,'aylar'));const ay={};aq.docs.forEach(d=>ay[d.id]=(d.data()||{}).durum);const kil=k=>['bolge_onay'].includes(ay[k]);
